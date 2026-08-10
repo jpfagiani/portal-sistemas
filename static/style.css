@@ -793,6 +793,34 @@ textarea{resize:vertical}
 .previa-larga{max-height:200px;object-fit:cover;width:100%}
 .previa-logo{max-height:90px;width:auto;padding:.5rem;background:var(--cartao-suave)}
 
+/* ── enquadramento do banner ───────────────────────────────────────────────
+   A foto inteira à esquerda com um alvo arrastável; à direita, o corte como
+   ele sai na capa. A proporção da prévia é a da capa real (largura cheia por
+   190px de altura), senão o corte mostrado aqui não seria o mesmo de lá. */
+.enquadra{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;
+  align-items:start;margin-top:.4rem}
+.enquadra-fonte{
+  position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--borda);
+  cursor:crosshair;touch-action:none;line-height:0;background:var(--cartao-suave);
+}
+.enquadra-fonte img{width:100%;display:block}
+/* Anel claro com borda escura: fica visível tanto sobre céu quanto sobre
+   sombra, sem depender da cor da foto. */
+.enquadra-alvo{
+  position:absolute;width:24px;height:24px;border-radius:50%;
+  border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.55);
+  transform:translate(-50%,-50%);pointer-events:none;
+}
+.enquadra-alvo::after{content:'';position:absolute;inset:8px;border-radius:50%;
+  background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.enquadra-rotulo{display:block;font-size:.68rem;color:var(--texto-fraco);
+  margin-bottom:.25rem}
+.enquadra-previa{
+  aspect-ratio:1400/190;border-radius:8px;border:1px solid var(--borda);
+  background-size:cover;background-repeat:no-repeat;background-color:var(--marinho);
+}
+@media (max-width:700px){.enquadra{grid-template-columns:1fr}}
+
 /* Prévia da capa: as três linhas sobre o mesmo fundo escuro da página
    inicial, para o texto ser conferido sem sair da administração. */
 .capa-previa{

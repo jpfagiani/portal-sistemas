@@ -578,6 +578,23 @@ def medida(valor, padrao, minimo=0.5, maximo=4.0):
     return f'{max(minimo, min(maximo, n)):.2f}'
 
 
+POSICAO_PADRAO = '50% 50%'
+_POSICAO = re.compile(r'^(\d{1,3}(?:\.\d)?)% (\d{1,3}(?:\.\d)?)%$')
+
+
+def posicao_capa(valor):
+    """Enquadramento do banner, como `background-position`.
+
+    Vai cru para dentro de um atributo `style`, então não pode vir do
+    formulário sem conferência: só o par de porcentagens é aceito, e qualquer
+    outra coisa cai no centro."""
+    achado = _POSICAO.match((valor or '').strip())
+    if not achado:
+        return POSICAO_PADRAO
+    x, y = (min(100.0, max(0.0, float(n))) for n in achado.groups())
+    return f'{x:g}% {y:g}%'
+
+
 def cor_hexa(valor, padrao):
     valor = (valor or '').strip()
     return valor if _HEX.match(valor) else padrao
@@ -980,6 +997,8 @@ def init_db():
             # Selo à direita nas reservas — "Disponível", "Em uso até 11:00".
             ('links',    'situacao',  "TEXT DEFAULT ''"),
             ('banners',  'cor',      "TEXT DEFAULT ''"),
+            # Que ponto da foto fica visível quando a capa corta o resto.
+            ('banners',  'posicao',  "TEXT DEFAULT '50% 50%'"),
             ('lateral',  'urgencia', "TEXT NOT NULL DEFAULT 'informacao'"),
             # nenhum | fundo | pulso — chama atenção sem depender de emoji
             ('lateral',  'destaque', "TEXT DEFAULT 'nenhum'"),
@@ -1866,17 +1885,19 @@ def admin_banners():
                      request.form.get('titulo', '').strip(),
                      request.form.get('texto', '').strip(),
                      request.form.get('url', '').strip(),
+                     posicao_capa(request.form.get('posicao')),
                      _int(request.form.get('ordem')),
                      1 if request.form.get('ativo') else 0)
             if ident:
                 if atual and atual != arquivo:
                     remove_upload(atual)
                 con.execute('UPDATE banners SET arquivo=?,cor=?,titulo=?,texto=?,'
-                            'url=?,ordem=?,ativo=? WHERE id=?', dados + (ident,))
+                            'url=?,posicao=?,ordem=?,ativo=? WHERE id=?',
+                            dados + (ident,))
                 flash('Banner atualizado.', 'ok')
             else:
                 con.execute('INSERT INTO banners (arquivo,cor,titulo,texto,url,'
-                            'ordem,ativo) VALUES (?,?,?,?,?,?,?)', dados)
+                            'posicao,ordem,ativo) VALUES (?,?,?,?,?,?,?,?)', dados)
                 flash('Banner adicionado.', 'ok')
         con.commit()
         return redirect(url_for('admin_banners'))

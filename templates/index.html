@@ -67,7 +67,10 @@
       {% for i in banners %}
       <div class="slide {% if loop.first %}ativo{% endif %}"
            {% if i.arquivo %}
-           style="background-image:url('{{ url_for('static', filename='uploads/' ~ i.arquivo) }}')"
+           {# A capa é muito mais larga do que alta, então o `cover` sempre
+              descarta parte da foto. `posicao` diz qual parte fica. #}
+           style="background-image:url('{{ url_for('static', filename='uploads/' ~ i.arquivo) }}');
+                  background-position:{{ i.posicao or '50% 50%' }}"
            {% else %}style="background:{{ i.cor }}"{% endif %}
            {% if i.titulo %}role="img" aria-label="{{ i.titulo }}"{% endif %}>
         {% if i.url %}<a class="slide-link" href="{{ i.url }}" target="_blank"

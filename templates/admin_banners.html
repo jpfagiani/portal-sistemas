@@ -16,12 +16,33 @@
       <input type="hidden" name="id" value="{{ editar.id if editar else '' }}">
 
       <label>Imagem <small>(PNG, JPG, WEBP ou GIF — recomendado 1600×450)</small></label>
-      <input type="file" name="imagem" accept="image/*">
+      <input type="file" name="imagem" accept="image/*" id="banner-arquivo">
       {% if editar and editar.arquivo %}
-        <img class="previa previa-larga"
-             src="{{ url_for('static', filename='uploads/' ~ editar.arquivo) }}" alt="">
         <small>Deixe em branco para manter a imagem atual.</small>
       {% endif %}
+
+      {#  A capa é quase oito vezes mais larga do que alta, então de qualquer
+          foto sobra uma faixa. Aqui se escolhe qual: o alvo marca o ponto da
+          foto que fica no centro da faixa, e a prévia ao lado mostra o corte
+          como ele sai na página inicial. #}
+      <div id="enquadra" {% if not (editar and editar.arquivo) %}hidden{% endif %}>
+        <label>Enquadramento <small>(arraste o alvo sobre a foto)</small></label>
+        <div class="enquadra">
+          <div class="enquadra-fonte" id="enq-fonte">
+            <img id="enq-img" alt=""
+                 {% if editar and editar.arquivo %}
+                 src="{{ url_for('static', filename='uploads/' ~ editar.arquivo) }}"
+                 {% endif %}>
+            <span class="enquadra-alvo" id="enq-alvo"></span>
+          </div>
+          <div>
+            <span class="enquadra-rotulo">Como fica na página inicial</span>
+            <div class="enquadra-previa" id="enq-previa"></div>
+          </div>
+        </div>
+        <input type="hidden" name="posicao" id="enq-valor"
+               value="{{ editar.posicao if editar and editar.posicao else '50% 50%' }}">
+      </div>
 
       <label class="check"><input type="checkbox" name="usar_cor" id="usar-cor"
         {{ 'checked' if editar and editar.cor }}> Usar cor sólida no lugar da imagem</label>
@@ -84,4 +105,76 @@
   </section>
 </div>
 <script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script>
+(function () {
+  var caixa   = document.getElementById('enquadra');
+  if (!caixa) return;
+  var fonte   = document.getElementById('enq-fonte');
+  var img     = document.getElementById('enq-img');
+  var alvo    = document.getElementById('enq-alvo');
+  var previa  = document.getElementById('enq-previa');
+  var valor   = document.getElementById('enq-valor');
+  var arquivo = document.getElementById('banner-arquivo');
+
+  function partes() {
+    var m = /^([\d.]+)% ([\d.]+)%$/.exec(valor.value) || [0, 50, 50];
+    return [parseFloat(m[1]), parseFloat(m[2])];
+  }
+
+  function desenha(x, y) {
+    valor.value = x.toFixed(1).replace(/\.0$/, '') + '% ' +
+                  y.toFixed(1).replace(/\.0$/, '') + '%';
+    alvo.style.left = x + '%';
+    alvo.style.top  = y + '%';
+    previa.style.backgroundPosition = valor.value;
+  }
+
+  // O alvo marca um ponto DA FOTO, e background-position em porcentagem quer
+  // exatamente isso: o ponto x% da imagem encostado no ponto x% da faixa. Por
+  // isso a conta e direta, sem depender do tamanho renderizado.
+  function daPosicao(ev) {
+    var r = fonte.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var x = Math.min(100, Math.max(0, (ev.clientX - r.left) / r.width  * 100));
+    var y = Math.min(100, Math.max(0, (ev.clientY - r.top)  / r.height * 100));
+    desenha(x, y);
+  }
+
+  var arrastando = false;
+  fonte.addEventListener('pointerdown', function (ev) {
+    arrastando = true;
+    daPosicao(ev);
+    // A captura so serve para o ponteiro nao escapar do quadro no meio do
+    // arrasto; se o navegador recusar, arrastar dentro do quadro continua
+    // funcionando. Por isso ela vem depois, e nao derruba o resto.
+    try { fonte.setPointerCapture(ev.pointerId); } catch (e) {}
+    ev.preventDefault();
+  });
+  fonte.addEventListener('pointermove', function (ev) {
+    if (arrastando) daPosicao(ev);
+  });
+  fonte.addEventListener('pointerup', function () { arrastando = false; });
+  fonte.addEventListener('pointercancel', function () { arrastando = false; });
+
+  function usaImagem(src) {
+    img.src = src;
+    previa.style.backgroundImage = 'url("' + src + '")';
+    caixa.hidden = false;
+    var p = partes();
+    desenha(p[0], p[1]);
+  }
+
+  // Enquadrar já no envio: sem isto seria preciso salvar, reabrir em Editar e
+  // só então escolher o corte.
+  if (arquivo) {
+    arquivo.addEventListener('change', function () {
+      var f = arquivo.files && arquivo.files[0];
+      if (!f) return;
+      desenha(50, 50);
+      usaImagem(URL.createObjectURL(f));
+    });
+  }
+  if (img.getAttribute('src')) usaImagem(img.getAttribute('src'));
+})();
+</script>
 {% endblock %}
