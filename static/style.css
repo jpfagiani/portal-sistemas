@@ -401,15 +401,16 @@ a.comunicado:hover .titulo{color:var(--azul)}
   line-height:1.5;margin-top:.15rem;text-align:justify;text-justify:inter-word;
   overflow-wrap:anywhere;
 }
-/* Recuo pendente: a linha começa na margem e o que dobra alinha com o texto,
+/* `pre-wrap`: espaços digitados são preservados, para o ajuste fino à mão. */
+.linha-com{display:block;white-space:pre-wrap}
+/* Recuo pendente, só nas linhas que abrem com marcador (o filtro `linhas`
+   decide quais): a linha começa na margem e o que dobra alinha com o texto,
    não com o emoji. `padding-left` empurra tudo, `text-indent` negativo puxa a
    primeira linha de volta — a diferença é a sobra onde o emoji fica.
-   `pre-wrap` continua aqui: espaços digitados somam a esse recuo, para o
-   ajuste fino. */
-.linha-com{
-  display:block;white-space:pre-wrap;
-  padding-left:1.7em;text-indent:-1.7em;
-}
+   Em prosa corrida não há marcador à esquerda, e aplicar isto ali empurrava
+   para a direita cada linha dobrada, deixando o parágrafo torto em relação ao
+   título e ao link. */
+.linha-recuo{padding-left:1.7em;text-indent:-1.7em}
 /* Linha em branco não colapsa: é respiro escolhido por quem escreveu. */
 .linha-vazia{height:.55em}
 .comunicado .quando{display:block;font-size:.68rem;color:var(--texto-fraco);margin-top:.25rem}

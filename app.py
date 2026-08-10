@@ -1322,6 +1322,17 @@ def _texto_longo(texto, linhas=5, caracteres=320):
     return len(texto.splitlines()) > linhas or len(texto) > caracteres
 
 
+# Linha que começa por marcador: emoji, bullet, travessão, "1." ou "a)". Só
+# essas ganham recuo pendente — é para elas que ele foi feito, para o texto que
+# dobra alinhar embaixo do texto e não embaixo do símbolo. Em prosa corrida não
+# há símbolo à esquerda, e o recuo virava um degrau em toda linha que dobrava.
+_MARCADORES = '-–—*+•·▪▫◦‣⁃▶►'
+_MARCADOR = re.compile(
+    rf'^\s*(?:[{re.escape(_MARCADORES)}]|\d{{1,3}}[.)]|[a-zA-Z][.)])\s'
+    r'|^\s*[←-⇿☀-➿⬀-⯿\U0001F000-\U0001FAFF]'
+)
+
+
 @app.template_filter('linhas')
 def _linhas(texto):
     """Cada linha do comunicado vira um bloco próprio.
@@ -1331,11 +1342,23 @@ def _linhas(texto):
     numa lista. Não dá para fazer isso digitando espaço, porque o ponto da
     quebra muda com a largura da tela.
 
+    O recuo vale só para linha que abre com marcador. Aplicado a todas, ele
+    deslocava para a direita cada linha dobrada de um parágrafo comum, sem nada
+    à esquerda que justificasse a sobra.
+
     Linha vazia vira um bloco vazio, que o CSS transforma em respiro."""
-    partes = str(escape(texto or '')).splitlines() or ['']
-    return Markup(''.join(
-        f'<span class="linha-com{"" if linha.strip() else " linha-vazia"}">{linha}</span>'
-        for linha in partes))
+    partes = (texto or '').splitlines() or ['']
+    pedacos = []
+    for linha in partes:
+        classes = 'linha-com'
+        if not linha.strip():
+            classes += ' linha-vazia'
+        # Testado no texto cru: depois do escape um "-" continua "-", mas
+        # qualquer marcador que vire entidade deixaria de casar.
+        elif _MARCADOR.match(linha):
+            classes += ' linha-recuo'
+        pedacos.append(f'<span class="{classes}">{escape(linha)}</span>')
+    return Markup(''.join(pedacos))
 
 
 @app.template_filter('iniciais')
