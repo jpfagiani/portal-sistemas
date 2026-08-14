@@ -47,18 +47,24 @@ if [ "$ID" != "debian" ] && [[ "${ID_LIKE:-}" != *debian* ]]; then
     exit 1
 fi
 
-USAR_VENV=0
+# A escolha entre "usar o Flask do sistema" e "montar um ambiente virtual" não
+# é feita aqui de propósito. Decidir pelo número da versão erra nas duas
+# pontas: um Debian 11 com Flask novo instalado à mão seria empurrado para o
+# venv sem precisar, e um derivado com número desconhecido seria condenado ao
+# venv mesmo trazendo pacote bom. Em [5/8] o instalador tenta o caminho do
+# sistema, mede o que o apt entregou e só então decide.
 case "$VER" in
-    13*) verde   "   Debian 13 (trixie) — versão alvo deste portal."
-         PACOTES="python3 python3-flask python3-werkzeug gunicorn" ;;
-    12*) amarelo "   Debian 12 (bookworm) — compatível."
-         PACOTES="python3 python3-flask python3-werkzeug gunicorn" ;;
-    11*|10*) amarelo "   Debian $VER é antigo: usarei ambiente virtual com pip."
-         PACOTES="python3 python3-venv python3-pip"; USAR_VENV=1 ;;
-    *)   amarelo "   Versão '$VER' não testada. Seguirei com ambiente virtual."
-         PACOTES="python3 python3-venv python3-pip"; USAR_VENV=1
-         confirmar "Continuar assim mesmo?" || exit 1 ;;
+    13*) verde   "   Debian 13 (trixie) — versão alvo deste portal." ;;
+    12*) verde   "   Debian 12 (bookworm) — compatível." ;;
+    11*|10*) amarelo "   Debian $VER é antigo, mas dá conta: as dependências" \
+                     "vêm por ambiente virtual se as do sistema não servirem." ;;
+    *)   amarelo "   Versão '$VER' não é uma das testadas. Sigo assim mesmo:" \
+                 "as dependências são conferidas antes de instalar o portal." ;;
 esac
+
+# Pacotes que passos posteriores podem pedir (o avahi, quando o nome escolhido
+# termina em .local). Instalados junto com o resto em [5/8].
+EXTRAS=""
 
 # ── 1b · instalação anterior em /opt/intranet ─────────────────────────────────
 # Até a versão 1.1 o clone do Git ficava numa pasta e o serviço rodava em
@@ -390,7 +396,7 @@ configurar_nome(){
         # mDNS: o servidor responde por si mesmo, sem infraestrutura de DNS.
         # Windows 10/11, macOS e Linux resolvem .local nativamente.
         USAR_MDNS=1
-        PACOTES="$PACOTES avahi-daemon avahi-utils"
+        EXTRAS="$EXTRAS avahi-daemon avahi-utils"
         verde "   O nome $NOME_PORTAL será anunciado pelo próprio servidor (mDNS)."
         if [[ "${NOME_PORTAL%.local}" == *.* ]]; then
             amarelo "   Atenção: o mDNS só resolve nomes de um rótulo + .local"
@@ -406,10 +412,62 @@ configurar_nome
 
 # ── 5 · pacotes ───────────────────────────────────────────────────────────────
 titulo "[5/8] Dependências"
-echo "   Instalando: $PACOTES"
+
+# Piso de versão do Flask. Não é gosto: o download do backup chama
+# send_file(download_name=...), que só existe do Flask 2.0 em diante. O Debian
+# 11 traz o Flask 1.1, que instala sem reclamar, importa sem erro e só quebra
+# meses depois, na primeira vez que alguém tenta baixar o backup. Por isso a
+# checagem é pela versão entregue, e não pelo pacote estar presente.
+FLASK_MIN="2.0"
+
+# Imprime a versão do Flask visível para o python3 do sistema e devolve 0
+# quando ela atende ao piso. Sem gunicorn, sem Flask ou com versão velha,
+# devolve 1 — e o que foi impresso ainda serve para explicar a recusa.
+flask_do_sistema() {
+    command -v gunicorn >/dev/null 2>&1 || return 1
+    python3 - "$FLASK_MIN" 2>/dev/null <<'EOP'
+import sys
+try:
+    import flask, werkzeug            # os dois: o app importa de ambos
+    try:
+        from importlib.metadata import version
+        bruto = version('flask')
+    except Exception:                 # Python antigo ou pacote sem metadados
+        bruto = flask.__version__
+    print(bruto)
+    minimo = tuple(int(p) for p in sys.argv[1].split('.'))
+    atual  = tuple(int(p) for p in bruto.split('.')[:len(minimo)])
+except Exception:
+    sys.exit(1)
+sys.exit(0 if atual >= minimo else 1)
+EOP
+}
+
 apt-get update -qq || amarelo "   Aviso: não foi possível atualizar o cache do apt."
-# shellcheck disable=SC2086
-apt-get install -y -qq $PACOTES
+
+USAR_VENV=1
+FLASK_VER=""
+echo "   Procurando Flask $FLASK_MIN ou mais novo nos pacotes do sistema..."
+if apt-get install -y -qq python3 python3-flask python3-werkzeug gunicorn 2>/dev/null \
+   && FLASK_VER=$(flask_do_sistema); then
+    USAR_VENV=0
+    verde "   Flask $FLASK_VER do sistema serve. Sem ambiente virtual —"
+    verde "   as atualizações de segurança vêm pelo apt, junto com o resto."
+else
+    if [ -n "$FLASK_VER" ]; then
+        amarelo "   O sistema traz o Flask $FLASK_VER, anterior ao $FLASK_MIN."
+    else
+        amarelo "   O sistema não tem Flask e gunicorn utilizáveis."
+    fi
+    amarelo "   Vou montar um ambiente virtual com pip, sem mexer no Python do sistema."
+    apt-get install -y -qq python3 python3-venv python3-pip
+fi
+
+if [ -n "$EXTRAS" ]; then
+    echo "   Instalando também:$EXTRAS"
+    # shellcheck disable=SC2086
+    apt-get install -y -qq $EXTRAS
+fi
 
 # ── anúncio do nome na rede (mDNS), quando o nome termina em .local ───────────
 if [ "$USAR_MDNS" = "1" ]; then
@@ -545,12 +603,29 @@ if confirmar "Quer indicar os arquivos agora?"; then
     fi
 fi
 
+# PY_EXEC é o interpretador que enxerga o Flask. No Debian 11 e 10 o Flask só
+# existe dentro do venv, então o python3 do sistema não serve para nada que
+# importe o app — inclusive a criação do banco, logo abaixo.
 if [ "$USAR_VENV" = "1" ]; then
     python3 -m venv "$DEST/venv"
-    "$DEST/venv/bin/pip" install -q --upgrade pip flask gunicorn
+    "$DEST/venv/bin/pip" install -q --upgrade pip
+    # O piso é o mesmo cobrado do apt; o teto quem escolhe é o pip, que resolve
+    # a última versão compatível com o Python desta máquina.
+    "$DEST/venv/bin/pip" install -q "flask>=$FLASK_MIN" gunicorn
     PY_BIN="$DEST/venv/bin/gunicorn"
+    PY_EXEC="$DEST/venv/bin/python"
 else
-    PY_BIN="/usr/bin/gunicorn"
+    PY_BIN="$(command -v gunicorn)"
+    PY_EXEC="/usr/bin/python3"
+fi
+
+# Prova de que o interpretador escolhido enxerga o que o app importa. Falhar
+# aqui é bem mais barato do que falhar na criação do banco, logo abaixo, onde o
+# sintoma ("não foi possível criar o banco") não diz nada sobre a causa.
+if ! "$PY_EXEC" -c "import flask, werkzeug" >/dev/null 2>&1; then
+    vermelho "   As dependências não ficaram utilizáveis em $PY_EXEC."
+    vermelho "   Confira o erro com: $PY_EXEC -c \"import flask, werkzeug\""
+    exit 1
 fi
 
 id -u "$USUARIO" >/dev/null 2>&1 || useradd --system --home "$DEST" --shell /usr/sbin/nologin "$USUARIO"
@@ -568,17 +643,20 @@ fi
 # informadas no começo — assim o primeiro acesso já funciona.
 if [ -n "$SENHA_ADMIN" ]; then
     SEED="import sys; sys.path.insert(0,'$DEST'); import app"
+    ERRO_SEED=""
     export INTRANET_ADMIN_SENHA="$SENHA_ADMIN"
     export INTRANET_ORG_NOME="$ORG_NOME" INTRANET_ORG_SIGLA="$ORG_SIGLA" INTRANET_ORG_SUB="$ORG_SUB"
-    runuser -u "$USUARIO" --preserve-environment -- python3 -c "$SEED" >/dev/null 2>&1 || true
+    ERRO_SEED=$(runuser -u "$USUARIO" --preserve-environment -- "$PY_EXEC" -c "$SEED" 2>&1) || true
     if [ ! -f "$DEST/dados.db" ]; then
-        python3 -c "$SEED" >/dev/null 2>&1 || true      # plano B: como root
+        ERRO_SEED=$("$PY_EXEC" -c "$SEED" 2>&1) || true   # plano B: como root
         chown -R "$USUARIO:$USUARIO" "$DEST"
     fi
     unset INTRANET_ADMIN_SENHA INTRANET_ORG_NOME INTRANET_ORG_SIGLA INTRANET_ORG_SUB
     if [ ! -f "$DEST/dados.db" ]; then
         vermelho "   Não foi possível criar o banco de dados."
-        vermelho "   Veja o erro com: python3 -c \"$SEED\""
+        # O erro guardado poupa uma segunda rodada só para descobrir o motivo.
+        [ -n "$ERRO_SEED" ] && printf '%s\n' "$ERRO_SEED" | sed 's/^/     /'
+        vermelho "   Para repetir à mão: $PY_EXEC -c \"$SEED\""
         exit 1
     fi
 fi
