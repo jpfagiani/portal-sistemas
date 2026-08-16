@@ -4,6 +4,12 @@
 #
 #  Uso:  sudo ./instalar.sh [porta]        (porta padrão: 80)
 #
+#  Convenção de portas do projeto, igual em todas as unidades:
+#     80    portal-sistemas (este)  — atalhos, todos os usuários
+#     8080  portal-gateway  (GWOS)  — administração
+#     8443  portal-samba            — administração
+#  Este é o único acessado sem porta na barra de endereços, por isso fica na 80.
+#
 #  Pergunta tudo o que muda de uma unidade para outra (nome da instituição,
 #  rede, logo e foto), de modo que o mesmo código sirva a qualquer unidade
 #  sem precisar editar arquivo nenhum.
