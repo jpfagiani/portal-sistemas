@@ -807,10 +807,29 @@ if systemctl is-active --quiet portal; then
     echo  "   Usuário:   admin  (senha definida por você nesta instalação)"
     echo  "   Logo:      $DEST/static/logo.*   (troque o arquivo quando quiser)"
     echo  "   Fundo:     $DEST/static/fundo.*  (idem)"
-    echo  "   Status:    systemctl status portal"
-    echo  "   Logs:      journalctl -u portal -f"
+    echo  "   Status:    systemctl status ${SERVICO}"
+    echo  "   Logs:      journalctl -u ${SERVICO} -f"
     verde "════════════════════════════════════════════════════════════"
 else
-    vermelho "O serviço não subiu. Veja o erro com:  journalctl -u portal -n 40"
+    # A unit chama-se portal-sistemas.service. As mensagens diziam
+    # 'journalctl -u portal', nome que nunca existiu depois da renomeação:
+    # quem seguia a instrução via um journal vazio e ficava sem pista.
+    vermelho "O serviço ${SERVICO} não subiu."
+    echo ""
+    echo "── últimas linhas do journal ──"
+    journalctl -u "$SERVICO" -n 20 --no-pager 2>/dev/null || true
+    echo ""
+
+    # Causa mais comum: outro processo já ocupa a porta. O gunicorn morre no
+    # bind e, sem esta checagem, o motivo fica só no journal.
+    OCUPANTE=$(ss -lntp 2>/dev/null | awk -v p=":${PORTA}\$" '$4 ~ p {print $NF}' | head -1) || OCUPANTE=""
+    if [ -n "$OCUPANTE" ]; then
+        vermelho "A porta ${PORTA} já está ocupada por: ${OCUPANTE}"
+        echo  "   Libere a porta, ou reinstale em outra: sudo ./instalar.sh <porta>"
+        echo  "   Pela convenção do projeto a 80 é deste portal; o painel do"
+        echo  "   GWOS fica na 8080 e o portal do Samba na 8443."
+    fi
+    echo ""
+    echo  "   Detalhes: journalctl -u ${SERVICO} -n 40 --no-pager"
     exit 1
 fi
