@@ -322,6 +322,21 @@ testar_rede(){
 }
 
 configurar_rede(){
+    # Quando o GWOS esta na maquina, ele e o dono do /etc/network/interfaces.
+    # Este instalador escreve em /etc/network/interfaces.d/<iface> — arquivo
+    # separado, mas incluido pelo 'source /etc/network/interfaces.d/*' que o
+    # GWOS poe no topo do dele. O resultado sao DUAS stanzas para a mesma
+    # placa: o ifup aborta a interface no boot e a maquina sobe sem rede.
+    # O sintoma so aparece no reboot seguinte, o que torna a causa dificil
+    # de associar a esta instalacao. Melhor nem oferecer a opcao.
+    if [ -f /etc/gwos/gwos.conf ]; then
+        amarelo "   Rede gerenciada pelo GWOS nesta maquina — nao vou mexer."
+        echo    "   Para trocar o IP:  sudo gwos ip <novo-ip>"
+        echo    "   Ele valida, faz backup e recarrega DNS, proxy e firewall juntos."
+        echo
+        return
+    fi
+
     listar_ifaces
     if [ "${#IFACES[@]}" -eq 0 ]; then
         vermelho "   Nenhuma placa de rede encontrada."; return
