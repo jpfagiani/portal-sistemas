@@ -19,12 +19,12 @@ em versões mais antigas, monta um ambiente virtual automaticamente.
 
 ## Instalação
 
-Clone em `/opt/portal`: o portal roda a partir da própria pasta do clone, então
+Clone em `/opt/cdpni-portal`: o portal roda a partir da própria pasta do clone, então
 `git pull` seguido de `atualizar.sh` atualiza o que está no ar.
 
 ```bash
-sudo git clone https://github.com/jpfagiani/portal.git /opt/portal
-cd /opt/portal
+sudo git clone https://github.com/jpfagiani/portal.git /opt/cdpni-portal
+cd /opt/cdpni-portal
 sudo ./instalar.sh            # porta 80
 # ou: sudo ./instalar.sh 8080
 ```
@@ -50,9 +50,9 @@ O instalador é interativo e pergunta tudo o que muda de uma unidade para outra
    é o NetworkManager e usa `nmcli` nesse caso, ou `ifupdown` no caso contrário.
    Por fim pergunta o **nome de acesso** (ver abaixo).
 5. **Dependências**: instala os pacotes.
-6. **Arquivos**: prepara `/opt/portal` e pergunta os caminhos do **logo** e da
+6. **Arquivos**: prepara `/opt/cdpni-portal` e pergunta os caminhos do **logo** e da
    **foto de fundo** (opcional — dá para fazer depois pelo painel ou trocando o
-   arquivo). Clonado direto em `/opt/portal`, nada é copiado: o serviço roda
+   arquivo). Clonado direto em `/opt/cdpni-portal`, nada é copiado: o serviço roda
    da própria pasta. Numa reinstalação, o logo e a foto já instalados são
    preservados.
 7. **Serviço** systemd `portal` (inicia no boot, reinicia se cair).
@@ -97,9 +97,9 @@ serviços, como o Samba.
 
 | Comando (no servidor) | Para quê |
 |---|---|
-| `systemctl status portal-nome` | Ver a situação do anúncio |
+| `systemctl status cdpni-portal-nome` | Ver a situação do anúncio |
 | `avahi-resolve -n cdpni.local` | Testar a resolução |
-| `systemctl restart portal-nome` | Reanunciar — use depois de trocar o IP |
+| `systemctl restart cdpni-portal-nome` | Reanunciar — use depois de trocar o IP |
 
 Limites, por desenho do protocolo: o mDNS vale **dentro da mesma rede/segmento**
 e não atravessa roteador — em outra sub-rede o nome não resolve, e ali se usa o
@@ -130,7 +130,7 @@ com `admin` (ou outro usuário administrador criado depois) para abrir o painel:
 ### Logo e foto de fundo
 
 As duas imagens da identidade são **arquivos soltos** em
-`/opt/portal/static/` — trocar o arquivo troca o site, sem mexer no código e
+`/opt/cdpni-portal/static/` — trocar o arquivo troca o site, sem mexer no código e
 sem reiniciar o serviço:
 
 | Arquivo | O que é |
@@ -141,9 +141,9 @@ sem reiniciar o serviço:
 | `marca-aniversarios.*` | Marca d'água do cartão de aniversariantes (um bolo, por padrão) |
 
 ```bash
-sudo cp minha-logo.png  /opt/portal/static/logo.png
-sudo cp minha-foto.jpg  /opt/portal/static/fundo.jpg
-sudo chown portal:portal /opt/portal/static/logo.png /opt/portal/static/fundo.jpg
+sudo cp minha-logo.png  /opt/cdpni-portal/static/logo.png
+sudo cp minha-foto.jpg  /opt/cdpni-portal/static/fundo.jpg
+sudo chown cdpni-portal:cdpni-portal /opt/cdpni-portal/static/logo.png /opt/cdpni-portal/static/fundo.jpg
 ```
 
 O mesmo pode ser feito pelo painel, em *Aparência* — os dois caminhos gravam nos
@@ -173,16 +173,16 @@ dados, imagens enviadas, logo, foto de fundo e configurações ficam intactos.
 ## Operação
 
 ```bash
-systemctl status portal       # situação do serviço
-journalctl -u portal -f       # logs em tempo real
-sudo systemctl restart portal # reiniciar
+systemctl status cdpni-portal       # situação do serviço
+journalctl -u cdpni-portal -f       # logs em tempo real
+sudo systemctl restart cdpni-portal # reiniciar
 ```
 
-Backup: copie `/opt/portal/dados.db` (usuários e conteúdo) e a pasta
-`/opt/portal/static/uploads` (imagens).
+Backup: copie `/opt/cdpni-portal/dados.db` (usuários e conteúdo) e a pasta
+`/opt/cdpni-portal/static/uploads` (imagens).
 
 ```bash
-sudo tar czf portal-backup-$(date +%F).tgz -C /opt/portal dados.db static/uploads
+sudo tar czf portal-backup-$(date +%F).tgz -C /opt/cdpni-portal dados.db static/uploads
 ```
 
 ## Desinstalar

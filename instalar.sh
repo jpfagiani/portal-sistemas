@@ -10,10 +10,25 @@
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-DEST=/opt/portal
+# Nome do portal. Convenção <servidor>-portal: o portal fica amarrado ao
+# servidor que o hospeda — cdpni-portal aqui, smb-portal no servidor Samba,
+# gwos-portal no gateway. Diretório, serviço, usuário e os auxiliares de mDNS
+# derivam daqui: para renomear, muda esta linha e roda o instalador, que migra
+# a instalação existente.
+PORTAL_NOME=cdpni-portal
+
+DEST=/opt/$PORTAL_NOME
+SERVICO=$PORTAL_NOME.service
+SERVICO_MDNS=$PORTAL_NOME-nome.service
+BIN_MDNS=/usr/local/bin/$PORTAL_NOME-anuncia-nome
+USUARIO=$PORTAL_NOME
+MARCA_HOSTS="# $PORTAL_NOME"
 PORTA="${1:-80}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
-USUARIO=portal
+
+# Nomes anteriores à convenção — migrados e limpos em [1c/8].
+DEST_ANTERIOR=/opt/portal
+USUARIO_ANTERIOR=portal
 
 vermelho(){ printf '\033[31m%s\033[0m\n' "$*"; }
 verde()   { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -65,6 +80,52 @@ esac
 # Pacotes que passos posteriores podem pedir (o avahi, quando o nome escolhido
 # termina em .local). Instalados junto com o resto em [5/8].
 EXTRAS=""
+
+# ── 1c · instalação anterior em /opt/portal ───────────────────────────────────
+# O portal passou a se chamar cdpni-portal, para ficar amarrado ao servidor que
+# o hospeda. Aqui a instalação antiga é MOVIDA — não copiada: manter as duas
+# faria dois gunicorn disputarem a mesma porta, e o systemd subiria o errado.
+if [ -d "$DEST_ANTERIOR" ] && [ ! -d "$DEST" ]; then
+    titulo "[1c/8] Instalação anterior encontrada em $DEST_ANTERIOR"
+    echo "   O portal passou a se chamar $PORTAL_NOME."
+    echo "   Vou mover $DEST_ANTERIOR para $DEST e renomear serviço e usuário."
+    echo "   Os dados (banco, imagens, backups) vão junto."
+    confirmar "Continuar?" || { vermelho "   Instalação cancelada."; exit 1; }
+
+    # Parar antes de mover: gunicorn com o diretório de trabalho puxado debaixo
+    # dos pés fica em laço de reinício e segura a porta.
+    systemctl disable --now portal.service      2>/dev/null || true
+    systemctl disable --now portal-nome.service 2>/dev/null || true
+    if pgrep -f "gunicorn.*$DEST_ANTERIOR" >/dev/null 2>&1; then
+        pkill -f "gunicorn.*$DEST_ANTERIOR" 2>/dev/null || true
+        sleep 2
+        pkill -9 -f "gunicorn.*$DEST_ANTERIOR" 2>/dev/null || true
+    fi
+
+    mv "$DEST_ANTERIOR" "$DEST"
+    verde "   $DEST_ANTERIOR → $DEST"
+
+    # O portal roda da própria pasta do clone, então é normal este script
+    # estar DENTRO do que acabou de ser movido. O bash segue lendo pelo
+    # inode aberto, mas $SRC virou caminho inexistente — e a cópia de
+    # arquivos em [6/8] falharia no meio da instalação.
+    if [ "$SRC" = "$DEST_ANTERIOR" ] || case "$SRC" in "$DEST_ANTERIOR"/*) true;; *) false;; esac; then
+        SRC="${DEST}${SRC#"$DEST_ANTERIOR"}"
+        amarelo "   Este script foi movido junto; continuando de $SRC"
+    fi
+
+    # Usuário do sistema: renomeia se existir e o novo ainda não. O serviço
+    # está parado, então não há processo dele em execução.
+    if id -u "$USUARIO_ANTERIOR" >/dev/null 2>&1 && ! id -u "$USUARIO" >/dev/null 2>&1; then
+        usermod -l "$USUARIO" -d "$DEST" "$USUARIO_ANTERIOR" 2>/dev/null             && groupmod -n "$USUARIO" "$USUARIO_ANTERIOR" 2>/dev/null             && verde "   Usuário $USUARIO_ANTERIOR → $USUARIO"             || amarelo "   Usuário não renomeado — o instalador cria $USUARIO adiante."
+    fi
+    chown -R "$USUARIO:$USUARIO" "$DEST" 2>/dev/null || true
+
+    rm -f /etc/systemd/system/portal.service /etc/systemd/system/portal-nome.service
+    rm -f /usr/local/bin/portal-anuncia-nome
+    systemctl daemon-reload
+    verde "   Unidades antigas removidas. O serviço novo sobe em [7/8]."
+fi
 
 # ── 1b · instalação anterior em /opt/intranet ─────────────────────────────────
 # Até a versão 1.1 o clone do Git ficava numa pasta e o serviço rodava em
@@ -389,8 +450,8 @@ configurar_nome(){
     NOME_PORTAL="${NOME_PORTAL,,}"
 
     # Resolução no próprio servidor — útil para teste local e para o serviço.
-    sed -i '/# portal-intranet$/d' /etc/hosts
-    echo "$IP_ATUAL  $NOME_PORTAL  # portal-intranet" >> /etc/hosts
+    sed -i "/${MARCA_HOSTS}\$/d;/# portal-intranet\$/d" /etc/hosts
+    echo "$IP_ATUAL  $NOME_PORTAL  ${MARCA_HOSTS}" >> /etc/hosts
 
     if [[ "$NOME_PORTAL" == *.local ]]; then
         # mDNS: o servidor responde por si mesmo, sem infraestrutura de DNS.
@@ -477,10 +538,10 @@ if [ "$USAR_MDNS" = "1" ]; then
     # avahi-publish anuncia o nome sem mexer no hostname da máquina (o que
     # poderia quebrar outros serviços, como o Samba). O IP é lido a cada start,
     # então uma troca de IP se resolve reiniciando o serviço.
-    cat > /usr/local/bin/portal-anuncia-nome <<'EOS'
+    cat > "$BIN_MDNS" <<'EOS'
 #!/bin/sh
 # Anuncia o nome recebido em $1 apontando para o IP principal desta máquina.
-# Usado pelo serviço portal-nome.service.
+# Usado pelo serviço <portal>-nome.service.
 set -eu
 NOME="$1"
 IP=$(hostname -I | awk '{print $1}')
@@ -491,9 +552,9 @@ fi
 echo "Anunciando $NOME em $IP via mDNS."
 exec /usr/bin/avahi-publish -a -R "$NOME" "$IP"
 EOS
-    chmod +x /usr/local/bin/portal-anuncia-nome
+    chmod +x "$BIN_MDNS"
 
-    cat > /etc/systemd/system/portal-nome.service <<EOF
+    cat > "/etc/systemd/system/$SERVICO_MDNS" <<EOF
 [Unit]
 Description=Anuncia $NOME_PORTAL na rede local (mDNS)
 After=network-online.target avahi-daemon.service
@@ -502,7 +563,7 @@ Requires=avahi-daemon.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/portal-anuncia-nome $NOME_PORTAL
+ExecStart=$BIN_MDNS $NOME_PORTAL
 Restart=always
 RestartSec=5
 
@@ -510,7 +571,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now portal-nome.service >/dev/null 2>&1 || true
+    systemctl enable --now "$SERVICO_MDNS" >/dev/null 2>&1 || true
 
     liberar_mdns_no_firewall
 
@@ -545,9 +606,9 @@ Limites do mDNS (por desenho do protocolo):
   - Windows 7 e anteriores não resolvem .local sem instalar o Bonjour.
 
 Comandos úteis (no servidor):
-  systemctl status portal-nome     situação do anúncio
+  systemctl status $SERVICO_MDNS   situação do anúncio
   avahi-resolve -n $NOME_PORTAL   testa a resolução
-  systemctl restart portal-nome    reanuncia (use após trocar o IP)
+  systemctl restart $SERVICO_MDNS  reanuncia (use após trocar o IP)
 
 Se um dia a unidade tiver servidor DNS, o nome pode ser publicado lá também;
 os dois métodos convivem sem conflito.
@@ -664,7 +725,7 @@ SENHA_ADMIN=""   # não guardar a senha em memória além do necessário
 
 # ── 6 · serviço ───────────────────────────────────────────────────────────────
 titulo "[7/8] Serviço systemd (porta $PORTA)"
-cat > /etc/systemd/system/portal.service <<EOF
+cat > "/etc/systemd/system/$SERVICO" <<EOF
 [Unit]
 Description=Portal Interno
 After=network-online.target
@@ -700,12 +761,12 @@ if command -v ss >/dev/null 2>&1 && ss -lntH "sport = :$PORTA" 2>/dev/null | gre
     echo "   Se for apache2 ou nginx, escolha outra porta:  ./instalar.sh 8080"
     confirmar "Tentar subir mesmo assim?" || {
         amarelo "   Serviço criado mas não iniciado. Depois de liberar a porta:"
-        echo   "     systemctl start portal"
+        echo   "     systemctl start $PORTAL_NOME"
         exit 1
     }
 fi
 
-systemctl enable --now portal.service
+systemctl enable --now "$SERVICO"
 
 # ── 7 · firewall ──────────────────────────────────────────────────────────────
 titulo "[8/8] Firewall"
