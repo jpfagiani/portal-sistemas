@@ -10,9 +10,9 @@
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Nome do portal. Convenção <servidor>-portal: o portal fica amarrado ao
-# servidor que o hospeda — portal-sistemas aqui, smb-portal no servidor Samba,
-# gwos-portal no gateway. Diretório, serviço, usuário e os auxiliares de mDNS
+# Nome do portal. Convenção portal-<função>: nomeia o que o portal administra,
+# sem citar a unidade — portal-sistemas aqui, portal-samba no servidor de
+# arquivos, portal-gateway no GWOS. Diretório, serviço, usuário e o mDNS
 # derivam daqui: para renomear, muda esta linha e roda o instalador, que migra
 # a instalação existente.
 PORTAL_NOME=portal-sistemas
@@ -26,8 +26,19 @@ MARCA_HOSTS="# $PORTAL_NOME"
 PORTA="${1:-80}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 
-# Nomes anteriores à convenção — migrados e limpos em [1c/8].
-USUARIO_ANTERIOR=portal
+# Instalação anterior à convenção portal-<função>. A máquina pode ter parado
+# em qualquer etapa (portal → cdpni-portal → portal-sistemas), então procuramos
+# qual existe em vez de assumir: chutar o nome de origem faria o instalador não
+# encontrar nada e criar uma instalação vazia ao lado dos dados antigos.
+DEST_ANTERIOR=""
+USUARIO_ANTERIOR=""
+for _n in cdpni-portal portal; do
+    if [ -d "/opt/$_n" ] && [ "/opt/$_n" != "$DEST" ]; then
+        DEST_ANTERIOR="/opt/$_n"
+        USUARIO_ANTERIOR="$_n"
+        break
+    fi
+done
 
 vermelho(){ printf '\033[31m%s\033[0m\n' "$*"; }
 verde()   { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -80,9 +91,9 @@ esac
 # termina em .local). Instalados junto com o resto em [5/8].
 EXTRAS=""
 
-# ── 1c · instalação anterior em /opt/portal ───────────────────────────────────
-# O portal passou a se chamar portal-sistemas, para ficar amarrado ao servidor que
-# o hospeda. Aqui a instalação antiga é MOVIDA — não copiada: manter as duas
+# ── 1c · instalação anterior com outro nome ───────────────────────────────────
+# O portal passou a se chamar portal-sistemas, seguindo a convenção portal-<função>.
+# A instalação antiga é MOVIDA — não copiada: manter as duas
 # faria dois gunicorn disputarem a mesma porta, e o systemd subiria o errado.
 if [ -n "$DEST_ANTERIOR" ] && [ -d "$DEST_ANTERIOR" ] && [ ! -d "$DEST" ]; then
     titulo "[1c/8] Instalação anterior encontrada em $DEST_ANTERIOR"
