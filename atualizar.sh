@@ -10,7 +10,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-PORTAL_NOME=cdpni-portal
+PORTAL_NOME=portal-sistemas
 DEST=/opt/$PORTAL_NOME
 SERVICO=$PORTAL_NOME.service
 USUARIO=$PORTAL_NOME
@@ -22,11 +22,13 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 # sabe trazer banco e imagens para cá, e atualizar sem isso subiria um portal
 # vazio por cima de nada.
 # Instalação anterior à convenção de nomes: o instalador move e renomeia.
-if [ ! -d "$DEST" ] && [ -d /opt/portal ]; then
-    echo "O portal ainda está em /opt/portal e agora se chama $PORTAL_NOME."
+for _ant in /opt/cdpni-portal /opt/portal; do
+  if [ ! -d "$DEST" ] && [ -d "$_ant" ]; then
+    echo "O portal ainda está em $_ant e agora se chama $PORTAL_NOME."
     echo "Rode o instalador uma vez para migrar:  sudo bash instalar.sh"
     exit 1
-fi
+  fi
+done
 
 if [ ! -f "$DEST/dados.db" ] && [ -f /opt/intranet/dados.db ]; then
     echo "Seus dados ainda estão em /opt/intranet, e agora o portal roda em $DEST."

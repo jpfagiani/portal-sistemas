@@ -11,11 +11,11 @@
 set -euo pipefail
 
 # Nome do portal. Convenção <servidor>-portal: o portal fica amarrado ao
-# servidor que o hospeda — cdpni-portal aqui, smb-portal no servidor Samba,
+# servidor que o hospeda — portal-sistemas aqui, smb-portal no servidor Samba,
 # gwos-portal no gateway. Diretório, serviço, usuário e os auxiliares de mDNS
 # derivam daqui: para renomear, muda esta linha e roda o instalador, que migra
 # a instalação existente.
-PORTAL_NOME=cdpni-portal
+PORTAL_NOME=portal-sistemas
 
 DEST=/opt/$PORTAL_NOME
 SERVICO=$PORTAL_NOME.service
@@ -27,7 +27,6 @@ PORTA="${1:-80}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 
 # Nomes anteriores à convenção — migrados e limpos em [1c/8].
-DEST_ANTERIOR=/opt/portal
 USUARIO_ANTERIOR=portal
 
 vermelho(){ printf '\033[31m%s\033[0m\n' "$*"; }
@@ -82,10 +81,10 @@ esac
 EXTRAS=""
 
 # ── 1c · instalação anterior em /opt/portal ───────────────────────────────────
-# O portal passou a se chamar cdpni-portal, para ficar amarrado ao servidor que
+# O portal passou a se chamar portal-sistemas, para ficar amarrado ao servidor que
 # o hospeda. Aqui a instalação antiga é MOVIDA — não copiada: manter as duas
 # faria dois gunicorn disputarem a mesma porta, e o systemd subiria o errado.
-if [ -d "$DEST_ANTERIOR" ] && [ ! -d "$DEST" ]; then
+if [ -n "$DEST_ANTERIOR" ] && [ -d "$DEST_ANTERIOR" ] && [ ! -d "$DEST" ]; then
     titulo "[1c/8] Instalação anterior encontrada em $DEST_ANTERIOR"
     echo "   O portal passou a se chamar $PORTAL_NOME."
     echo "   Vou mover $DEST_ANTERIOR para $DEST e renomear serviço e usuário."
@@ -94,8 +93,8 @@ if [ -d "$DEST_ANTERIOR" ] && [ ! -d "$DEST" ]; then
 
     # Parar antes de mover: gunicorn com o diretório de trabalho puxado debaixo
     # dos pés fica em laço de reinício e segura a porta.
-    systemctl disable --now portal.service      2>/dev/null || true
-    systemctl disable --now portal-nome.service 2>/dev/null || true
+    systemctl disable --now "${USUARIO_ANTERIOR}.service"      2>/dev/null || true
+    systemctl disable --now "${USUARIO_ANTERIOR}-nome.service" 2>/dev/null || true
     if pgrep -f "gunicorn.*$DEST_ANTERIOR" >/dev/null 2>&1; then
         pkill -f "gunicorn.*$DEST_ANTERIOR" 2>/dev/null || true
         sleep 2
@@ -121,8 +120,8 @@ if [ -d "$DEST_ANTERIOR" ] && [ ! -d "$DEST" ]; then
     fi
     chown -R "$USUARIO:$USUARIO" "$DEST" 2>/dev/null || true
 
-    rm -f /etc/systemd/system/portal.service /etc/systemd/system/portal-nome.service
-    rm -f /usr/local/bin/portal-anuncia-nome
+    rm -f "/etc/systemd/system/${USUARIO_ANTERIOR}.service"           "/etc/systemd/system/${USUARIO_ANTERIOR}-nome.service"
+    rm -f "/usr/local/bin/${USUARIO_ANTERIOR}-anuncia-nome"
     systemctl daemon-reload
     verde "   Unidades antigas removidas. O serviço novo sobe em [7/8]."
 fi

@@ -5,13 +5,13 @@ set -euo pipefail
 
 [ "$(id -u)" -eq 0 ] || { echo "Execute como root:  sudo ./desinstalar.sh"; exit 1; }
 
-PORTAL_NOME=cdpni-portal
+PORTAL_NOME=portal-sistemas
 DEST=/opt/$PORTAL_NOME
 
-# Nome atual e todos os anteriores: 'portal' (antes da convenção
-# <servidor>-portal) e 'intranet' (até a versão 1.1). Remover só o atual
+# Nome atual e todos os anteriores: cdpni-portal e portal (antes da
+# convenção portal-<função>) e intranet (até a versão 1.1). Remover só o atual
 # deixaria unidades órfãs disputando a porta na próxima instalação.
-for nome in "$PORTAL_NOME" portal intranet; do
+for nome in "$PORTAL_NOME" cdpni-portal portal intranet; do
     systemctl disable --now "${nome}.service"      2>/dev/null || true
     systemctl disable --now "${nome}-nome.service" 2>/dev/null || true
     rm -f "/etc/systemd/system/${nome}.service" \
@@ -27,7 +27,7 @@ systemctl daemon-reload
 echo "Serviço removido. Dados preservados em $DEST"
 echo "Para apagar tudo:  rm -rf $DEST && userdel $PORTAL_NOME"
 
-for antigo in /opt/portal /opt/intranet; do
+for antigo in /opt/cdpni-portal /opt/portal /opt/intranet; do
     if [ -d "$antigo" ]; then
         echo
         echo "Sobrou também a pasta de uma instalação anterior: $antigo"
