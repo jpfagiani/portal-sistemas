@@ -182,6 +182,21 @@ journalctl -u portal-sistemas -f       # logs em tempo real
 sudo systemctl restart portal-sistemas # reiniciar
 ```
 
+### Esqueceu a senha?
+
+Não há senha padrão, e reinstalar **não ajuda**: o instalador detecta o banco
+existente e preserva os usuários — a senha antiga continua sendo a antiga.
+
+```bash
+sudo ./redefinir_senha.sh          # lista os usuários e pergunta qual
+sudo ./redefinir_senha.sh admin    # direto para um usuário
+sudo ./redefinir_senha.sh listar   # só lista, sem trocar nada
+```
+
+Mesma exigência de senha do instalador (8 caracteres, maiúscula, minúscula e
+número). Reativa a conta se estiver desativada — trocar a senha de um usuário
+inativo sem isso pareceria que o reset não funcionou.
+
 Backup: copie `/opt/portal-sistemas/dados.db` (usuários e conteúdo) e a pasta
 `/opt/portal-sistemas/static/uploads` (imagens).
 
