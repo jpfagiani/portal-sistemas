@@ -39,8 +39,9 @@ O instalador é interativo e pergunta tudo o que muda de uma unidade para outra
    com confirmação antes de seguir. É o que permite outra unidade usar o mesmo
    código sem alterar nada.
 3. **Acesso do administrador**: o portal começa com um único usuário, de login
-   fixo `admin`, e você digita a senha dele aqui (com confirmação; mínimo de 6
-   caracteres). Nada de senha padrão no código, e nenhuma senha impressa na
+   fixo `admin`, e você digita a senha dele aqui (com confirmação; mínimo de 8
+   caracteres, com maiúscula, minúscula e número — mesma exigência do portal do
+   Samba). Nada de senha padrão no código, e nenhuma senha impressa na
    tela ao final. Os demais logins são criados depois em *Administração →
    Usuários*.
 4. **Rede**: lista as placas detectadas (IP, estado e MAC), sugere a que está

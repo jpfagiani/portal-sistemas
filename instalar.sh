@@ -231,11 +231,31 @@ else
     echo "   O portal começa com um único usuário, de login fixo 'admin'."
     echo "   Depois de entrar, dá para criar os demais em Administração → Usuários."
     echo
+    # Mesma exigência do portal do Samba: 8 caracteres com maiúscula, minúscula
+    # e número. Este é o portal mais exposto dos três — fica na porta 80 e a
+    # tela de login é vista por toda a unidade —, então não faz sentido ser o
+    # de critério mais frouxo.
+    echo "   Requisitos: mínimo 8 caracteres, com maiúscula, minúscula e número."
+    echo
     while true; do
-        read -r -s -p "   Senha para o usuário 'admin' (mín. 6 caracteres): " S1; echo
+        read -r -s -p "   Senha para o usuário 'admin': " S1; echo
         read -r -s -p "   Repita a senha: " S2; echo
-        if [ "${#S1}" -lt 6 ]; then
-            vermelho "   A senha precisa ter ao menos 6 caracteres."
+
+        # Os testes ficam TODOS como condição de if/elif. Um validador chamado
+        # solto seria interceptado pelo 'set -e' do topo e mataria o script em
+        # vez de repetir a pergunta.
+        if [[ "$S1" == *[[:cntrl:]]* ]]; then
+            # read -s com setas/Tab injeta sequências de escape na variável.
+            vermelho "   Senha com caracteres inválidos — não use setas, Tab"
+            vermelho "   nem teclas especiais ao digitar."
+        elif [ "${#S1}" -lt 8 ]; then
+            vermelho "   A senha precisa ter ao menos 8 caracteres."
+        elif ! [[ "$S1" =~ [A-Z] ]]; then
+            vermelho "   Falta uma letra MAIÚSCULA."
+        elif ! [[ "$S1" =~ [a-z] ]]; then
+            vermelho "   Falta uma letra minúscula."
+        elif ! [[ "$S1" =~ [0-9] ]]; then
+            vermelho "   Falta um número."
         elif [ "$S1" != "$S2" ]; then
             vermelho "   As senhas não conferem."
         else
