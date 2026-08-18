@@ -48,6 +48,9 @@ O instalador é interativo e pergunta tudo o que muda de uma unidade para outra
    configuração, definir IP fixo (endereço, máscara, gateway e DNS, com uma
    revisão final antes de aplicar) ou usar DHCP. Detecta se quem comanda a rede
    é o NetworkManager e usa `nmcli` nesse caso, ou `ifupdown` no caso contrário.
+   **Este passo é pulado quando existe `/etc/gwos/gwos.conf`**: ali o gateway
+   GWOS é o dono da rede, e uma segunda definição da mesma placa faria o `ifup`
+   falhar no próximo boot. Para trocar o IP nessa máquina use `sudo gwos ip`.
    Por fim pergunta o **nome de acesso** (ver abaixo).
 5. **Dependências**: instala os pacotes.
 6. **Arquivos**: prepara `/opt/portal-sistemas` e pergunta os caminhos do **logo** e da
