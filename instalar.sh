@@ -784,12 +784,46 @@ systemctl daemon-reload
 # in use" repetido no journal enquanto o systemd reinicia em laço — e no
 # navegador como erro genérico. Melhor dizer agora, com o nome do culpado.
 if command -v ss >/dev/null 2>&1 && ss -lntH "sport = :$PORTA" 2>/dev/null | grep -q .; then
+    _OCUPANTE_INFO="$(ss -lptnH "sport = :$PORTA" 2>/dev/null)"
     vermelho "   A porta $PORTA já está ocupada por outro processo:"
-    ss -lptnH "sport = :$PORTA" 2>/dev/null | sed 's/^/     /'
+    echo "$_OCUPANTE_INFO" | sed 's/^/     /'
+    echo
     echo
     echo "   O portal não vai conseguir subir enquanto isso não for resolvido."
-    echo "   Se for um gunicorn de instalação anterior:  pkill -f gunicorn"
-    echo "   Se for apache2 ou nginx, escolha outra porta:  ./instalar.sh 8080"
+    echo
+
+    # Pela convenção do projeto a 80 é DESTE portal — o único acessado sem
+    # porta na barra de endereços. Mover o portal resolve o sintoma e estraga
+    # o motivo: o usuário passa a ter que digitar a porta. Por isso a orientação
+    # é liberar a 80, não fugir dela.
+    if [ "$PORTA" = "80" ]; then
+        echo "   Pela convenção do projeto a porta 80 é deste portal:"
+        echo "     80    portal-sistemas (este)  atalhos, todos os usuários"
+        echo "     8080  portal-gateway  (GWOS)  administração"
+        echo "     8443  portal-samba            administração"
+        echo "   Liberá-la é melhor que mudar de porta: é o único endereço que"
+        echo "   o usuário digita sem sufixo."
+        echo
+    fi
+
+    if echo "$_OCUPANTE_INFO" | grep -q nginx; then
+        echo "   Quem ocupa a porta é o nginx. Veja qual site a segura:"
+        echo "     grep -rn listen /etc/nginx/sites-enabled/"
+        echo
+        echo "   Se for o site de fábrica (chamado default), pode remover — ele"
+        echo "   só serve a página de boas-vindas do nginx:"
+        echo "     sudo rm -f /etc/nginx/sites-enabled/default"
+        echo "     sudo nginx -t && sudo systemctl reload nginx"
+    elif echo "$_OCUPANTE_INFO" | grep -q gunicorn; then
+        echo "   É um gunicorn de instalação anterior. Para encerrá-lo:"
+        echo "     sudo pkill -f gunicorn"
+    else
+        echo "   Encerre o processo acima, ou instale numa porta livre:"
+        # 8080 e 8443 estão reservadas aos outros dois portais — sugerir uma
+        # delas trocaria este conflito por outro, mais difícil de perceber.
+        echo "     sudo ./instalar.sh 8081"
+    fi
+    echo
     confirmar "Tentar subir mesmo assim?" || {
         amarelo "   Serviço criado mas não iniciado. Depois de liberar a porta:"
         echo   "     systemctl start $PORTAL_NOME"
