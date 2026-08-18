@@ -861,10 +861,24 @@ else
     echo "   Nenhum ufw instalado — nada a fazer."
 fi
 
-sleep 2
 IP_LOCAL=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo
-if systemctl is-active --quiet portal; then
+
+# A unit chama-se $SERVICO (portal-sistemas.service). Aqui se consultava a unit
+# 'portal', que nao existe desde a renomeacao: o is-active devolvia falso mesmo
+# com o servico no ar, e o instalador declarava falha ao fim de uma instalacao
+# bem-sucedida. Pior, o diagnostico seguinte via o gunicorn DESTE portal na
+# porta 80 e acusava "porta ocupada" — apontando o proprio servico como culpado.
+#
+# O gunicorn leva um instante para vincular a porta e subir os workers; algumas
+# tentativas evitam declarar falha por pressa.
+_ATIVO=1
+for _t in 1 2 3 4 5; do
+    if systemctl is-active --quiet "$SERVICO"; then _ATIVO=0; break; fi
+    sleep 1
+done
+
+if [ "$_ATIVO" -eq 0 ]; then
     verde "════════════════════════════════════════════════════════════"
     verde " Portal instalado e ATIVO."
     SUFIXO_PORTA=$( [ "$PORTA" != 80 ] && echo ":$PORTA" )
@@ -892,7 +906,14 @@ else
     # Causa mais comum: outro processo já ocupa a porta. O gunicorn morre no
     # bind e, sem esta checagem, o motivo fica só no journal.
     OCUPANTE=$(ss -lntp 2>/dev/null | awk -v p=":${PORTA}\$" '$4 ~ p {print $NF}' | head -1) || OCUPANTE=""
-    if [ -n "$OCUPANTE" ]; then
+    # Se quem ocupa a porta e o gunicorn DESTE portal, nao existe conflito: o
+    # servico esta no ar e foi a verificacao que falhou. Acusar conflito aqui
+    # manda o operador matar o proprio portal que acabou de instalar.
+    if [ -n "$OCUPANTE" ] && echo "$OCUPANTE" | grep -q gunicorn        && pgrep -f "gunicorn.*${DEST}" >/dev/null 2>&1; then
+        amarelo "Mas o gunicorn deste portal ESTÁ escutando na porta ${PORTA}."
+        echo    "   Abra http://${IP_LOCAL:-<ip>}$([ "$PORTA" != 80 ] && echo ":$PORTA") — se a página carregar, está funcionando."
+        echo    "   Confira o serviço com: systemctl status ${SERVICO}"
+    elif [ -n "$OCUPANTE" ]; then
         vermelho "A porta ${PORTA} já está ocupada por: ${OCUPANTE}"
         echo  "   Libere a porta, ou reinstale em outra: sudo ./instalar.sh <porta>"
         echo  "   Pela convenção do projeto a 80 é deste portal; o painel do"
