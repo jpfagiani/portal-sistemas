@@ -1196,8 +1196,13 @@ def abas_links(atual):
                   url_for('admin_painel', bloco='menu')))
     return [(rotulo, href, chave == atual) for chave, rotulo, href in itens]
 
+# Sistemas e atalhos não têm limite: tudo o que está marcado como "Exibir na
+# página inicial" aparece no cartão, que cresce conforme a lista. Havia um corte
+# (16 e 8) que escondia o 17º sistema em diante — o item cadastrado só aparecia
+# em "Ver todos" e parecia que o cadastro tinha falhado. Os ramais continuam
+# limitados de propósito: o cartão é uma lista curta com busca.
 LIMITES = {
-    'comunicados': 4, 'sistemas': 16, 'atalhos': 8,
+    'comunicados': 4,
     'aniversariantes': 4, 'ramais': 5, 'escalas': 6, 'chamados': 3,
     'reservas': 4,
 }
@@ -1469,7 +1474,7 @@ def login():
 
 @app.route('/sistemas')
 def sistemas():
-    """Todos os sistemas — o painel mostra só os primeiros e manda para cá."""
+    """Página "Ver todos" dos sistemas, com os atalhos e reservas ao lado."""
     con = db()
     return render_template(
         'sistemas.html',
@@ -1611,9 +1616,7 @@ def index():
     return render_template(
         'index.html', numeros=numeros, saudacao=saudacao(),
         cartoes_painel=cartoes_painel,
-        # O corte vem antes do agrupamento: fatiar a lista já agrupada cortaria
-        # categorias inteiras, não itens, e o limite deixaria de existir.
-        sistemas=agrupar_por_categoria(sistemas_todos[:LIMITES['sistemas']]),
+        sistemas=agrupar_por_categoria(sistemas_todos),
         sistemas_total=len(sistemas_todos),
         atalhos=con.execute("SELECT * FROM links WHERE ativo=1 AND grupo='atalho'"
                             ' ORDER BY ordem, id').fetchall(),

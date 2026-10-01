@@ -1,0 +1,135 @@
+{% extends 'shell.html' %}
+{% import 'blocos.html' as b with context %}
+{% set pagina = 'inicio' %}
+{% block titulo %}Portal{% endblock %}
+
+{#  Os cartões existem sempre, mesmo vazios, para a página não mudar de forma
+    conforme é preenchida. Cada bloco mostra até um limite; o "ver todos" abre
+    a lista completa em outra aba. #}
+
+{#  "Ver todos" em todos os cartões, sempre no mesmo lugar: o cabeçalho vira
+    previsível e ninguém precisa descobrir quais blocos escondem coisa. Quando
+    há mais do que cabe, a quantidade vai no title — informação útil sem virar
+    um número solto ao lado do título. #}
+{% macro cabecalho(icone, titulo, href, total=0, limite=0) %}
+  <div class="cartao-cab">
+    <span class="cab-ic">{{ ic(icone) }}</span>
+    <h2>{{ titulo }}</h2>
+    <a class="ver" href="{{ href }}" target="_blank" rel="noopener"
+       {% if total > limite %}title="Ver todos os {{ total }}"{% endif %}>Ver todos</a>
+  </div>
+{% endmacro %}
+
+{#  Todo cartao passa por aqui. Os de tipo "itens" sao os genericos, montados em
+    blocos.html; os tres de desenho proprio (sistemas, atalhos, ramais) tem
+    conteudo vindo do cadastro deles, mas a posicao sai do mesmo registro — e
+    por isso que agora tambem podem ser movidos. `itens` vem None quando o
+    cartao e livre, que carrega o proprio conteudo. #}
+{% macro desenha(c, itens) %}
+  {% if c.tipo == 'sistemas' %}
+    <section class="cartao" {{ posicao(c) }}>
+      {{ cabecalho('grade', c.nome, url_for('sistemas')) }}
+      <div class="cartao-corpo">{{ b.ladrilhos(sistemas) }}</div>
+    </section>
+  {% elif c.tipo == 'atalhos' %}
+    <section class="cartao" {{ posicao(c) }}>
+      {{ cabecalho('marcador', c.nome, url_for('lista', chave='atalhos')) }}
+      <div class="cartao-corpo">{{ b.atalhos(atalhos) }}</div>
+    </section>
+  {% elif c.tipo == 'ramais' %}
+    <section class="cartao" {{ posicao(c) }}>
+      {{ cabecalho('telefone', c.nome, url_for('ramais'), ramais_total, limites.ramais) }}
+      <div class="cartao-corpo ramais">
+        <div class="busca-cartao">
+          <span aria-hidden="true">{{ ic('lupa') }}</span>
+          <input type="search" id="filtro-ramais-painel"
+                 placeholder="Pesquisar ramal ou setor..." aria-label="Filtrar ramais">
+        </div>
+        {{ b.ramais(ramais_destaque[:limites.ramais],
+                    ramais_destaque[limites.ramais:] + ramais_extras) }}
+      </div>
+    </section>
+  {% else %}{{ b.cartao_painel(c, itens) }}
+  {% endif %}
+{% endmacro %}
+
+{#  Largura e coluna viram atributos; o CSS traduz para a grade. #}
+{% macro posicao(c) %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}{% endmacro %}
+
+{% block miolo %}
+{% set capa_titulo = cfg.capa_titulo or ('Portal ' ~ cfg.site_sigla) %}
+<main class="painel">
+
+  <section class="capa" data-intervalo="{{ cfg.banner_seg }}">
+    {% if banners %}
+    <div class="banner-trilho">
+      {% for i in banners %}
+      <div class="slide {% if loop.first %}ativo{% endif %}"
+           {% if i.arquivo %}
+           {# A capa é muito mais larga do que alta, então o `cover` sempre
+              descarta parte da foto. `posicao` diz qual parte fica. #}
+           style="background-image:url('{{ url_for('static', filename='uploads/' ~ i.arquivo) }}');
+                  background-position:{{ i.posicao or '50% 50%' }}"
+           {% else %}style="background:{{ i.cor }}"{% endif %}
+           {% if i.titulo %}role="img" aria-label="{{ i.titulo }}"{% endif %}>
+        {% if i.url %}<a class="slide-link" href="{{ i.url }}" target="_blank"
+                         rel="noopener" aria-label="{{ i.titulo or 'Abrir' }}"></a>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% if banners|length > 1 %}
+    <button class="banner-seta ant" aria-label="Imagem anterior">‹</button>
+    <button class="banner-seta prox" aria-label="Próxima imagem">›</button>
+    <div class="banner-pontos">
+      {% for i in banners %}<button class="ponto {% if loop.first %}ativo{% endif %}"
+        aria-label="Imagem {{ loop.index }}"></button>{% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="capa-texto">
+      {#  Juntando as duas coisas: a saudação ocupa a primeira linha da capa
+          para quem está identificado; para quem só está de passagem vale a
+          "Linha de abertura" configurada em Aparência. #}
+      {% if usuario_nome %}
+      <small>{{ saudacao }}, {{ usuario_nome.split()[0] }}! <span aria-hidden="true">&#128075;</span></small>
+      {% elif cfg.capa_abertura %}<small>{{ cfg.capa_abertura }}</small>{% endif %}
+      <strong>{{ capa_titulo }}</strong>
+      {% if cfg.capa_texto or cfg.capa_texto2 %}
+      <p>{{ cfg.capa_texto }}{% if cfg.capa_texto2 %}<br>{{ cfg.capa_texto2 }}{% endif %}</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="numeros">
+    {% for valor, rotulo, nota, icone, tom in numeros %}
+    <div class="numero-cartao tom-{{ tom }}">
+      <span class="numero-ic">{{ ic(icone) }}</span>
+      <span>
+        <strong>{{ valor }}</strong>
+        <b>{{ rotulo }}</b>
+        <small>{{ nota }}</small>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="regiao-topo">
+    {% for c, itens in cartoes_painel.topo %}{{ desenha(c, itens) }}{% endfor %}
+  </div>
+
+  {% if cartoes_painel.meio %}
+  <div class="regiao-meio-grade">
+    {% for c, itens in cartoes_painel.meio %}{{ desenha(c, itens) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="regiao-baixo">
+    {% for c, itens in cartoes_painel.baixo %}{{ desenha(c, itens) }}{% endfor %}
+  </div>
+</main>
+
+<script src="{{ url_for('static', filename='ramais.js') }}"></script>
+<script src="{{ url_for('static', filename='encaixe.js') }}"></script>
+{% if banners|length > 1 %}<script src="{{ url_for('static', filename='banner.js') }}"></script>{% endif %}
+{% endblock %}
