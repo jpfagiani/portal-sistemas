@@ -85,20 +85,45 @@
   });
 
   /*  Ao salvar, a posição de cada cartão é lida da tela: região e coluna vêm
-      da célula onde ele parou, e a ordem, da sequência em que aparecem. Ler do
-      DOM em vez de acompanhar cada movimento evita que um arrasto perdido
-      deixe o estado guardado diferente do que se vê.  */
+      da célula onde ele parou. Ler do DOM em vez de acompanhar cada movimento
+      evita que um arrasto perdido deixe o estado guardado diferente do que se
+      vê.
+
+      A ordem é gravada por LINHA, não por coluna: dentro de cada região vêm
+      primeiro os cartões que estão no topo das colunas (da esquerda para a
+      direita), depois os do segundo nível, e assim por diante. Percorrer célula
+      por célula gravava a ordem coluna por coluna, e o painel — que é uma grade
+      lida linha a linha — montava os cartões fora do lugar. Essa ordem também é
+      a de leitura natural quando a tela estreita e tudo vira uma coluna só.  */
   if (salvar) {
     salvar.addEventListener('click', function () {
+      var porRegiao = {};          /* regiao -> [{cartao, celula, nivel, coluna}] */
+      var regioes = [];
+      mapa.querySelectorAll('[data-celula]').forEach(function (celula) {
+        var regiao = celula.dataset.regiao;
+        if (!porRegiao[regiao]) { porRegiao[regiao] = []; regioes.push(regiao); }
+        celula.querySelectorAll('[data-cartao]').forEach(function (cartao, nivel) {
+          porRegiao[regiao].push({
+            cartao: cartao,
+            celula: celula,
+            nivel: nivel,
+            coluna: parseInt(celula.dataset.coluna, 10)
+          });
+        });
+      });
+
       var posicoes = [];
       var n = 0;
-      mapa.querySelectorAll('[data-celula]').forEach(function (celula) {
-        celula.querySelectorAll('[data-cartao]').forEach(function (cartao) {
+      regioes.forEach(function (regiao) {
+        porRegiao[regiao].sort(function (a, b) {
+          return (a.nivel - b.nivel) || (a.coluna - b.coluna);
+        });
+        porRegiao[regiao].forEach(function (p) {
           posicoes.push({
-            ref: cartao.dataset.cartao,
-            regiao: celula.dataset.regiao,
-            coluna: parseInt(celula.dataset.coluna, 10),
-            largura: larguraDe(cartao),
+            ref: p.cartao.dataset.cartao,
+            regiao: regiao,
+            coluna: p.coluna,
+            largura: larguraDe(p.cartao),
             ordem: n++
           });
         });

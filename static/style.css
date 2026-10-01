@@ -303,12 +303,14 @@ body{
    cartões embaixo — a mesma divisão do layout. */
 
 .regiao-topo{display:grid;grid-template-columns:minmax(0,1.06fr) minmax(0,1fr) minmax(0,1fr);
+  grid-auto-flow:row dense;
   gap:1rem;align-items:stretch;margin-bottom:1rem}
 .regiao-meio{margin-bottom:1rem}
 /* Quatro colunas enquanto couberem 240px em cada uma. Eram quatro fixas com
    quebras em 1400px e 900px, e a de 1400 pegava tela de 1280 — a fileira caía
    para duas colunas largas e vazias antes de ficar apertada de verdade. */
 .regiao-baixo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-auto-flow:row dense;
   gap:1rem;align-items:stretch}
 
 /* Cartão em coluna: o corpo ocupa a sobra, então cartões lado a lado terminam
@@ -1118,6 +1120,13 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
 }
 .com-link:hover{text-decoration:underline}
 
+/* `grid-auto-flow:row dense` nas três grades acima não é enfeite. Com coluna
+   fixa (`data-col`) e fluxo comum, o navegador só avança de linha: depois de
+   colocar os cartões da 1ª coluna um embaixo do outro, os da 2ª começavam na
+   linha onde os da 1ª terminaram, e o painel saía diferente do mapa. Com
+   `dense`, cada cartão de coluna fixa sobe até a primeira linha livre da sua
+   coluna — cada coluna vira uma pilha, exatamente como no mapa. */
+
 /* Coluna inicial escolhida no cartão. Sem `data-col` ele entra na próxima vaga
    livre, que é o comportamento de sempre. `grid-column-start` fixa a posição e
    o `span` de `data-larg` continua valendo por cima dela.
@@ -1143,6 +1152,7 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
    inteira escolhe Largura = 3 colunas. */
 .regiao-meio-grade{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-auto-flow:row dense;
   gap:1rem;align-items:stretch;margin-bottom:1rem;
 }
 .regiao-meio-grade .cartao[data-larg="2"]{grid-column-end:span 2}
