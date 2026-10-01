@@ -38,17 +38,18 @@
       {#  A posicao escolhida vira uma classe; o CSS decide se a imagem fica
           acima, ao lado ou esmaecida atras do texto. #}
       {#  Com endereço, a própria imagem é o link — não precisa de um "Clique
-          aqui" ao lado. Três exceções: o item que já é um link inteiro (um <a>
-          dentro de outro <a> é inválido), a imagem ao fundo (esmaecida atrás do
-          texto, é decoração e não recebe clique) e o item sem endereço. #}
-      {% set img_link = c.imagem and c.url and c.tipo != 'link'
-                        and c.img_pos != 'fundo' %}
+          aqui" ao lado. Duas exceções: o item que já é um link inteiro (um <a>
+          dentro de outro <a> é inválido) e o item sem endereço.
+          Imagem "ao fundo" também é link: o <a> cobre a área do item, atrás do
+          texto, e o CSS deixa o clique atravessar o texto até ele. #}
+      {% set img_link = c.imagem and c.url and c.tipo != 'link' %}
       {% if c.imagem %}
       {% set img %}<img class="com-imagem com-img-{{ c.img_pos|default('topo') }}" loading="lazy"
            alt="{{ c.titulo }}"
            src="{{ url_for('static', filename='uploads/' ~ c.imagem) }}">{% endset %}
       {% if img_link %}
-      <a class="com-img-link" href="{{ c.url }}" target="_blank" rel="noopener"
+      <a class="com-img-link{{ ' com-img-link-fundo' if c.img_pos == 'fundo' }}"
+         href="{{ c.url }}" target="_blank" rel="noopener"
          title="Abrir: {{ c.titulo }}">{{ img }}</a>
       {% else %}{{ img }}{% endif %}
       {% endif %}

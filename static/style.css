@@ -1260,6 +1260,17 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
   position:absolute;inset:0;width:100%;height:100%;margin:0;
   object-fit:cover;opacity:.15;pointer-events:none;z-index:0;
 }
-.comunicado .conteudo:has(.com-img-fundo)>*:not(.com-img-fundo){
+.comunicado .conteudo:has(.com-img-fundo)>*:not(.com-img-fundo):not(.com-img-link-fundo){
   position:relative;z-index:1}
 html[data-tema="escuro"] .com-img-fundo{opacity:.1}
+/* Imagem ao fundo que também é link: o <a> ocupa a área inteira do item, atrás
+   do texto, e o texto deixa o clique passar (pointer-events:none) até ele —
+   assim clicar em qualquer ponto do item, texto ou imagem, abre o endereço. O
+   preço é não conseguir selecionar o texto com o mouse nesses itens. No hover a
+   imagem ganha força, que é o aviso de que dá para clicar. */
+.com-img-link-fundo{position:absolute;inset:0;z-index:0;border-radius:0}
+.com-img-link-fundo .com-img-fundo{pointer-events:auto}
+.comunicado .conteudo:has(.com-img-link-fundo)>*:not(.com-img-link-fundo){
+  pointer-events:none}
+.com-img-link-fundo:hover .com-img-fundo{opacity:.3;box-shadow:none;filter:none}
+html[data-tema="escuro"] .com-img-link-fundo:hover .com-img-fundo{opacity:.2}

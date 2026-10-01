@@ -1201,8 +1201,14 @@ def abas_links(atual):
 # (16 e 8) que escondia o 17º sistema em diante — o item cadastrado só aparecia
 # em "Ver todos" e parecia que o cadastro tinha falhado. Os ramais continuam
 # limitados de propósito: o cartão é uma lista curta com busca.
+#
+# As duas chaves continuam aqui, com um número enorme, e não foram apagadas: um
+# index.html de versão anterior ainda lê `limites.sistemas` e `limites.atalhos`,
+# e sem as chaves a página inicial inteira cai com erro 500 se app.py e o
+# template forem atualizados em momentos diferentes.
+SEM_LIMITE = 10 ** 6
 LIMITES = {
-    'comunicados': 4,
+    'comunicados': 4, 'sistemas': SEM_LIMITE, 'atalhos': SEM_LIMITE,
     'aniversariantes': 4, 'ramais': 5, 'escalas': 6, 'chamados': 3,
     'reservas': 4,
 }
