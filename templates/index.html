@@ -28,14 +28,13 @@
 {% macro desenha(c, itens) %}
   {% if c.tipo == 'sistemas' %}
     <section class="cartao" {{ posicao(c) }}>
-      {{ cabecalho('grade', c.nome, url_for('sistemas'), sistemas_total, limites.sistemas) }}
+      {{ cabecalho('grade', c.nome, url_for('sistemas')) }}
       <div class="cartao-corpo">{{ b.ladrilhos(sistemas) }}</div>
     </section>
   {% elif c.tipo == 'atalhos' %}
     <section class="cartao" {{ posicao(c) }}>
-      {{ cabecalho('marcador', c.nome, url_for('lista', chave='atalhos'),
-                   atalhos|length, limites.atalhos) }}
-      <div class="cartao-corpo">{{ b.atalhos(atalhos[:limites.atalhos]) }}</div>
+      {{ cabecalho('marcador', c.nome, url_for('lista', chave='atalhos')) }}
+      <div class="cartao-corpo">{{ b.atalhos(atalhos) }}</div>
     </section>
   {% elif c.tipo == 'ramais' %}
     <section class="cartao" {{ posicao(c) }}>
