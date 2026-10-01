@@ -1119,6 +1119,14 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
   display:inline-block;margin-top:.4rem;font-size:.72rem;font-weight:600;
 }
 .com-link:hover{text-decoration:underline}
+/* Imagem que é o link do item. O <a> só embrulha: o tamanho e o recorte
+   continuam sendo da própria imagem. O realce no hover avisa que dá para
+   clicar, já que não há mais um texto sublinhado dizendo isso. */
+.com-img-link{display:block;border-radius:9px;cursor:pointer}
+.com-img-link:hover .com-imagem{filter:brightness(1.06);
+  box-shadow:0 0 0 2px var(--azul)}
+.com-img-link:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+.com-imagem{transition:filter .15s,box-shadow .15s}
 
 /* `grid-auto-flow:row dense` nas três grades acima não é enfeite. Com coluna
    fixa (`data-col`) e fluxo comum, o navegador só avança de linha: depois de
@@ -1166,6 +1174,31 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
   .regiao-meio-grade .cartao[data-col]{grid-column:auto}
 }
 
+/* ── altura do cartão e encaixe em colunas ────────────────────────────────
+   Altura "automática" = a do conteúdo. Os degraus são alturas mínimas: o cartão
+   cresce se precisar, e o corpo (flex:1) ocupa a folga, o que também libera mais
+   linhas de texto que estavam cortadas. Em tela estreita o painel é uma coluna
+   só e uma altura mínima grande viraria espaço morto, então ela é desfeita. */
+.cartao[data-alt="1"]{min-height:14rem}
+.cartao[data-alt="2"]{min-height:20rem}
+.cartao[data-alt="3"]{min-height:28rem}
+.cartao[data-alt="4"]{min-height:38rem}
+@media (max-width:900px){.cartao[data-alt]{min-height:0}}
+
+/* Encaixe: static/encaixe.js põe `.encaixe` nas regiões e mede cada cartão.
+   A grade passa a ter linhas de 4px e cada cartão ocupa quantas linhas a sua
+   altura pedir (`grid-row-end:span N`), sem esticar até o vizinho. Assim a
+   altura do cartão é a do conteúdo e o vão embaixo dele é aproveitado pelo
+   cartão seguinte da mesma coluna. Sem JavaScript nada disso vale e a grade
+   continua como era, com cartões da mesma altura por fileira.
+   O espaço entre fileiras (1rem) está dentro do `span`, por isso `row-gap:0`
+   e as margens das regiões encolhem. */
+.regiao-topo.encaixe,.regiao-baixo.encaixe,.regiao-meio-grade.encaixe{
+  grid-auto-rows:4px;row-gap:0;align-items:start}
+.regiao-topo.encaixe,.regiao-meio-grade.encaixe{margin-bottom:0}
+.regiao-baixo.encaixe{margin-bottom:-1rem}
+.encaixe>.cartao{align-self:start}
+
 /* ── mapa do painel ────────────────────────────────────────────────────────
    Uma miniatura da página inicial: três regiões, três colunas cada, e os
    cartões como blocos que se arrasta entre as células. */
@@ -1196,6 +1229,9 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
 .mapa-larg{display:flex;align-items:center;gap:.4rem;margin-top:.4rem;
   font-size:.66rem;color:var(--texto-fraco)}
 .mapa-larg .btn{padding:0 .4rem;line-height:1.5}
+/* Linha que marca, durante o arrasto, onde o cartão vai entrar na coluna. */
+.mapa-marca{height:4px;border-radius:2px;background:var(--azul);flex:none;
+  pointer-events:none}
 
 @media (max-width:900px){
   .mapa-regiao{grid-template-columns:minmax(0,1fr)}
@@ -1215,7 +1251,8 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
    e ja vinha da regra .com-imagem. */
 .comunicado .conteudo:has(.com-img-lado){display:grid;
   grid-template-columns:96px minmax(0,1fr);gap:.6rem;align-items:start}
-.com-img-lado{grid-row:1 / span 3;max-height:96px;margin-top:0}
+.com-img-lado{max-height:96px;margin-top:0}
+.com-img-lado,.com-img-link:has(.com-img-lado){grid-row:1 / span 3}
 /* Ao fundo: a imagem sai do fluxo e fica esmaecida atras do texto, como a
    marca d'agua dos cartoes. */
 .comunicado .conteudo:has(.com-img-fundo){position:relative}

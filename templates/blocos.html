@@ -37,16 +37,26 @@
           nao toca sozinho — som inesperado num portal aberto e invasivo. #}
       {#  A posicao escolhida vira uma classe; o CSS decide se a imagem fica
           acima, ao lado ou esmaecida atras do texto. #}
+      {#  Com endereço, a própria imagem é o link — não precisa de um "Clique
+          aqui" ao lado. Três exceções: o item que já é um link inteiro (um <a>
+          dentro de outro <a> é inválido), a imagem ao fundo (esmaecida atrás do
+          texto, é decoração e não recebe clique) e o item sem endereço. #}
+      {% set img_link = c.imagem and c.url and c.tipo != 'link'
+                        and c.img_pos != 'fundo' %}
       {% if c.imagem %}
-      <img class="com-imagem com-img-{{ c.img_pos|default('topo') }}" loading="lazy"
+      {% set img %}<img class="com-imagem com-img-{{ c.img_pos|default('topo') }}" loading="lazy"
            alt="{{ c.titulo }}"
-           src="{{ url_for('static', filename='uploads/' ~ c.imagem) }}">
+           src="{{ url_for('static', filename='uploads/' ~ c.imagem) }}">{% endset %}
+      {% if img_link %}
+      <a class="com-img-link" href="{{ c.url }}" target="_blank" rel="noopener"
+         title="Abrir: {{ c.titulo }}">{{ img }}</a>
+      {% else %}{{ img }}{% endif %}
       {% endif %}
       {% if c.video %}
       <video class="com-video" controls preload="metadata"
              src="{{ url_for('static', filename='uploads/' ~ c.video) }}"></video>
       {% endif %}
-      {% if c.url and c.tipo != 'link' %}
+      {% if c.url and c.tipo != 'link' and not img_link %}
       <a class="com-link" href="{{ c.url }}" target="_blank" rel="noopener"
         >{{ c.url_rot or 'Abrir' }}</a>
       {% endif %}
@@ -227,7 +237,7 @@
 {#  Cartao do painel: nome no cabecalho e a lista de itens dentro. Os cinco sao
     iguais — o que muda e o nome, a posicao e o que a unidade escreve. #}
 {% macro cartao_painel(c, itens) %}
-  <section class="cartao" {% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}>
+  <section class="cartao" {% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}>
     <div class="cartao-cab">
       <span class="cab-ic">{{ ic(c.icone) }}</span>
       <h2>{{ c.nome }}</h2>

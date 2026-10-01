@@ -539,6 +539,13 @@ CARTAO_COLUNAS = {0: 'Automática (próxima vaga livre)', 1: '1ª coluna',
 # administração precisa desenhar o mesmo número, senão promete uma posição que
 # o painel não tem.
 COLUNAS_POR_REGIAO = {'topo': 3, 'meio': 3, 'baixo': 4}
+# Altura do cartão. "Automática" é a altura do próprio conteúdo: o cartão só
+# ocupa o que precisa e o espaço que sobra embaixo fica livre para o cartão
+# seguinte da mesma coluna. Os demais degraus são alturas MÍNIMAS (em static/
+# style.css, regras `data-alt`) — o cartão cresce se o conteúdo pedir, e o
+# texto cortado ganha mais linhas visíveis quando há folga.
+CARTAO_ALTURAS = {0: 'Automática', 1: 'Média', 2: 'Alta', 3: 'Muito alta',
+                  4: 'Máxima'}
 
 
 def distribuir_em_colunas(cartoes, colunas):
@@ -732,6 +739,7 @@ CREATE TABLE IF NOT EXISTS cartoes_painel (
     regiao  TEXT DEFAULT 'baixo',       -- topo | meio | baixo
     largura INTEGER NOT NULL DEFAULT 1,
     coluna  INTEGER NOT NULL DEFAULT 0, -- 0 = próxima vaga livre; 1..3 = fixa
+    altura  INTEGER NOT NULL DEFAULT 0, -- 0 = automática; 1..4 = altura mínima
     -- O que o cartão desenha por dentro. 'itens' é o cartão comum, de lista
     -- livre; os demais são os três que têm desenho próprio e conteúdo vindo de
     -- outro cadastro. Todos são posicionados do mesmo jeito.
@@ -1018,6 +1026,7 @@ def init_db():
             ('lateral',  'img_pos', "TEXT DEFAULT 'topo'"),
             ('cartoes',  'coluna',  'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'coluna', 'INTEGER NOT NULL DEFAULT 0'),
+            ('cartoes_painel', 'altura', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'tipo', "TEXT NOT NULL DEFAULT 'itens'"),
             ('lateral',  'data',     "TEXT DEFAULT ''"),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
@@ -2084,12 +2093,15 @@ def admin_mapa():
             regiao = p.get('regiao')
             coluna = _int(p.get('coluna'))
             largura = _int(p.get('largura'), 1)
+            altura = _int(p.get('altura'))
             dados = (regiao if regiao in CARTAO_REGIOES else 'baixo',
                      coluna if coluna in CARTAO_COLUNAS else 0,
                      largura if largura in CARTAO_LARGURAS else 1,
+                     altura if altura in CARTAO_ALTURAS else 0,
                      _int(p.get('ordem')))
             con.execute('UPDATE cartoes_painel SET regiao=?,coluna=?,'
-                        'largura=?,ordem=? WHERE chave=?', dados + (chave,))
+                        'largura=?,altura=?,ordem=? WHERE chave=?',
+                        dados + (chave,))
         con.commit()
         flash('Layout salvo.', 'ok')
         return redirect(url_for('admin_mapa'))
@@ -2101,6 +2113,7 @@ def admin_mapa():
         cartoes.append({
             'ref': 'painel:' + c['chave'], 'nome': c['nome'], 'icone': c['icone'],
             'regiao': c['regiao'], 'largura': c['largura'], 'coluna': c['coluna'],
+            'altura': c['altura'] or 0,
             'descricao': ('conteúdo próprio' if c['tipo'] != 'itens'
                           else f'{quantos} item(ns)'),
             'oculto': not c['ativo']})
@@ -2111,7 +2124,8 @@ def admin_mapa():
     for regiao, colunas in COLUNAS_POR_REGIAO.items():
         distribuir_em_colunas([c for c in cartoes if c['regiao'] == regiao], colunas)
     return render_template('admin_mapa.html', cartoes=cartoes,
-                           regioes=CARTAO_REGIOES, colunas=COLUNAS_POR_REGIAO)
+                           regioes=CARTAO_REGIOES, colunas=COLUNAS_POR_REGIAO,
+                           alturas=CARTAO_ALTURAS)
 
 
 @app.route('/admin/ramais', methods=['GET', 'POST'])

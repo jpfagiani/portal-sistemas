@@ -20,10 +20,17 @@
     if (salvar) salvar.disabled = false;
   }
 
-  /*  A largura do cartão é quantas colunas ele ocupa. Presa entre 1 e 3: a
-      grade tem três, e um cartão mais largo que a grade transbordaria.  */
+  /*  Quantas colunas tem a região onde o cartão está agora. A de baixo tem
+      quatro e as outras três; um cartão mais largo que a grade transbordaria.  */
+  function colunasDe(cartao) {
+    var regiao = cartao.closest('[data-celula]').dataset.regiao;
+    return mapa.querySelectorAll('[data-celula][data-regiao="' + regiao + '"]').length;
+  }
+
+  /*  A largura do cartão é quantas colunas ele ocupa.  */
   function larguraDe(cartao) {
-    return Math.min(3, Math.max(1, parseInt(cartao.dataset.larg, 10) || 1));
+    var max = colunasDe(cartao);
+    return Math.min(max, Math.max(1, parseInt(cartao.dataset.larg, 10) || 1));
   }
 
   function pintaLargura(cartao) {
@@ -31,11 +38,48 @@
     cartao.dataset.larg = n;
     cartao.style.gridColumnEnd = 'span ' + n;
     var rotulo = cartao.querySelector('[data-larg-rotulo]');
-    if (rotulo) rotulo.textContent = n + (n > 1 ? ' colunas' : ' coluna');
+    if (rotulo) rotulo.textContent = 'Largura: ' + n + (n > 1 ? ' colunas' : ' coluna');
   }
+
+  /*  Altura: 0 é automática (a do conteúdo); 1 a 4 são alturas mínimas. Os
+      nomes devem acompanhar CARTAO_ALTURAS, em app.py.  */
+  var ALTURAS = ['Automática', 'Média', 'Alta', 'Muito alta', 'Máxima'];
+
+  function alturaDe(cartao) {
+    return Math.min(ALTURAS.length - 1,
+                    Math.max(0, parseInt(cartao.dataset.alt, 10) || 0));
+  }
+
+  function pintaAltura(cartao) {
+    var n = alturaDe(cartao);
+    cartao.dataset.alt = n;
+    var rotulo = cartao.querySelector('[data-alt-rotulo]');
+    if (rotulo) rotulo.textContent = 'Altura: ' + ALTURAS[n].toLowerCase();
+  }
+
+  /*  Em que ponto da coluna o cartão solto vai entrar: antes do primeiro cartão
+      cuja metade de baixo está abaixo do cursor. Sem nenhum, vai para o fim.
+      Sem isto todo cartão solto caía no final da coluna, e não havia como
+      encaixar um entre outros dois.  */
+  function antesDe(celula, y) {
+    var outros = Array.prototype.filter.call(
+      celula.querySelectorAll('[data-cartao]'),
+      function (c) { return c !== arrastado; });
+    for (var i = 0; i < outros.length; i++) {
+      var r = outros[i].getBoundingClientRect();
+      if (y < r.top + r.height / 2) return outros[i];
+    }
+    return null;
+  }
+
+  /*  Linha azul que mostra onde o cartão vai ficar.  */
+  var marca = document.createElement('div');
+  marca.className = 'mapa-marca';
+  function tiraMarca() { if (marca.parentNode) marca.parentNode.removeChild(marca); }
 
   mapa.querySelectorAll('[data-cartao]').forEach(function (cartao) {
     pintaLargura(cartao);
+    pintaAltura(cartao);
 
     cartao.addEventListener('dragstart', function (e) {
       arrastado = cartao;
@@ -50,6 +94,7 @@
       mapa.querySelectorAll('.alvo').forEach(function (c) {
         c.classList.remove('alvo');
       });
+      tiraMarca();
       arrastado = null;
     });
 
@@ -61,6 +106,15 @@
         sujo();
       });
     });
+
+    cartao.querySelectorAll('[data-alt-menos],[data-alt-mais]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var passo = b.hasAttribute('data-alt-mais') ? 1 : -1;
+        cartao.dataset.alt = alturaDe(cartao) + passo;
+        pintaAltura(cartao);
+        sujo();
+      });
+    });
   });
 
   mapa.querySelectorAll('[data-celula]').forEach(function (celula) {
@@ -69,17 +123,29 @@
       e.preventDefault();                 /* sem isto o soltar não acontece */
       e.dataTransfer.dropEffect = 'move';
       celula.classList.add('alvo');
+      var antes = antesDe(celula, e.clientY);
+      if (antes) celula.insertBefore(marca, antes);
+      else celula.appendChild(marca);
     });
 
-    celula.addEventListener('dragleave', function () {
+    /*  O dragleave dispara também ao passar por cima de um cartão filho da
+        célula; só vale quando o cursor realmente saiu dela.  */
+    celula.addEventListener('dragleave', function (e) {
+      if (celula.contains(e.relatedTarget)) return;
       celula.classList.remove('alvo');
+      tiraMarca();
     });
 
     celula.addEventListener('drop', function (e) {
       if (!arrastado) return;
       e.preventDefault();
       celula.classList.remove('alvo');
-      celula.appendChild(arrastado);
+      var antes = antesDe(celula, e.clientY);
+      tiraMarca();
+      if (antes) celula.insertBefore(arrastado, antes);
+      else celula.appendChild(arrastado);
+      /*  Mudou de região: a largura pode não caber mais.  */
+      pintaLargura(arrastado);
       sujo();
     });
   });
@@ -124,6 +190,7 @@
             regiao: regiao,
             coluna: p.coluna,
             largura: larguraDe(p.cartao),
+            altura: alturaDe(p.cartao),
             ordem: n++
           });
         });

@@ -7,9 +7,16 @@
   <section class="painel-caixa">
     <h2>Mapa do painel</h2>
     <p class="dica">Arraste cada cartão para a região e a coluna onde ele deve
-      ficar. Use <strong>−</strong> e <strong>+</strong> para dizer quantas
-      colunas ele ocupa. Nada muda no portal até você clicar em
+      ficar — solte <strong>entre dois cartões</strong> (a linha azul mostra o
+      ponto) para encaixá-lo no meio da coluna. Use <strong>−</strong> e
+      <strong>+</strong> para dizer quantas colunas ele ocupa e qual a altura
+      dele. Nada muda no portal até você clicar em
       <strong>Salvar layout</strong>.</p>
+    <p class="dica"><strong>Altura automática</strong> é o tamanho do próprio
+      conteúdo: o cartão não ocupa mais do que precisa, e o espaço que sobra
+      embaixo dele é aproveitado pelo cartão seguinte da mesma coluna. As
+      outras alturas são <em>mínimas</em> — servem para um cartão crescer
+      (e mostrar mais texto) quando você quiser.</p>
     <p class="dica">Em telas estreitas o painel volta a uma coluna só,
       independentemente do que for montado aqui — é o que evita cartões
       espremidos no celular.</p>
@@ -33,7 +40,7 @@
           <span class="mapa-coluna-nome">{{ coluna }}ª coluna</span>
           {% for c in cartoes if c.regiao == chave and c.coluna_efetiva == coluna %}
           <div class="mapa-cartao" draggable="true" data-cartao="{{ c.ref }}"
-               data-larg="{{ c.largura }}">
+               data-larg="{{ c.largura }}" data-alt="{{ c.altura }}">
             <span class="mapa-ic">{{ ic(c.icone) }}</span>
             <b>{{ c.nome }}</b>
             <small>{{ c.descricao }}</small>
@@ -43,6 +50,13 @@
               <span data-larg-rotulo></span>
               <button type="button" class="btn btn-sm" data-larg-mais
                       aria-label="Mais colunas">+</button>
+            </div>
+            <div class="mapa-larg">
+              <button type="button" class="btn btn-sm" data-alt-menos
+                      aria-label="Menos altura">−</button>
+              <span data-alt-rotulo></span>
+              <button type="button" class="btn btn-sm" data-alt-mais
+                      aria-label="Mais altura">+</button>
             </div>
           </div>
           {% endfor %}

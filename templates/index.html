@@ -55,7 +55,7 @@
 {% endmacro %}
 
 {#  Largura e coluna viram atributos; o CSS traduz para a grade. #}
-{% macro posicao(c) %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% endmacro %}
+{% macro posicao(c) %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}{% endmacro %}
 
 {% block miolo %}
 {% set capa_titulo = cfg.capa_titulo or ('Portal ' ~ cfg.site_sigla) %}
@@ -131,5 +131,6 @@
 </main>
 
 <script src="{{ url_for('static', filename='ramais.js') }}"></script>
+<script src="{{ url_for('static', filename='encaixe.js') }}"></script>
 {% if banners|length > 1 %}<script src="{{ url_for('static', filename='banner.js') }}"></script>{% endif %}
 {% endblock %}
