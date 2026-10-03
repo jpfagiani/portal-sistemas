@@ -25,6 +25,12 @@
     if (!cartoes.length) return;
 
     function ajusta(cartao) {
+      /*  Texto longo: o degradê do fim só vale se o texto realmente passa do
+          limite do cartão. Esmaecer o último trecho de um texto que cabe
+          inteiro parece defeito.  */
+      cartao.querySelectorAll('p.cortado').forEach(function (p) {
+        p.classList.toggle('transborda', p.scrollHeight > p.clientHeight + 1);
+      });
       var vao = parseFloat(getComputedStyle(regiao).columnGap) || 16;
       var alto = cartao.getBoundingClientRect().height;
       cartao.style.gridRowEnd =
@@ -41,6 +47,19 @@
     cartoes.forEach(function (c) {
       ajusta(c);
       observador.observe(c);
+    });
+
+    /*  Mudar a largura da janela pode mudar quanto o texto transborda sem
+        mudar a altura do cartão (que está no teto) — então o observador não
+        avisa. Refaz tudo, uma vez por quadro.  */
+    var pendente = false;
+    window.addEventListener('resize', function () {
+      if (pendente) return;
+      pendente = true;
+      requestAnimationFrame(function () {
+        pendente = false;
+        cartoes.forEach(ajusta);
+      });
     });
   });
 })();

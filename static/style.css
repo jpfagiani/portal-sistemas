@@ -330,9 +330,10 @@ body{
 .cartao-cab{display:flex;align-items:center;gap:.55rem;padding:.7rem 1rem .6rem;
   border-bottom:1px solid var(--borda-suave)}
 .cab-ic{color:var(--azul);display:block;line-height:0}
-.cartao-cab h2{font-size:.73rem;font-weight:700;letter-spacing:.6px;
+.cartao-cab h2{min-width:0;font-size:.73rem;font-weight:700;letter-spacing:.6px;
   text-transform:uppercase;color:var(--texto)}
-.ver{margin-left:auto;font-size:.72rem;color:var(--azul);text-decoration:none;font-weight:600}
+.ver{margin-left:auto;font-size:.72rem;color:var(--azul);text-decoration:none;font-weight:600;
+  white-space:nowrap;flex-shrink:0}
 .ver:hover{text-decoration:underline}
 
 /* Marca d'água do cartão: fica atrás do conteúdo, sem interferir no clique.
@@ -529,7 +530,13 @@ a.atalho:hover{border-color:var(--azul);background:var(--cartao-suave)}
   font-size:var(--ramais-titulo-tam,.74rem);color:var(--ramais-titulo-cor,var(--texto))}
 /* Cada número numa coluna própria, alinhados à direita: a leitura desce reta
    mesmo quando um setor tem um número e o outro tem dois. */
-.ramais .numeros{display:flex;gap:.9rem;flex-shrink:0}
+.ramais .numeros{display:flex;gap:.9rem;flex-shrink:0;
+  /* `.numeros` também é a faixa de estatísticas do topo e traz margin-bottom:1rem;
+     herdada aqui, ela empurrava o número 8px para cima da linha do setor. */
+  margin-bottom:0}
+/* Aquela margem também era, sem querer, parte do respiro entre as linhas.
+   Tirada ela, o espaçamento é devolvido aqui de forma explícita. */
+.ramais .ramal-linha{padding:.72rem 0}
 .ramais .numeros b{font-weight:600;font-variant-numeric:tabular-nums;
   min-width:2.4rem;text-align:right;font-family:var(--ramais-fonte,var(--fonte));
   font-size:var(--ramais-texto-tam,.78rem);color:var(--ramais-texto-cor,var(--texto))}
@@ -1122,6 +1129,12 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
 /* Imagem que é o link do item. O <a> só embrulha: o tamanho e o recorte
    continuam sendo da própria imagem. O realce no hover avisa que dá para
    clicar, já que não há mais um texto sublinhado dizendo isso. */
+/* Imagem acima do texto: aparece INTEIRA, na proporção original. Antes era
+   cortada em 190px de altura (object-fit:cover), e infográficos perdiam o pé —
+   o QR code e o último passo sumiam. `contain` dentro de um teto de 520px: uma
+   imagem muito alta é reduzida para caber, com faixas laterais, em vez de
+   esticar o cartão sem fim. */
+.com-img-topo{height:auto;max-height:520px;object-fit:contain}
 .com-img-link{display:block;border-radius:9px;cursor:pointer}
 .com-img-link:hover .com-imagem{filter:brightness(1.06);
   box-shadow:0 0 0 2px var(--azul)}
@@ -1198,6 +1211,17 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
 .regiao-topo.encaixe,.regiao-meio-grade.encaixe{margin-bottom:0}
 .regiao-baixo.encaixe{margin-bottom:-1rem}
 .encaixe>.cartao{align-self:start}
+/* Texto longo no modo encaixe. Antes o corte ocupava a sobra de altura da
+   fileira; sem fileira esticando não há sobra, e o texto caía para o mínimo de
+   7,5em — um comunicado de 17 linhas aparecia com 5. Agora ele mostra até 30em
+   (cerca de 20 linhas) e o degradê só entra quando o texto de fato passa disso:
+   a classe `transborda` é posta pelo encaixe.js, que mede. */
+.painel .encaixe .comunicados .comunicado:has(p.cortado){flex:0 0 auto}
+.painel .encaixe .comunicado p.cortado{
+  flex:0 0 auto;max-height:30em;-webkit-mask-image:none;mask-image:none}
+.painel .encaixe .comunicado p.cortado.transborda{
+  -webkit-mask-image:linear-gradient(#000 68%,transparent);
+          mask-image:linear-gradient(#000 68%,transparent)}
 
 /* ── mapa do painel ────────────────────────────────────────────────────────
    Uma miniatura da página inicial: três regiões, três colunas cada, e os
@@ -1251,7 +1275,7 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
    e ja vinha da regra .com-imagem. */
 .comunicado .conteudo:has(.com-img-lado){display:grid;
   grid-template-columns:96px minmax(0,1fr);gap:.6rem;align-items:start}
-.com-img-lado{max-height:96px;margin-top:0}
+.com-img-lado{max-height:96px;margin-top:0;object-fit:cover}
 .com-img-lado,.com-img-link:has(.com-img-lado){grid-row:1 / span 3}
 /* Ao fundo: a imagem sai do fluxo e fica esmaecida atras do texto, como a
    marca d'agua dos cartoes. */

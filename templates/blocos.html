@@ -21,8 +21,14 @@
     {%- if c.fundo_cor %}--com-fundo:{{ c.fundo_cor }};{% endif -%}
   {% endset %}
   {% set interno %}
+    {#  O quadradinho à esquerda diz o tipo do item: alerta para urgente,
+        megafone para aviso. O item informativo (o padrão) não leva ícone — o
+        calendário que havia ali não queria dizer nada e só roubava largura do
+        texto. #}
+    {% if u != 'informacao' %}
     <span class="com-ic com-{{ u }}">{{ ic({'urgente':'alerta',
       'comunicado':'megafone'}.get(u, 'calendario')) }}</span>
+    {% endif %}
     <span class="conteudo">
       <span class="linha-titulo">
         <span class="titulo">{{ c.titulo }}</span>
