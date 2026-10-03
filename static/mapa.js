@@ -41,9 +41,9 @@
     if (rotulo) rotulo.textContent = 'Largura: ' + n + (n > 1 ? ' colunas' : ' coluna');
   }
 
-  /*  Altura: 0 é automática (a do conteúdo); 1 a 4 são alturas mínimas. Os
-      nomes devem acompanhar CARTAO_ALTURAS, em app.py.  */
-  var ALTURAS = ['Automática', 'Média', 'Alta', 'Muito alta', 'Máxima'];
+  /*  Altura: quantas linhas da grade o cartão ocupa (0 = 1 linha). Os nomes
+      devem acompanhar CARTAO_ALTURAS, em app.py.  */
+  var ALTURAS = ['1 linha', '2 linhas', '3 linhas'];
 
   function alturaDe(cartao) {
     return Math.min(ALTURAS.length - 1,

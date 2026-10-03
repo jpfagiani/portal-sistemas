@@ -539,13 +539,10 @@ CARTAO_COLUNAS = {0: 'Automática (próxima vaga livre)', 1: '1ª coluna',
 # administração precisa desenhar o mesmo número, senão promete uma posição que
 # o painel não tem.
 COLUNAS_POR_REGIAO = {'topo': 3, 'meio': 3, 'baixo': 4}
-# Altura do cartão. "Automática" é a altura do próprio conteúdo: o cartão só
-# ocupa o que precisa e o espaço que sobra embaixo fica livre para o cartão
-# seguinte da mesma coluna. Os demais degraus são alturas MÍNIMAS (em static/
-# style.css, regras `data-alt`) — o cartão cresce se o conteúdo pedir, e o
-# texto cortado ganha mais linhas visíveis quando há folga.
-CARTAO_ALTURAS = {0: 'Automática', 1: 'Média', 2: 'Alta', 3: 'Muito alta',
-                  4: 'Máxima'}
+# Altura do cartão, em LINHAS da grade do painel (static/style.css, `data-alt`).
+# Todas as colunas dividem as mesmas linhas, então os cartões ficam alinhados;
+# um cartão de 2 linhas deixa uma célula livre ao lado, onde entra outro cartão.
+CARTAO_ALTURAS = {0: '1 linha', 1: '2 linhas', 2: '3 linhas'}
 
 
 def distribuir_em_colunas(cartoes, colunas):

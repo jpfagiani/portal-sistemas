@@ -1187,41 +1187,29 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
   .regiao-meio-grade .cartao[data-col]{grid-column:auto}
 }
 
-/* ── altura do cartão e encaixe em colunas ────────────────────────────────
-   Altura "automática" = a do conteúdo. Os degraus são alturas mínimas: o cartão
-   cresce se precisar, e o corpo (flex:1) ocupa a folga, o que também libera mais
-   linhas de texto que estavam cortadas. Em tela estreita o painel é uma coluna
-   só e uma altura mínima grande viraria espaço morto, então ela é desfeita. */
-.cartao[data-alt="1"]{min-height:14rem}
-.cartao[data-alt="2"]{min-height:20rem}
-.cartao[data-alt="3"]{min-height:28rem}
-.cartao[data-alt="4"]{min-height:38rem}
-@media (max-width:900px){.cartao[data-alt]{min-height:0}}
+/* ── altura do cartão: linhas da grade ────────────────────────────────────
+   As três grades de cartões têm linhas de altura mínima igual (`--linha-cartao`).
+   Um cartão ocupa 1 linha (padrão), 2 ou 3 (`data-alt` 0, 1, 2). Como todas as
+   colunas dividem as mesmas linhas, topo e base dos cartões ficam sempre
+   alinhados, em qualquer combinação de alturas.
 
-/* Encaixe: static/encaixe.js põe `.encaixe` nas regiões e mede cada cartão.
-   A grade passa a ter linhas de 4px e cada cartão ocupa quantas linhas a sua
-   altura pedir (`grid-row-end:span N`), sem esticar até o vizinho. Assim a
-   altura do cartão é a do conteúdo e o vão embaixo dele é aproveitado pelo
-   cartão seguinte da mesma coluna. Sem JavaScript nada disso vale e a grade
-   continua como era, com cartões da mesma altura por fileira.
-   O espaço entre fileiras (1rem) está dentro do `span`, por isso `row-gap:0`
-   e as margens das regiões encolhem. */
-.regiao-topo.encaixe,.regiao-baixo.encaixe,.regiao-meio-grade.encaixe{
-  grid-auto-rows:4px;row-gap:0;align-items:start}
-.regiao-topo.encaixe,.regiao-meio-grade.encaixe{margin-bottom:0}
-.regiao-baixo.encaixe{margin-bottom:-1rem}
-.encaixe>.cartao{align-self:start}
-/* Texto longo no modo encaixe. Antes o corte ocupava a sobra de altura da
-   fileira; sem fileira esticando não há sobra, e o texto caía para o mínimo de
-   7,5em — um comunicado de 17 linhas aparecia com 5. Agora ele mostra até 30em
-   (cerca de 20 linhas) e o degradê só entra quando o texto de fato passa disso:
-   a classe `transborda` é posta pelo encaixe.js, que mede. */
-.painel .encaixe .comunicados .comunicado:has(p.cortado){flex:0 0 auto}
-.painel .encaixe .comunicado p.cortado{
-  flex:0 0 auto;max-height:30em;-webkit-mask-image:none;mask-image:none}
-.painel .encaixe .comunicado p.cortado.transborda{
-  -webkit-mask-image:linear-gradient(#000 68%,transparent);
-          mask-image:linear-gradient(#000 68%,transparent)}
+   O vão ao lado de um cartão alto é uma célula livre da grade: o fluxo `dense`
+   leva para lá o próximo cartão da coluna, e é assim que um cartão pequeno
+   entra no espaço que sobra.
+
+   A linha só cresce, nunca encolhe: se o conteúdo de um cartão de 1 linha
+   pedir mais, a linha inteira cresce com ele (e os vizinhos acompanham).
+   O texto longo continua sendo cortado com degradê pelo próprio cartão. */
+.regiao-topo,.regiao-baixo,.regiao-meio-grade{
+  --linha-cartao:14rem;
+  grid-auto-rows:minmax(var(--linha-cartao),auto)}
+.cartao[data-alt="1"]{grid-row-end:span 2}
+.cartao[data-alt="2"]{grid-row-end:span 3}
+/* Em coluna única (tela estreita) uma linha reservada vira espaço morto. */
+@media (max-width:900px){
+  .regiao-topo,.regiao-baixo,.regiao-meio-grade{grid-auto-rows:auto}
+  .cartao[data-alt]{grid-row-end:auto}
+}
 
 /* ── mapa do painel ────────────────────────────────────────────────────────
    Uma miniatura da página inicial: três regiões, três colunas cada, e os

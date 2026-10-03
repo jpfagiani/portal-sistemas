@@ -130,6 +130,9 @@
 </main>
 
 <script src="{{ url_for('static', filename='ramais.js') }}"></script>
-<script src="{{ url_for('static', filename='encaixe.js') }}"></script>
+{#  static/encaixe.js (cartões com a altura do conteúdo, encaixados em colunas)
+    está desligado: as fileiras voltaram a ter a mesma altura. Para religar,
+    ponha de volta a linha:
+    <script src="{{ url_for('static', filename='encaixe.js') }}"></script>  #}
 {% if banners|length > 1 %}<script src="{{ url_for('static', filename='banner.js') }}"></script>{% endif %}
 {% endblock %}
