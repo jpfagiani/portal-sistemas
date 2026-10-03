@@ -1216,28 +1216,25 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
   .regiao-meio-grade .cartao[data-col]{grid-column:auto}
 }
 
-/* ── altura do cartão: linhas da grade ────────────────────────────────────
-   As três grades de cartões têm linhas de altura mínima igual (`--linha-cartao`).
-   Um cartão ocupa 1 linha (padrão), 2 ou 3 (`data-alt` 0, 1, 2). Como todas as
-   colunas dividem as mesmas linhas, topo e base dos cartões ficam sempre
-   alinhados, em qualquer combinação de alturas.
+/* ── altura do cartão ──────────────────────────────────────────────────────
+   O cartão comum tem a altura do próprio conteúdo: um cartão de atalhos com
+   uma fileira de botões é baixo e só cresce quando entram mais atalhos. Todas
+   as colunas dividem as mesmas linhas da grade, então topo e base dos cartões
+   de uma fileira ficam alinhados.
 
-   O vão ao lado de um cartão alto é uma célula livre da grade: o fluxo `dense`
-   leva para lá o próximo cartão da coluna, e é assim que um cartão pequeno
-   entra no espaço que sobra.
+   `data-alt` 1 e 2 (2 e 3 linhas, escolhidas no mapa) fazem o cartão ocupar
+   duas ou três linhas e lhe dão uma altura mínima de `--linha-cartao` por
+   linha. O vão que sobra ao lado dele é uma célula livre da grade: o fluxo
+   `dense` leva para lá o próximo cartão da coluna.
 
-   A linha só cresce, nunca encolhe: se o conteúdo de um cartão de 1 linha
-   pedir mais, a linha inteira cresce com ele (e os vizinhos acompanham).
-   O texto longo continua sendo cortado com degradê pelo próprio cartão. */
-.regiao-topo,.regiao-baixo,.regiao-meio-grade{
-  --linha-cartao:14rem;
-  grid-auto-rows:minmax(var(--linha-cartao),auto)}
-.cartao[data-alt="1"]{grid-row-end:span 2}
-.cartao[data-alt="2"]{grid-row-end:span 3}
-/* Em coluna única (tela estreita) uma linha reservada vira espaço morto. */
+   Se o conteúdo de um cartão alto pedir mais que o mínimo, as linhas que ele
+   ocupa crescem juntas. */
+.regiao-topo,.regiao-baixo,.regiao-meio-grade{--linha-cartao:14rem}
+.cartao[data-alt="1"]{grid-row-end:span 2;min-height:calc(2 * var(--linha-cartao) + 1rem)}
+.cartao[data-alt="2"]{grid-row-end:span 3;min-height:calc(3 * var(--linha-cartao) + 2rem)}
+/* Em coluna única (tela estreita) uma altura reservada vira espaço morto. */
 @media (max-width:900px){
-  .regiao-topo,.regiao-baixo,.regiao-meio-grade{grid-auto-rows:auto}
-  .cartao[data-alt]{grid-row-end:auto}
+  .cartao[data-alt]{grid-row-end:auto;min-height:0}
 }
 
 /* ── mapa do painel ────────────────────────────────────────────────────────
