@@ -2058,8 +2058,11 @@ def admin_lateral():
                      (request.form.get('img_pos')
                       if request.form.get('img_pos') in CARTAO_IMG_POS else 'topo'),
                      chave)
-            if not dados[1]:
-                flash('O título é obrigatório.', 'erro')
+            # O título é opcional (o nome do cartão já titula o bloco), mas o
+            # item precisa ter algo para mostrar: texto, imagem, vídeo ou link.
+            if not (dados[1] or dados[2] or dados[3] or imagem or video):
+                flash('Preencha ao menos um destes: título, texto, link, '
+                      'imagem ou vídeo.', 'erro')
             elif ident:
                 con.execute('UPDATE lateral SET tipo=?,titulo=?,conteudo=?,url=?,'
                             'ordem=?,ativo=?,urgencia=?,destaque=?,titulo_tam=?,'
