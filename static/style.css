@@ -1141,6 +1141,35 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
 .com-img-link:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
 .com-imagem{transition:filter .15s,box-shadow .15s}
 
+/* Caixa da imagem acima do texto. Sem largura própria ocupa a linha toda, como
+   a imagem sempre fez. Com `livre` (o administrador deu um tamanho), a largura
+   vem do atributo style, em % da área do texto, e a imagem passa a seguir a
+   proporção original sem o teto de altura: o tamanho escolhido vale como está. */
+.com-img-caixa{display:block;position:relative;max-width:100%}
+.com-img-caixa.livre .com-imagem{max-height:none;object-fit:fill}
+
+/* Puxadores de arrastar — só existem para o administrador (shell.html só carrega
+   o script e o template só desenha os botões para ele). Invisíveis até o mouse
+   passar pela imagem, para não sujar o painel. */
+.com-img-alca{position:absolute;display:block;padding:0;border:0;background:none;z-index:3;
+  opacity:0;transition:opacity .12s;touch-action:none}
+.com-img-caixa:hover .com-img-alca,.com-img-caixa.ajustando .com-img-alca{opacity:1}
+.com-img-alca-borda{top:.45rem;bottom:0;right:-5px;width:12px;cursor:ew-resize}
+.com-img-alca-borda::after{content:"";position:absolute;top:50%;left:3px;
+  width:5px;height:38px;margin-top:-19px;border-radius:3px;
+  background:var(--azul);box-shadow:0 0 0 2px #fff}
+.com-img-alca-canto{right:-5px;bottom:-5px;width:16px;height:16px;cursor:nwse-resize}
+.com-img-alca-canto::after{content:"";position:absolute;inset:3px;border-radius:3px;
+  background:var(--azul);box-shadow:0 0 0 2px #fff}
+.com-img-caixa.ajustando{outline:2px dashed var(--azul);outline-offset:2px;
+  user-select:none}
+.com-img-caixa.ajustando .com-img-link{pointer-events:none}
+.com-img-etiqueta{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  background:rgba(15,28,54,.82);color:#fff;font-size:.8rem;font-weight:700;
+  padding:.25rem .6rem;border-radius:999px;pointer-events:none;z-index:4}
+/* Em tela de toque não há "passar o mouse": os puxadores ficam sempre à vista. */
+@media (hover:none){.com-img-alca{opacity:1}}
+
 /* `grid-auto-flow:row dense` nas três grades acima não é enfeite. Com coluna
    fixa (`data-col`) e fluxo comum, o navegador só avança de linha: depois de
    colocar os cartões da 1ª coluna um embaixo do outro, os da 2ª começavam na

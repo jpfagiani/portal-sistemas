@@ -50,7 +50,7 @@
         <option value="aviso" {{ 'selected' if editar and editar.tipo=='aviso' }}>Aviso / informação</option>
         <option value="link"  {{ 'selected' if editar and editar.tipo=='link' }}>Link</option>
       </select>
-      <label>Urgência <small>(define o selo e a cor do símbolo)</small></label>
+      <label>Urgência <small>(define o selo e a cor do símbolo; Informação não mostra selo)</small></label>
       <select name="urgencia">
         <option value="informacao" {{ 'selected' if not editar or editar.urgencia == 'informacao' }}>Informação</option>
         <option value="comunicado" {{ 'selected' if editar and editar.urgencia == 'comunicado' }}>Comunicado</option>
@@ -123,6 +123,11 @@
       <label class="check"><input type="checkbox" name="remover_imagem">
         Remover a imagem deste item</label>
       {% endif %}
+
+      <p class="dica">Para mudar o <strong>tamanho</strong> da imagem, abra o
+        painel como administrador e arraste a borda direita (ou o cantinho) da
+        imagem com o mouse. Duplo clique no puxador volta ao tamanho padrão.
+        Vale para a imagem na posição <em>Acima do texto</em>.</p>
 
       <label>Posição da imagem</label>
       <select name="img_pos">

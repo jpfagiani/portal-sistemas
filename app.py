@@ -19,7 +19,7 @@ import zipfile
 from datetime import datetime
 from functools import wraps
 
-from flask import (Flask, abort, flash, g, redirect, render_template,
+from flask import (Flask, abort, flash, g, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
 from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -1021,6 +1021,9 @@ def init_db():
             ('lateral',  'video',   "TEXT DEFAULT ''"),
             ('lateral',  'url_rot', "TEXT DEFAULT ''"),
             ('lateral',  'img_pos', "TEXT DEFAULT 'topo'"),
+            # Largura da imagem acima do texto, em % da área do texto. 0 = a
+            # largura de sempre (a do cartão).
+            ('lateral',  'img_larg', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes',  'coluna',  'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'coluna', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'altura', 'INTEGER NOT NULL DEFAULT 0'),
@@ -2073,6 +2076,22 @@ def admin_lateral():
         aparencia=dados_aparencia_cartao(chave),
         itens=con.execute('SELECT * FROM lateral WHERE cartao=?'
                           ' ORDER BY ordem, id', (chave,)).fetchall())
+
+
+@app.route('/admin/imagem-tamanho/<int:item>', methods=['POST'])
+@admin_obrigatorio
+def admin_imagem_tamanho(item):
+    """Grava a largura que o administrador deu à imagem de um item, arrastando
+    a borda dela no painel. 0 volta ao tamanho padrão; o resto fica entre 10 e
+    100 (% da largura do texto do item)."""
+    larg = _int(request.form.get('larg'))
+    larg = 0 if larg <= 0 else max(10, min(100, larg))
+    con = db()
+    cur = con.execute('UPDATE lateral SET img_larg=? WHERE id=?', (larg, item))
+    con.commit()
+    if not cur.rowcount:
+        abort(404)
+    return jsonify(ok=True, larg=larg)
 
 
 @app.route('/admin/mapa', methods=['GET', 'POST'])

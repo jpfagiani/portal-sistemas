@@ -103,6 +103,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='tema.js') }}"></script>
+{% if eh_admin %}<script src="{{ url_for('static', filename='imagem.js') }}"></script>{% endif %}
 <script>
   document.getElementById('abrir-menu').addEventListener('click', function () {
     document.getElementById('lateral').classList.toggle('aberta');
