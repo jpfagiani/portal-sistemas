@@ -280,8 +280,12 @@
 
 {#  Cartao do painel: nome no cabecalho e a lista de itens dentro. Os cinco sao
     iguais — o que muda e o nome, a posicao e o que a unidade escreve. #}
+{#  Onde o cartão fica. No layout livre vem do quadro de 12 colunas (gx, gy, gw,
+    gh); no de colunas, dos atributos que o CSS traduz para a grade. #}
+{% macro pos(c) %}{% if livre %}data-chave="{{ c.chave }}" data-gx="{{ c.gx }}" data-gy="{{ c.gy }}" data-gw="{{ c.gw }}" data-gh="{{ c.gh }}" style="grid-column:{{ c.gx + 1 }} / span {{ c.gw }};grid-row:{{ c.gy + 1 }} / span {{ c.gh }}"{% else %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}{% endif %}{% endmacro %}
+
 {% macro cartao_painel(c, itens) %}
-  <section class="cartao" {% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}>
+  <section class="cartao" {{ pos(c) }}>
     <div class="cartao-cab">
       <span class="cab-ic">{{ ic(c.icone) }}</span>
       {#  O nome do cartão é o link para a lista completa. #}

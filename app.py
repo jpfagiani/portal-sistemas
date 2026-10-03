@@ -1031,6 +1031,12 @@ def init_db():
             ('cartoes_painel', 'coluna', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'altura', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'tipo', "TEXT NOT NULL DEFAULT 'itens'"),
+            # Layout livre: posição em células de um quadro de 12 colunas e
+            # linhas de 1,5rem. gw = 0 quer dizer "ainda sem posição".
+            ('cartoes_painel', 'gx', 'INTEGER NOT NULL DEFAULT 0'),
+            ('cartoes_painel', 'gy', 'INTEGER NOT NULL DEFAULT 0'),
+            ('cartoes_painel', 'gw', 'INTEGER NOT NULL DEFAULT 0'),
+            ('cartoes_painel', 'gh', 'INTEGER NOT NULL DEFAULT 0'),
             ('lateral',  'data',     "TEXT DEFAULT ''"),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
             ('usuarios', 'ultimo_acesso', "TEXT DEFAULT ''")):
@@ -1622,9 +1628,17 @@ def index():
     for regiao in cartoes_painel:
         cartoes_painel[regiao].sort(key=lambda par: par[0]['ordem'])
 
+    livre = layout_livre_ativo()
+    cartoes_livre = []
+    if livre:
+        _livre_converter(con)
+        for c in cartoes_do_painel(so_ativos=True):
+            cartoes_livre.append((c, itens_por_cartao.get(c['chave'], [])))
+        cartoes_livre.sort(key=lambda par: (par[0]['gy'], par[0]['gx']))
+
     return render_template(
         'index.html', numeros=numeros, saudacao=saudacao(),
-        cartoes_painel=cartoes_painel,
+        cartoes_painel=cartoes_painel, livre=livre, cartoes_livre=cartoes_livre,
         sistemas=agrupar_por_categoria(sistemas_todos),
         sistemas_total=len(sistemas_todos),
         atalhos=con.execute("SELECT * FROM links WHERE ativo=1 AND grupo='atalho'"
@@ -2108,6 +2122,144 @@ def admin_imagem_tamanho(item):
     con.commit()
     if not cur.rowcount:
         abort(404)
+    return jsonify(ok=True)
+
+
+# ── layout livre ───────────────────────────────────────────────────────────────
+# Um quadro único de 12 colunas, com linhas de 1,5rem. Cada cartão guarda onde
+# começa (gx, gy) e quanto ocupa (gw, gh), em células. A grade garante o
+# alinhamento; o administrador arrasta na própria página (static/livre.js).
+LIVRE_COLUNAS = 12
+LIVRE_ALT_MIN = 4
+LIVRE_ALT_MAX = 200
+
+
+def layout_livre_ativo():
+    return cfg('layout_livre') == '1'
+
+
+def _livre_converter(con, so_sem_posicao=True):
+    """Dá posição no quadro livre a partir das regiões e colunas de hoje.
+
+    Cada região é empilhada abaixo da anterior; dentro dela, o cartão desce até
+    onde a sua faixa de colunas está livre. É uma aproximação do que o
+    navegador fazia — o administrador ajusta o resto arrastando."""
+    todos = [dict(r) for r in con.execute(
+        'SELECT * FROM cartoes_painel WHERE ativo=1 ORDER BY ordem, id')]
+    if so_sem_posicao and all(c['gw'] > 0 for c in todos):
+        return
+    topo = [0] * LIVRE_COLUNAS
+    # Primeira vez (ninguém tem posição ainda): parte das colunas de hoje.
+    if so_sem_posicao and any(c['gw'] > 0 for c in todos):
+        # Só os que faltam: entram no fim, sem mexer nos que já têm lugar.
+        for c in todos:
+            if c['gw'] > 0:
+                for i in range(c['gx'], min(LIVRE_COLUNAS, c['gx'] + c['gw'])):
+                    topo[i] = max(topo[i], c['gy'] + c['gh'])
+        base = max(topo)
+        for c in todos:
+            if c['gw'] > 0:
+                continue
+            w = 4
+            h = 10 * ((c['altura'] or 0) + 1)
+            y = base
+            con.execute('UPDATE cartoes_painel SET gx=0,gy=?,gw=?,gh=? WHERE chave=?',
+                        (y, w, h, c['chave']))
+            base = y + h
+        con.commit()
+        return
+    inicio = 0
+    for regiao, colunas in COLUNAS_POR_REGIAO.items():
+        grupo = [c for c in todos
+                 if (c['regiao'] if c['regiao'] in COLUNAS_POR_REGIAO else 'baixo') == regiao]
+        if not grupo:
+            continue
+        distribuir_em_colunas(grupo, colunas)
+        larg_col = LIVRE_COLUNAS // colunas
+        altura = [inicio] * LIVRE_COLUNAS
+        for c in grupo:
+            n = min(c['largura'] or 1, colunas)
+            x = (c['coluna_efetiva'] - 1) * larg_col
+            w = n * larg_col
+            x = min(x, LIVRE_COLUNAS - w)
+            h = 10 * ((c['altura'] or 0) + 1)
+            y = max(altura[x:x + w])
+            for i in range(x, x + w):
+                altura[i] = y + h
+            con.execute('UPDATE cartoes_painel SET gx=?,gy=?,gw=?,gh=? WHERE chave=?',
+                        (x, y, w, h, c['chave']))
+        inicio = max(altura)
+    con.commit()
+
+
+def _livre_sobrepoe(a, b):
+    return (a['gx'] < b['gx'] + b['gw'] and b['gx'] < a['gx'] + a['gw']
+            and a['gy'] < b['gy'] + b['gh'] and b['gy'] < a['gy'] + a['gh'])
+
+
+@app.route('/admin/layout-livre', methods=['POST'])
+@admin_obrigatorio
+def admin_layout_livre():
+    """Liga/desliga o layout livre; `refazer` recalcula tudo a partir das colunas."""
+    con = db()
+    acao = request.form.get('acao')
+    if acao in ('ativar', 'refazer'):
+        _livre_converter(con, so_sem_posicao=(acao == 'ativar'))
+        valor = '1'
+    elif acao == 'desativar':
+        valor = '0'
+    else:
+        abort(400)
+    con.execute('INSERT INTO config (chave,valor) VALUES (?,?) '
+                'ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor',
+                ('layout_livre', valor))
+    con.commit()
+    if request.form.get('json'):
+        return jsonify(ok=True)
+    if valor == '1':
+        flash('Layout livre ativado. Use "Editar layout" no painel para arrastar.', 'ok')
+        return redirect(url_for('index'))
+    flash('Voltou ao layout em colunas.', 'ok')
+    return redirect(url_for('admin_mapa'))
+
+
+@app.route('/admin/cartao-pos', methods=['POST'])
+@admin_obrigatorio
+def admin_cartao_pos():
+    """Salva a posição de um ou mais cartões no quadro livre.
+
+    Confere tudo junto antes de gravar: dentro do quadro, tamanho razoável e
+    sem sobrepor outro cartão. Se algo falha, nada é gravado."""
+    con = db()
+    try:
+        lista = json.loads(request.form.get('posicoes') or '[]')
+    except ValueError:
+        abort(400)
+    if not isinstance(lista, list) or not lista:
+        abort(400)
+    cartoes = {r['chave']: dict(r) for r in con.execute(
+        'SELECT * FROM cartoes_painel WHERE ativo=1')}
+    novos = {}
+    for p in lista:
+        chave = str(p.get('chave', ''))
+        if chave not in cartoes:
+            abort(404)
+        gx, gy = _int(p.get('gx')), _int(p.get('gy'))
+        gw, gh = _int(p.get('gw')), _int(p.get('gh'))
+        if not (0 <= gx and 1 <= gw and gx + gw <= LIVRE_COLUNAS
+                and 0 <= gy <= 10000 and LIVRE_ALT_MIN <= gh <= LIVRE_ALT_MAX):
+            return jsonify(ok=False, erro='Posição fora do quadro.'), 400
+        cartoes[chave].update(gx=gx, gy=gy, gw=gw, gh=gh)
+        novos[chave] = (gx, gy, gw, gh)
+    pos = [c for c in cartoes.values() if c['gw'] > 0]
+    for i, a in enumerate(pos):
+        for b in pos[i + 1:]:
+            if _livre_sobrepoe(a, b):
+                return jsonify(ok=False, erro='Esse espaço já está ocupado por outro cartão.'), 409
+    for chave, v in novos.items():
+        con.execute('UPDATE cartoes_painel SET gx=?,gy=?,gw=?,gh=? WHERE chave=?',
+                    v + (chave,))
+    con.commit()
     return jsonify(ok=True)
 
 

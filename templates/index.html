@@ -55,7 +55,7 @@
 {% endmacro %}
 
 {#  Largura e coluna viram atributos; o CSS traduz para a grade. #}
-{% macro posicao(c) %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}{% endmacro %}
+{% macro posicao(c) %}{{ b.pos(c) }}{% endmacro %}
 
 {% block miolo %}
 {% set capa_titulo = cfg.capa_titulo or ('Portal ' ~ cfg.site_sigla) %}
@@ -115,6 +115,32 @@
     {% endfor %}
   </div>
 
+  {% if livre %}
+  {#  Layout livre: um quadro só. O administrador arrasta os cartões aqui
+      mesmo (static/livre.js); para os demais é uma página comum. #}
+  {% if eh_admin %}
+  <div class="livre-barra" data-livre-barra>
+    <button type="button" class="btn btn-principal btn-sm" data-livre-editar>
+      Editar layout</button>
+    <span class="livre-ajuda" data-livre-ajuda hidden>
+      Arraste um cartão para movê-lo e o canto inferior direito para mudar o
+      tamanho. Clique duas vezes no canto para ajustar à altura do conteúdo.
+      Ao soltar, a posição é salva.</span>
+    <button type="button" class="btn btn-sm" data-livre-ajustar hidden>
+      Ajustar todos ao conteúdo</button>
+    <form method="post" action="{{ url_for('admin_layout_livre') }}" class="livre-sair"
+          onsubmit="return confirm('Voltar ao layout em colunas? As posições livres ficam guardadas.')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="acao" value="desativar">
+      <button class="btn btn-sm" type="submit">Voltar ao layout em colunas</button>
+    </form>
+  </div>
+  {% endif %}
+  <div class="tela-livre" data-livre data-csrf="{{ csrf_token }}"
+       data-salvar="{{ url_for('admin_cartao_pos') }}">
+    {% for c, itens in cartoes_livre %}{{ desenha(c, itens) }}{% endfor %}
+  </div>
+  {% else %}
   <div class="regiao-topo">
     {% for c, itens in cartoes_painel.topo %}{{ desenha(c, itens) }}{% endfor %}
   </div>
@@ -128,9 +154,11 @@
   <div class="regiao-baixo">
     {% for c, itens in cartoes_painel.baixo %}{{ desenha(c, itens) }}{% endfor %}
   </div>
+  {% endif %}
 </main>
 
 <script src="{{ url_for('static', filename='ramais.js') }}"></script>
+{% if livre and eh_admin %}<script src="{{ url_for('static', filename='livre.js') }}"></script>{% endif %}
 {#  static/encaixe.js (cartões com a altura do conteúdo, encaixados em colunas)
     está desligado: as fileiras voltaram a ter a mesma altura. Para religar,
     ponha de volta a linha:

@@ -21,6 +21,19 @@
       independentemente do que for montado aqui — é o que evita cartões
       espremidos no celular.</p>
 
+    <div class="dica" style="border:1px solid var(--borda-botao);border-radius:10px;padding:.8rem 1rem;margin-bottom:1rem">
+      <strong>Layout livre.</strong> Em vez de regiões e colunas, o painel vira
+      um quadro único onde você arrasta cada cartão para onde quiser, com linhas
+      de alinhamento, e a posição é salva ao soltar o mouse.
+      <form method="post" action="{{ url_for('admin_layout_livre') }}" style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button class="btn btn-principal" name="acao" value="ativar">Ativar layout livre</button>
+        <button class="btn" name="acao" value="refazer"
+                onclick="return confirm('Recalcular as posições livres a partir das colunas abaixo?')">
+          Ativar refazendo a partir das colunas</button>
+      </form>
+    </div>
+
     <form method="post">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <input type="hidden" name="posicoes" data-posicoes>
