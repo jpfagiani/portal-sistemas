@@ -104,8 +104,11 @@
 
       <label>Data exibida <small>(livre, ex.: 15/07/2026)</small></label>
       <input name="data" value="{{ editar.data if editar else '' }}">
-      <label>Título *</label>
-      <input name="titulo" required value="{{ editar.titulo if editar else '' }}">
+      <label>Título <small>(opcional)</small></label>
+      <input name="titulo" value="{{ editar.titulo if editar else '' }}"
+             placeholder="(opcional)">
+      <p class="dica">Pode ficar em branco: o nome do cartão já identifica o
+        assunto, e sem título o painel mostra só o conteúdo (texto, imagem).</p>
       <label>Texto</label>
       <textarea name="conteudo" rows="9">{{ editar.conteudo if editar else '' }}</textarea>
       <p class="dica">O texto sai no painel <strong>exatamente como for
@@ -124,10 +127,12 @@
         Remover a imagem deste item</label>
       {% endif %}
 
-      <p class="dica">Para mudar o <strong>tamanho</strong> da imagem, abra o
-        painel como administrador e arraste a borda direita (ou o cantinho) da
-        imagem com o mouse. Duplo clique no puxador volta ao tamanho padrão.
-        Vale para a imagem na posição <em>Acima do texto</em>.</p>
+      <p class="dica">Para ajustar a imagem, abra o painel como administrador:
+        arraste a <strong>borda direita</strong> (ou o cantinho) para mudar o
+        <strong>tamanho</strong>, e arraste a <strong>imagem inteira</strong>
+        para a esquerda ou a direita para <strong>posicioná-la</strong> — perto
+        do meio ela encaixa centralizada. Duplo clique no puxador volta ao
+        padrão. Vale para a imagem na posição <em>Acima do texto</em>.</p>
 
       <label>Posição da imagem</label>
       <select name="img_pos">
@@ -171,14 +176,14 @@
         {% for i in itens %}
         <tr data-id="{{ i.id }}">
           <td class="pega" title="Arraste para reordenar">⠿</td>
-          <td><strong>{{ i.titulo }}</strong></td>
+          <td><strong>{{ i.titulo or '(sem título)' }}</strong></td>
           <td>{{ {'urgente':'Urgente','comunicado':'Comunicado'}.get(i.urgencia,'Informação') }}</td>
           <td data-coluna-ordem>{{ i.ordem }}</td>
           <td>{% if i.ativo %}<span class="tag tag-ok">visível</span>
               {% else %}<span class="tag">oculto</span>{% endif %}</td>
           <td class="acoes-linha">
             <a class="btn btn-sm" href="{{ url_for('admin_lateral', cartao=cartao_atual.chave, editar=i.id) }}">Editar</a>
-            <form method="post" onsubmit="return confirm('Remover {{ i.titulo }}?')">
+            <form method="post" onsubmit="return confirm('Remover {{ i.titulo or "este item" }}?')">
               <input type="hidden" name="csrf" value="{{ csrf_token }}">
               <input type="hidden" name="cartao" value="{{ cartao_atual.chave }}">
               <input type="hidden" name="acao" value="excluir">

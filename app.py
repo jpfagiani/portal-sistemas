@@ -1024,6 +1024,9 @@ def init_db():
             # Largura da imagem acima do texto, em % da área do texto. 0 = a
             # largura de sempre (a do cartão).
             ('lateral',  'img_larg', 'INTEGER NOT NULL DEFAULT 0'),
+            # Onde a imagem (quando menor que o cartão) fica na horizontal:
+            # 0 = encostada à esquerda, 50 = centralizada, 100 = à direita.
+            ('lateral',  'img_x', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes',  'coluna',  'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'coluna', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'altura', 'INTEGER NOT NULL DEFAULT 0'),
@@ -2081,17 +2084,31 @@ def admin_lateral():
 @app.route('/admin/imagem-tamanho/<int:item>', methods=['POST'])
 @admin_obrigatorio
 def admin_imagem_tamanho(item):
-    """Grava a largura que o administrador deu à imagem de um item, arrastando
-    a borda dela no painel. 0 volta ao tamanho padrão; o resto fica entre 10 e
-    100 (% da largura do texto do item)."""
-    larg = _int(request.form.get('larg'))
-    larg = 0 if larg <= 0 else max(10, min(100, larg))
+    """Grava o tamanho e a posição que o administrador deu à imagem de um item,
+    arrastando a borda dela (tamanho) ou a imagem inteira (posição) no painel.
+
+    `larg`: 0 volta ao padrão; o resto fica entre 10 e 100 (% da largura do
+    texto do item). `x`: 0 a 100, onde a imagem fica na horizontal (50 = centro).
+    Cada campo só é gravado se vier no pedido."""
+    vals = {}
+    if 'larg' in request.form:
+        larg = _int(request.form.get('larg'))
+        larg = 0 if larg <= 0 else max(10, min(100, larg))
+        vals['img_larg'] = larg
+        if larg == 0:                 # voltar ao padrão também recentraliza
+            vals['img_x'] = 0
+    if 'x' in request.form and vals.get('img_larg', 1) != 0:
+        vals['img_x'] = max(0, min(100, _int(request.form.get('x'))))
+    if not vals:
+        abort(400)
     con = db()
-    cur = con.execute('UPDATE lateral SET img_larg=? WHERE id=?', (larg, item))
+    cur = con.execute('UPDATE lateral SET '
+                      + ','.join(c + '=?' for c in vals) + ' WHERE id=?',
+                      tuple(vals.values()) + (item,))
     con.commit()
     if not cur.rowcount:
         abort(404)
-    return jsonify(ok=True, larg=larg)
+    return jsonify(ok=True)
 
 
 @app.route('/admin/mapa', methods=['GET', 'POST'])

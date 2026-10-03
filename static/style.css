@@ -335,6 +335,12 @@ body{
 .ver{margin-left:auto;font-size:.72rem;color:var(--azul);text-decoration:none;font-weight:600;
   white-space:nowrap;flex-shrink:0}
 .ver:hover{text-decoration:underline}
+/* O nome do cartão é o link para a lista completa. Parece título, não link azul:
+   a cor muda e a setinha aparece ao passar o mouse, e é o que avisa que clica. */
+.cab-link{color:inherit;text-decoration:none}
+.cab-link::after{content:" ›";opacity:.35;font-weight:700;transition:opacity .12s}
+.cab-link:hover,.cab-link:focus-visible{color:var(--azul)}
+.cab-link:hover::after,.cab-link:focus-visible::after{opacity:1}
 
 /* Marca d'água do cartão: fica atrás do conteúdo, sem interferir no clique.
    O arquivo é trocável em static/marca-<bloco>.<ext>. */
@@ -1163,6 +1169,13 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
   background:var(--azul);box-shadow:0 0 0 2px #fff}
 .com-img-caixa.ajustando{outline:2px dashed var(--azul);outline-offset:2px;
   user-select:none}
+/* Imagem menor que o cartão: o administrador a arrasta inteira para posicioná-la.
+   A mãozinha só aparece quando há folga para mover. */
+.com-img-caixa[data-editavel].livre .com-imagem{cursor:grab}
+.com-img-caixa.movendo{outline:2px dashed var(--azul);outline-offset:2px;user-select:none}
+.com-img-caixa.movendo .com-imagem{cursor:grabbing}
+.com-img-caixa.no-centro{outline-color:#16a34a}
+.com-img-caixa.movendo .com-img-link{pointer-events:none}
 .com-img-caixa.ajustando .com-img-link{pointer-events:none}
 .com-img-etiqueta{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   background:rgba(15,28,54,.82);color:#fff;font-size:.8rem;font-weight:700;

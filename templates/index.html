@@ -14,9 +14,10 @@
 {% macro cabecalho(icone, titulo, href, total=0, limite=0) %}
   <div class="cartao-cab">
     <span class="cab-ic">{{ ic(icone) }}</span>
-    <h2>{{ titulo }}</h2>
-    <a class="ver" href="{{ href }}" target="_blank" rel="noopener"
-       {% if total > limite %}title="Ver todos os {{ total }}"{% endif %}>Ver todos</a>
+    {#  O próprio nome do cartão é o link para a lista completa — não há mais
+        um "Ver todos" ao lado. #}
+    <h2><a class="cab-link" href="{{ href }}" target="_blank" rel="noopener"
+           title="{% if total > limite %}Ver todos os {{ total }}{% else %}Ver todos{% endif %}: {{ titulo }}">{{ titulo }}</a></h2>
   </div>
 {% endmacro %}
 

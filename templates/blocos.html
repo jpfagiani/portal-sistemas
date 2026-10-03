@@ -30,8 +30,11 @@
       'comunicado':'megafone'}.get(u, 'calendario')) }}</span>
     {% endif %}
     <span class="conteudo">
+      {#  Título é opcional: o nome do cartão já diz do que se trata. Sem título
+          (e sem selo) a linha nem é desenhada. #}
+      {% if c.titulo or u in ('urgente', 'comunicado') %}
       <span class="linha-titulo">
-        <span class="titulo">{{ c.titulo }}</span>
+        {% if c.titulo %}<span class="titulo">{{ c.titulo }}</span>{% endif %}
         {#  O item informativo (o padrão) não leva selo: "Novo" em tudo deixava de
             dizer alguma coisa. Só Urgente e Aviso são marcados. #}
         {% if u in ('urgente', 'comunicado') %}
@@ -39,6 +42,7 @@
           'comunicado':'Aviso'}.get(u) }}</span>
         {% endif %}
       </span>
+      {% endif %}
       {% if c.conteudo %}
       <p class="{{ 'cortado' if c.conteudo|texto_longo }}">{{ c.conteudo|linhas }}</p>
       {% endif %}
@@ -55,12 +59,12 @@
       {% set img_link = c.imagem and c.url and c.tipo != 'link' %}
       {% if c.imagem %}
       {% set img %}<img class="com-imagem com-img-{{ c.img_pos|default('topo') }}" loading="lazy"
-           alt="{{ c.titulo }}"
+           alt="{{ c.titulo or 'Imagem' }}"
            src="{{ url_for('static', filename='uploads/' ~ c.imagem) }}">{% endset %}
       {% set img_final %}{% if img_link %}
       <a class="com-img-link{{ ' com-img-link-fundo' if c.img_pos == 'fundo' }}"
          href="{{ c.url }}" target="_blank" rel="noopener"
-         title="Abrir: {{ c.titulo }}">{{ img }}</a>
+         title="Abrir{{ ': ' ~ c.titulo if c.titulo }}">{{ img }}</a>
       {% else %}{{ img }}{% endif %}{% endset %}
       {#  Só a imagem acima do texto muda de tamanho. `img_larg` é a largura em
           % da área do texto (0 = a de sempre). O administrador vê dois
@@ -69,8 +73,12 @@
           o link. Em item do tipo Link (o cartão todo é um <a>) também valem. #}
       {% if (c.img_pos or 'topo') == 'topo' %}
       {% set larg = c.img_larg or 0 %}
+      {#  `img_x` (0 a 100) diz onde a imagem menor que o cartão fica na
+          horizontal: 0 à esquerda, 50 no centro, 100 à direita. Vira margem. #}
+      {% set img_x = c.img_x or 0 %}
       <span class="com-img-caixa{{ ' livre' if larg }}"
-            {% if larg %}style="width:{{ larg }}%"{% endif %}>
+            {% if eh_admin %}data-editavel data-x="{{ img_x }}"{% endif %}
+            {% if larg %}style="width:{{ larg }}%{% if img_x %};margin-left:{{ ((100 - larg) * img_x / 100)|round(2) }}%{% endif %}"{% endif %}>
         {{ img_final }}
         {#  <span> e não <button>: em item do tipo Link o cartão inteiro é um <a>,
             e botão dentro de link não é permitido. O imagem.js impede que o
@@ -276,9 +284,9 @@
   <section class="cartao" {% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}>
     <div class="cartao-cab">
       <span class="cab-ic">{{ ic(c.icone) }}</span>
-      <h2>{{ c.nome }}</h2>
-      <a class="ver" href="{{ url_for('lista', chave=c.chave) }}"
-         target="_blank" rel="noopener">Ver todos</a>
+      {#  O nome do cartão é o link para a lista completa. #}
+      <h2><a class="cab-link" href="{{ url_for('lista', chave=c.chave) }}"
+             target="_blank" rel="noopener" title="Ver todos: {{ c.nome }}">{{ c.nome }}</a></h2>
     </div>
     <div class="cartao-corpo comunicados" style="--liv-fonte:var(--{{ c.chave }}-fonte)">
       {{ comunicados(itens) }}
