@@ -23,6 +23,7 @@
 <title>{% if nome_pagina|trim %}{{ nome_pagina|trim }} {% endif %}{{ cfg.site_sigla }}</title>
 <link rel="icon" href="{{ url_for('static', filename=logo_nome) }}?v={{ logo_versao }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='limpo.css') }}">
 <style>
   /* Tipografia do conteúdo digitado à mão — definida em Administração →
      Aparência. Tamanhos e cores são validados na gravação; aqui só entram

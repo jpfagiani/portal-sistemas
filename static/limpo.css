@@ -1,0 +1,82 @@
+/* ── visual "limpo" ────────────────────────────────────────────────────────
+   Sem barra lateral e sem caixas: a página é uma superfície só, como um portal
+   de notícias. As seções se separam por espaço e por um título com marca de
+   cor, não por moldura. */
+
+:root{--limpo-largura:1320px}
+body{background-image:none;background-color:var(--cartao)}
+.layout{display:block}
+.principal{max-width:var(--limpo-largura);margin:0 auto}
+
+/* Topo: marca, menu e ferramentas numa linha só */
+.topo-limpo{background:var(--cartao);border-bottom:1px solid var(--borda);
+  padding:.7rem 1rem;gap:1.4rem}
+.marca-topo{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--texto);flex-shrink:0}
+.marca-topo img{width:40px;height:40px;object-fit:contain;display:block}
+.marca-topo strong{display:block;font-size:.95rem;font-weight:800;letter-spacing:.3px;line-height:1.1}
+.marca-topo small{display:block;font-size:.66rem;color:var(--texto-fraco);line-height:1.2}
+.menu-topo{display:flex;gap:.2rem;align-items:center;min-width:0}
+.menu-topo a{padding:.45rem .8rem;border-radius:8px;text-decoration:none;color:var(--texto-fraco);
+  font-size:.86rem;font-weight:600;white-space:nowrap;position:relative}
+.menu-topo a:hover{color:var(--texto);background:var(--cartao-suave)}
+.menu-topo a.ativo{color:var(--azul)}
+.menu-topo a.ativo::after{content:"";position:absolute;left:.8rem;right:.8rem;bottom:-.78rem;
+  height:3px;border-radius:3px 3px 0 0;background:var(--azul)}
+.topo-limpo .busca{max-width:260px}
+.topo-limpo .busca input{padding-right:.8rem;border-color:transparent;background:var(--cartao-suave)}
+.chip-topo{padding-left:0}
+.sair-topo{color:var(--texto-fraco)}
+.sair-topo:hover{color:#dc2626}
+.rodape{background:transparent;border-top:1px solid var(--borda)}
+
+/* Conteúdo */
+.painel{padding:1.4rem 1rem 1rem}
+.capa{border-radius:14px}
+
+/* Números: uma faixa, sem caixas */
+.painel>.numeros{gap:0;margin:1.4rem 0 1.8rem;border-bottom:1px solid var(--borda);padding-bottom:1.2rem}
+.numero-cartao{background:transparent;border:0;box-shadow:none;border-radius:0;
+  padding:.2rem 1rem;border-left:1px solid var(--borda)}
+.numero-cartao:first-child{border-left:0;padding-left:0}
+
+/* Cartões: sem moldura, o título leva a marca */
+.cartao{background:transparent;border:0;box-shadow:none;border-radius:0;overflow:visible}
+.cartao-cab{border-bottom:0;padding:0 0 .7rem;gap:.5rem}
+.cartao-cab h2{font-size:.82rem;letter-spacing:.7px}
+.cartao-cab h2::before{content:"";display:inline-block;width:4px;height:.95em;border-radius:2px;
+  background:var(--azul);margin-right:.5rem;vertical-align:-.12em}
+.cab-ic{display:none}
+.cartao-corpo{padding:0}
+.tela-livre{column-gap:2rem}
+.tela-livre>.cartao{margin-bottom:1.6rem}
+.regiao-topo,.regiao-baixo,.regiao-meio-grade{gap:1.6rem 2rem}
+
+/* Peças dentro dos cartões: planas, tom suave no lugar de contorno */
+.ladrilho,.atalho{border:0;background:var(--cartao-suave);box-shadow:none}
+a.ladrilho:hover,a.atalho:hover{background:var(--tom-azul-fundo);transform:none;box-shadow:none}
+.com-img-link,.com-img-caixa,.com-imagem{border-radius:10px}
+.ramal-linha{border-color:var(--borda-suave)}
+.busca-cartao input{border-color:transparent;background:var(--cartao-suave)}
+
+@media (max-width:900px){
+  .topo-limpo{flex-wrap:wrap;gap:.6rem}
+  .menu-botao{display:block;margin-left:auto;order:2}
+  .menu-topo{display:none;order:5;width:100%;flex-direction:column;align-items:stretch}
+  .menu-topo.aberta{display:flex}
+  .menu-topo a.ativo::after{display:none}
+  .topo-limpo .busca{order:6;max-width:none}
+  .topo-direita{order:3}
+  .painel>.numeros{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:.8rem}
+  .numero-cartao{border-left:0;padding-left:0}
+}
+
+/* Topo enxuto: o menu ocupa o que sobra e rola se não couber */
+.menu-topo{flex:1 1 auto;overflow-x:auto;scrollbar-width:none}
+.menu-topo::-webkit-scrollbar{display:none}
+.topo-limpo .busca{margin-left:0;flex:0 1 230px;min-width:150px}
+.topo-limpo{gap:1rem}
+.chip-nome{max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.regiao-topo,.regiao-meio-grade{margin-bottom:2.2rem}
+.regiao-baixo{margin-bottom:1rem}
+.chip-nome small{display:block;font-size:.66rem;color:var(--texto-fraco)}
+.chip-topo:hover .chip-nome b{color:var(--azul)}

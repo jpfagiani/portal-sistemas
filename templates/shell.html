@@ -3,81 +3,47 @@
 {% block conteudo %}
 <div class="layout">
 
-  <aside class="lateral" id="lateral">
-    <a class="marca" href="{{ url_for('index') }}">
-      <span class="marca-brasao">
-        <img src="{{ url_for('static', filename=logo_nome) }}?v={{ logo_versao }}" alt="">
-      </span>
-      <span class="marca-texto">
-        <strong>{{ cfg.site_sigla }}</strong>
-        <small>{{ cfg.site_sub }}</small>
-      </span>
-    </a>
-
-    <nav class="menu">
-      {% for item in menu %}
-      <a href="{{ item.href }}" class="{{ 'ativo' if pagina == item.chave }}">
-        {{ ic(item.ic, 'ic-menu') }}{{ item.nome }}</a>
-      {% endfor %}
-    </nav>
-
-    <div class="rodape-lateral">
-      {% if eh_admin %}
-      <div class="bloco-usuario">
-        <span class="titulo-bloco"><i class="ponto-online"></i>Servidor conectado</span>
-        <div class="usuario-linha">
-          <span class="avatar">{{ iniciais }}</span>
-          <span>
-            <b>{{ usuario_nome or 'Administrador' }}</b>
-            <small>Administrador</small>
-          </span>
-        </div>
-        <span class="unidade-sigla">{{ cfg.site_sigla }}</span>
-        {% if ultimo_acesso %}
-        <span class="usuario-rodape">Último acesso: {{ ultimo_acesso }}</span>
-        {% endif %}
-      </div>
-      <a class="btn-sair" href="{{ url_for('sair') }}">{{ ic('sair') }} Sair</a>
-      {% else %}
-      <a class="btn-sair" href="{{ url_for('login', proximo=url_for('admin')) }}">
-        {{ ic('cadeado') }} Administração</a>
-      {% endif %}
-    </div>
-  </aside>
-
   <div class="principal">
-    <header class="topo">
+    <header class="topo topo-limpo">
+      <a class="marca-topo" href="{{ url_for('index') }}">
+        <img src="{{ url_for('static', filename=logo_nome) }}?v={{ logo_versao }}" alt="">
+        <span><strong>{{ cfg.site_sigla }}</strong><small>{{ cfg.site_sub }}</small></span>
+      </a>
       <button class="menu-botao" id="abrir-menu" aria-label="Abrir menu">{{ ic('barras') }}</button>
-      <h1>{{ self.titulo() }}</h1>
+      <nav class="menu-topo" id="lateral">
+        {% for item in menu if item.chave == 'inicio' %}
+        <a href="{{ item.href }}" class="{{ 'ativo' if pagina == item.chave }}">{{ item.nome }}</a>
+        {% endfor %}
+      </nav>
 
       <form class="busca" action="{{ url_for('ramais') }}" method="get" role="search">
         <span class="busca-lupa" aria-hidden="true">{{ ic('lupa') }}</span>
         <input id="busca-topo" type="search" name="q"
-               placeholder="Pesquisar ramais, setores, documentos..."
+               placeholder="Pesquisar ramais, setores..."
                aria-label="Pesquisar" value="{{ request.args.get('q', '') }}">
-        <kbd class="atalho-teclado">Ctrl + K</kbd>
       </form>
 
       <div class="topo-direita">
         <a class="ic-topo" href="{{ url_for('lista', chave='chamados') }}"
            title="Chamados de TI em aberto">{{ ic('sino') }}
           {% if aviso_chamados %}<i class="badge">{{ aviso_chamados }}</i>{% endif %}</a>
-
         <button class="ic-topo" id="trocar-tema" type="button" aria-label="Alternar tema">
           <span class="ic-lua">{{ ic('lua') }}</span>
           <span class="ic-sol" style="display:none">{{ ic('sol') }}</span>
         </button>
-
         {% if eh_admin %}
-        <span class="chip-topo">
+        {#  O nome do administrador leva à Administração (que saiu do menu). #}
+        <a class="chip-topo" href="{{ url_for('admin') }}"
+           title="Administração — {{ usuario_nome or 'Administrador' }}{% if ultimo_acesso %} (último acesso: {{ ultimo_acesso }}){% endif %}">
           <span class="avatar-topo">{{ iniciais }}</span>
           <span class="chip-nome"><b>{{ usuario_nome or 'Administrador' }}</b>
-            <small>Administrador</small></span>
-        </span>
+            <small>Administração</small></span>
+        </a>
+        <a class="ic-topo sair-topo" href="{{ url_for('sair') }}" title="Sair" aria-label="Sair">{{ ic('sair') }}</a>
         {% else %}
         <a class="chip-topo" href="{{ url_for('login', proximo=url_for('admin')) }}">
           <span class="avatar-topo">{{ ic('cadeado') }}</span>
-          <span class="chip-nome"><b>Entrar</b><small>Administração</small></span>
+          <span class="chip-nome"><b>Entrar</b></span>
         </a>
         {% endif %}
       </div>

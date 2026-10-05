@@ -40,7 +40,9 @@
 
 <div class="painel painel-duplo">
   <section class="painel-caixa">
-    <h2>{{ 'Editar item' if editar else 'Novo item' }}</h2>
+    <h2>{{ 'Editar item' if editar else 'Novo item' }}
+      {% if editar %}<a class="btn btn-sm" style="float:right"
+         href="{{ url_for('admin_lateral', cartao=cartao_atual.chave, novo=1) }}">+ Novo item</a>{% endif %}</h2>
     <form method="post" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <input type="hidden" name="id" value="{{ editar.id if editar else '' }}">
@@ -174,7 +176,7 @@
       <thead><tr><th></th><th>Título</th><th>Destaque</th><th>Ordem</th><th>Situação</th><th></th></tr></thead>
       <tbody data-ordenavel="{{ url_for('admin_lateral', cartao=cartao_atual.chave) }}" data-csrf="{{ csrf_token }}">
         {% for i in itens %}
-        <tr data-id="{{ i.id }}">
+        <tr data-id="{{ i.id }}"{% if editar and editar.id == i.id %} style="background:var(--cartao-suave)"{% endif %}>
           <td class="pega" title="Arraste para reordenar">⠿</td>
           <td><strong>{{ i.titulo or '(sem título)' }}</strong></td>
           <td>{{ {'urgente':'Urgente','comunicado':'Comunicado'}.get(i.urgencia,'Informação') }}</td>

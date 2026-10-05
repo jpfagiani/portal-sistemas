@@ -11,13 +11,19 @@
     previsível e ninguém precisa descobrir quais blocos escondem coisa. Quando
     há mais do que cabe, a quantidade vai no title — informação útil sem virar
     um número solto ao lado do título. #}
-{% macro cabecalho(icone, titulo, href, total=0, limite=0) %}
+{% macro cabecalho(icone, titulo, href, total=0, limite=0, editar='') %}
   <div class="cartao-cab">
     <span class="cab-ic">{{ ic(icone) }}</span>
     {#  O próprio nome do cartão é o link para a lista completa — não há mais
         um "Ver todos" ao lado. #}
+    {#  Administrador: o nome abre a edição do cartão. Os demais, a lista. #}
+    {% if eh_admin and editar %}
+    <h2><a class="cab-link cab-editar" href="{{ editar }}"
+           title="Editar cartão: {{ titulo }}">{{ titulo }}</a></h2>
+    {% else %}
     <h2><a class="cab-link" href="{{ href }}" target="_blank" rel="noopener"
            title="{% if total > limite %}Ver todos os {{ total }}{% else %}Ver todos{% endif %}: {{ titulo }}">{{ titulo }}</a></h2>
+    {% endif %}
   </div>
 {% endmacro %}
 
@@ -29,17 +35,17 @@
 {% macro desenha(c, itens) %}
   {% if c.tipo == 'sistemas' %}
     <section class="cartao" {{ posicao(c) }}>
-      {{ cabecalho('grade', c.nome, url_for('sistemas')) }}
+      {{ cabecalho('grade', c.nome, url_for('sistemas'), editar=url_for('admin_links', grupo='sistema')) }}
       <div class="cartao-corpo">{{ b.ladrilhos(sistemas) }}</div>
     </section>
   {% elif c.tipo == 'atalhos' %}
     <section class="cartao" {{ posicao(c) }}>
-      {{ cabecalho('marcador', c.nome, url_for('lista', chave='atalhos')) }}
+      {{ cabecalho('marcador', c.nome, url_for('lista', chave='atalhos'), editar=url_for('admin_links', grupo='atalho')) }}
       <div class="cartao-corpo">{{ b.atalhos(atalhos) }}</div>
     </section>
   {% elif c.tipo == 'ramais' %}
     <section class="cartao" {{ posicao(c) }}>
-      {{ cabecalho('telefone', c.nome, url_for('ramais'), ramais_total, limites.ramais) }}
+      {{ cabecalho('telefone', c.nome, url_for('ramais'), ramais_total, limites.ramais, url_for('admin_ramais')) }}
       <div class="cartao-corpo ramais">
         <div class="busca-cartao">
           <span aria-hidden="true">{{ ic('lupa') }}</span>

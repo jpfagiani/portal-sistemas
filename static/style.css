@@ -1371,3 +1371,5 @@ html[data-tema="escuro"] .com-img-link-fundo:hover .com-img-fundo{opacity:.2}
 .livre-barra [hidden]{display:none!important}
 .tela-livre.editando .com-img-alca,.tela-livre.editando .com-img-etiqueta{display:none!important}
 .livre-etiqueta{left:auto!important;top:auto!important;right:30px;bottom:6px}
+.cab-editar::after{content:" \270E";opacity:.35;font-size:.9em}
+.cab-editar:hover::after{opacity:.9}

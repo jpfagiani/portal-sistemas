@@ -288,9 +288,17 @@
   <section class="cartao" {{ pos(c) }}>
     <div class="cartao-cab">
       <span class="cab-ic">{{ ic(c.icone) }}</span>
-      {#  O nome do cartão é o link para a lista completa. #}
+      {#  O nome do cartão é o link para a lista completa. Para o administrador
+          ele abre direto a edição: com um item só, o próprio item; com vários,
+          a lista de itens do cartão. #}
+      {% if eh_admin %}
+      <h2><a class="cab-link cab-editar"
+             href="{{ url_for('admin_lateral', cartao=c.chave, editar=itens[0].id) if itens|length == 1 else url_for('admin_lateral', cartao=c.chave) }}"
+             title="Editar cartão: {{ c.nome }}">{{ c.nome }}</a></h2>
+      {% else %}
       <h2><a class="cab-link" href="{{ url_for('lista', chave=c.chave) }}"
              target="_blank" rel="noopener" title="Ver todos: {{ c.nome }}">{{ c.nome }}</a></h2>
+      {% endif %}
     </div>
     <div class="cartao-corpo comunicados" style="--liv-fonte:var(--{{ c.chave }}-fonte)">
       {{ comunicados(itens) }}

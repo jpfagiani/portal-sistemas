@@ -2070,6 +2070,7 @@ def admin_lateral():
                             'data=?,imagem=?,video=?,url_rot=?,img_pos=?,cartao=?'
                             ' WHERE id=?', dados + (ident,))
                 flash('Item atualizado.', 'ok')
+                volta = url_for('admin_lateral', cartao=chave, editar=ident)
             else:
                 con.execute('INSERT INTO lateral (tipo,titulo,conteudo,url,ordem,'
                             'ativo,urgencia,destaque,titulo_tam,titulo_cor,'
@@ -2087,6 +2088,11 @@ def admin_lateral():
     if request.args.get('editar'):
         editar = con.execute('SELECT * FROM lateral WHERE id=? AND cartao=?',
                              (_int(request.args['editar']), chave)).fetchone()
+    elif not request.args.get('novo'):
+        # Clicar no cartão já abre o primeiro item para edição, sem passar pelo
+        # botão "Editar". Para cadastrar outro: "+ Novo item" (?novo=1).
+        editar = con.execute('SELECT * FROM lateral WHERE cartao=?'
+                             ' ORDER BY ordem, id LIMIT 1', (chave,)).fetchone()
     return render_template(
         'admin_lateral.html', editar=editar, destaques=DESTAQUES_COMUNICADO,
         paleta=PALETA, paleta_fundo=PALETA_FUNDO,
