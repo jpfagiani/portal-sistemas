@@ -7,6 +7,9 @@
    ────────────────────────────────────────────────────────────────────────── */
 
 :root{
+
+   color-scheme: light; /* Adicione esta linha no topo do :root */
+   
   --marinho:#101d3a;          /* topo da barra lateral */
   --marinho-baixo:#16294f;    /* pé da barra lateral */
   --azul:#2563eb;
