@@ -1355,7 +1355,11 @@ def _injeta():
             'aviso_comunicados': aviso_comunicados,
             'usuario_nome': session.get('nome'),
             'ultimo_acesso': session.get('ultimo_acesso'),
-            'eh_admin': bool(session.get('admin'))}
+            'eh_admin': bool(session.get('admin')),
+            # Só a página /editor mostra os controles de edição; a inicial,
+            # mesmo para o administrador, é o portal como todos o veem.
+            'modo_edicao': bool(session.get('admin'))
+                           and request.endpoint == 'editor'}
 
 
 @app.template_filter('texto_longo')
@@ -1478,7 +1482,9 @@ def login():
             con.execute("UPDATE usuarios SET ultimo_acesso=datetime('now','localtime')"
                         ' WHERE id=?', (row['id'],))
             con.commit()
-            destino = request.args.get('proximo') or url_for('index')
+            # Administrador entra direto no editor do portal; os demais, no portal.
+            destino = request.args.get('proximo') or (
+                url_for('editor') if session['admin'] else url_for('index'))
             # Só aceita caminho interno — evita redirecionar para site externo
             if not destino.startswith('/') or destino.startswith('//'):
                 destino = url_for('index')
@@ -1554,6 +1560,15 @@ def ramais_do_painel(con):
     return con.execute('SELECT * FROM ramais WHERE ativo=1'
                        ' ORDER BY setor COLLATE NOCASE LIMIT ?',
                        (LIMITES['ramais'],)).fetchall()
+
+
+@app.route('/editor')
+@admin_obrigatorio
+def editor():
+    """O portal em modo de edição: o administrador entra aqui ao fazer login.
+    É a mesma página inicial, com os controles de edição (nome do cartão leva
+    à edição, imagens redimensionáveis, layout livre arrastável)."""
+    return index()
 
 
 @app.route('/')
@@ -2226,8 +2241,8 @@ def admin_layout_livre():
     if request.form.get('json'):
         return jsonify(ok=True)
     if valor == '1':
-        flash('Layout livre ativado. Use "Editar layout" no painel para arrastar.', 'ok')
-        return redirect(url_for('index'))
+        flash('Layout livre ativado. Use "Editar layout" para arrastar.', 'ok')
+        return redirect(url_for('editor'))
     flash('Voltou ao layout em colunas.', 'ok')
     return redirect(url_for('admin_mapa'))
 

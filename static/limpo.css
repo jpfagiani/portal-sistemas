@@ -80,3 +80,10 @@ a.ladrilho:hover,a.atalho:hover{background:var(--tom-azul-fundo);transform:none;
 .regiao-baixo{margin-bottom:1rem}
 .chip-nome small{display:block;font-size:.66rem;color:var(--texto-fraco)}
 .chip-topo:hover .chip-nome b{color:var(--azul)}
+/* Sem a barra lateral cabem as cinco faixas em qualquer tela larga. */
+@media (min-width:901px){
+  .painel>.numeros{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
+@media (min-width:601px) and (max-width:900px){
+  .painel>.numeros{grid-template-columns:repeat(3,minmax(0,1fr))}
+}

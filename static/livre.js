@@ -263,7 +263,23 @@
       });
     }
   }
-  if (btn) btn.addEventListener('click', function () { liga(!editando); });
+  // Conteúdo maior que o cartão fica cortado (sem barra de rolagem); no modo
+  // de edição o cartão ganha um aviso para você aumentar a altura ou ajustar.
+  function marcaCortes() {
+    cartoes().forEach(function (c) {
+      var k = c.querySelector('.cartao-corpo');
+      var corta = editando && k && k.scrollHeight > k.clientHeight + 2;
+      c.classList.toggle('corta', !!corta);
+    });
+  }
+  var _liga = liga;
+  liga = function (sim) { _liga(sim); marcaCortes(); };
+  var _aplica = aplica;
+  aplica = function (c, p) { _aplica(c, p); setTimeout(marcaCortes, 50); };
+  // "Concluir edição" sai do editor e mostra o portal como os demais o veem.
+  if (btn) btn.addEventListener('click', function () {
+    if (editando) { location.href = btn.dataset.sair || '/'; } else liga(true);
+  });
   if (btnAjustar) btnAjustar.addEventListener('click', ajustaTodos);
   // Evita que um clique no fim do arrasto abra o link do cartão.
   tela.addEventListener('click', function (e) {

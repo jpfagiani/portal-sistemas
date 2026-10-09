@@ -7,9 +7,6 @@
    ────────────────────────────────────────────────────────────────────────── */
 
 :root{
-
-   color-scheme: light; /* Adicione esta linha no topo do :root */
-   
   --marinho:#101d3a;          /* topo da barra lateral */
   --marinho-baixo:#16294f;    /* pé da barra lateral */
   --azul:#2563eb;
@@ -1335,7 +1332,11 @@ html[data-tema="escuro"] .com-img-link-fundo:hover .com-img-fundo{opacity:.2}
 .tela-livre{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
   grid-auto-rows:1.5rem;column-gap:1rem;row-gap:0;position:relative}
 .tela-livre>.cartao{margin-bottom:.9rem;min-height:0;position:relative}
-.tela-livre>.cartao>.cartao-corpo{min-height:0;overflow:auto}
+.tela-livre>.cartao>.cartao-corpo{min-height:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}
+.tela-livre>.cartao>.cartao-corpo::-webkit-scrollbar{display:none}
+/* Conteúdo cortado, só visível no modo de edição */
+.tela-livre.editando>.cartao.corta::before{content:"conteúdo cortado — aumente a altura";position:absolute;left:8px;bottom:6px;z-index:6;
+  background:#dc2626;color:#fff;font-size:.68rem;font-weight:700;border-radius:6px;padding:.1rem .45rem;pointer-events:none}
 @media (max-width:900px){
   .tela-livre{display:flex;flex-direction:column;gap:1rem}
   .tela-livre>.cartao{margin-bottom:0}
@@ -1376,3 +1377,6 @@ html[data-tema="escuro"] .com-img-link-fundo:hover .com-img-fundo{opacity:.2}
 .livre-etiqueta{left:auto!important;top:auto!important;right:30px;bottom:6px}
 .cab-editar::after{content:" \270E";opacity:.35;font-size:.9em}
 .cab-editar:hover::after{opacity:.9}
+.editor-barra{padding:.6rem .8rem;border:1px dashed var(--azul);border-radius:10px;background:var(--tom-azul-fundo)}
+.editor-rotulo{color:var(--azul);font-size:.8rem;letter-spacing:.5px;text-transform:uppercase}
+.editor-barra .livre-sair{margin-left:auto}

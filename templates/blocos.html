@@ -77,13 +77,13 @@
           horizontal: 0 à esquerda, 50 no centro, 100 à direita. Vira margem. #}
       {% set img_x = c.img_x or 0 %}
       <span class="com-img-caixa{{ ' livre' if larg }}"
-            {% if eh_admin %}data-editavel data-x="{{ img_x }}"{% endif %}
+            {% if modo_edicao %}data-editavel data-x="{{ img_x }}"{% endif %}
             {% if larg %}style="width:{{ larg }}%{% if img_x %};margin-left:{{ ((100 - larg) * img_x / 100)|round(2) }}%{% endif %}"{% endif %}>
         {{ img_final }}
         {#  <span> e não <button>: em item do tipo Link o cartão inteiro é um <a>,
             e botão dentro de link não é permitido. O imagem.js impede que o
             clique do puxador chegue ao link. #}
-        {% if eh_admin and c.id %}
+        {% if modo_edicao and c.id %}
         {% for lado in ('borda', 'canto') %}
         <span role="button" tabindex="0"
               class="com-img-alca com-img-alca-{{ lado }}"
@@ -291,7 +291,7 @@
       {#  O nome do cartão é o link para a lista completa. Para o administrador
           ele abre direto a edição: com um item só, o próprio item; com vários,
           a lista de itens do cartão. #}
-      {% if eh_admin %}
+      {% if modo_edicao %}
       <h2><a class="cab-link cab-editar"
              href="{{ url_for('admin_lateral', cartao=c.chave, editar=itens[0].id) if itens|length == 1 else url_for('admin_lateral', cartao=c.chave) }}"
              title="Editar cartão: {{ c.nome }}">{{ c.nome }}</a></h2>

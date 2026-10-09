@@ -17,7 +17,7 @@
     {#  O próprio nome do cartão é o link para a lista completa — não há mais
         um "Ver todos" ao lado. #}
     {#  Administrador: o nome abre a edição do cartão. Os demais, a lista. #}
-    {% if eh_admin and editar %}
+    {% if modo_edicao and editar %}
     <h2><a class="cab-link cab-editar" href="{{ editar }}"
            title="Editar cartão: {{ titulo }}">{{ titulo }}</a></h2>
     {% else %}
@@ -108,30 +108,19 @@
     </div>
   </section>
 
-  <div class="numeros">
-    {% for valor, rotulo, nota, icone, tom in numeros %}
-    <div class="numero-cartao tom-{{ tom }}">
-      <span class="numero-ic">{{ ic(icone) }}</span>
-      <span>
-        <strong>{{ valor }}</strong>
-        <b>{{ rotulo }}</b>
-        <small>{{ nota }}</small>
-      </span>
-    </div>
-    {% endfor %}
-  </div>
-
-  {% if livre %}
-  {#  Layout livre: um quadro só. O administrador arrasta os cartões aqui
-      mesmo (static/livre.js); para os demais é uma página comum. #}
-  {% if eh_admin %}
-  <div class="livre-barra" data-livre-barra>
-    <button type="button" class="btn btn-principal btn-sm" data-livre-editar>
+  {#  Barra do editor: só em /editor. Fora dele o administrador vê o portal
+      igual aos demais. #}
+  {% if modo_edicao %}
+  <div class="livre-barra editor-barra" data-livre-barra>
+    <strong class="editor-rotulo">Modo de edição</strong>
+    <span class="livre-ajuda">Clique no <b>nome de um cartão</b> para editá-lo.
+      As mudanças valem para todos.</span>
+    <a class="btn btn-sm" href="{{ url_for('index') }}">Ver o portal</a>
+    <a class="btn btn-sm" href="{{ url_for('admin') }}">Administração</a>
+    {% if livre %}
+    <button type="button" class="btn btn-principal btn-sm" data-livre-editar
+            data-sair="{{ url_for('index') }}">
       Editar layout</button>
-    <span class="livre-ajuda" data-livre-ajuda hidden>
-      Arraste um cartão para movê-lo e o canto inferior direito para mudar o
-      tamanho. Clique duas vezes no canto para ajustar à altura do conteúdo.
-      Ao soltar, a posição é salva.</span>
     <button type="button" class="btn btn-sm" data-livre-ajustar hidden>
       Ajustar todos ao conteúdo</button>
     <form method="post" action="{{ url_for('admin_layout_livre') }}" class="livre-sair"
@@ -140,8 +129,16 @@
       <input type="hidden" name="acao" value="desativar">
       <button class="btn btn-sm" type="submit">Voltar ao layout em colunas</button>
     </form>
+    <span class="livre-ajuda" data-livre-ajuda hidden style="flex-basis:100%">
+      Arraste um cartão para movê-lo e o canto inferior direito para mudar o
+      tamanho. Clique duas vezes no canto para ajustar à altura do conteúdo.
+      Ao soltar, a posição é salva.</span>
+    {% else %}
+    <a class="btn btn-sm" href="{{ url_for('admin_mapa') }}">Mapa do painel</a>
+    {% endif %}
   </div>
   {% endif %}
+  {% if livre %}
   <div class="tela-livre" data-livre data-csrf="{{ csrf_token }}"
        data-salvar="{{ url_for('admin_cartao_pos') }}">
     {% for c, itens in cartoes_livre %}{{ desenha(c, itens) }}{% endfor %}
@@ -164,7 +161,7 @@
 </main>
 
 <script src="{{ url_for('static', filename='ramais.js') }}"></script>
-{% if livre and eh_admin %}<script src="{{ url_for('static', filename='livre.js') }}"></script>{% endif %}
+{% if livre and modo_edicao %}<script src="{{ url_for('static', filename='livre.js') }}"></script>{% endif %}
 {#  static/encaixe.js (cartões com a altura do conteúdo, encaixados em colunas)
     está desligado: as fileiras voltaram a ter a mesma altura. Para religar,
     ponha de volta a linha:

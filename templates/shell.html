@@ -32,6 +32,9 @@
           <span class="ic-sol" style="display:none">{{ ic('sol') }}</span>
         </button>
         {% if eh_admin %}
+        {#  Do portal para o editor e de volta. #}
+        {% if modo_edicao %}<a class="btn btn-sm" href="{{ url_for('index') }}">Ver o portal</a>
+        {% else %}<a class="btn btn-sm btn-principal" href="{{ url_for('editor') }}">Editar portal</a>{% endif %}
         {#  O nome do administrador leva à Administração (que saiu do menu). #}
         <a class="chip-topo" href="{{ url_for('admin') }}"
            title="Administração — {{ usuario_nome or 'Administrador' }}{% if ultimo_acesso %} (último acesso: {{ ultimo_acesso }}){% endif %}">
@@ -41,7 +44,7 @@
         </a>
         <a class="ic-topo sair-topo" href="{{ url_for('sair') }}" title="Sair" aria-label="Sair">{{ ic('sair') }}</a>
         {% else %}
-        <a class="chip-topo" href="{{ url_for('login', proximo=url_for('admin')) }}">
+        <a class="chip-topo" href="{{ url_for('login') }}">
           <span class="avatar-topo">{{ ic('cadeado') }}</span>
           <span class="chip-nome"><b>Entrar</b></span>
         </a>
@@ -69,7 +72,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='tema.js') }}"></script>
-{% if eh_admin %}<script src="{{ url_for('static', filename='imagem.js') }}"></script>{% endif %}
+{% if modo_edicao %}<script src="{{ url_for('static', filename='imagem.js') }}"></script>{% endif %}
 <script>
   document.getElementById('abrir-menu').addEventListener('click', function () {
     document.getElementById('lateral').classList.toggle('aberta');
