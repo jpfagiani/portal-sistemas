@@ -1,0 +1,46 @@
+{% extends 'admin_base.html' %}
+{% set aba = 'navegacao' %}
+{% block titulo %}Navegação{% endblock %}
+
+{% block admin %}
+<div class="painel painel-duplo">
+  <form method="post" class="painel-caixa" style="grid-column:1 / -1">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+
+    <h2>Faixa de links no topo</h2>
+    <p class="dica">A faixa escura que aparece acima do cabeçalho em todas as
+      páginas. Escreva um link por linha, no formato <code>Nome | endereço</code>.
+      O endereço pode ser interno (<code>/ramais</code>) ou externo
+      (<code>https://...</code>). Sem endereço, o nome aparece como texto. Deixe
+      tudo em branco para esconder a faixa.</p>
+    <textarea name="faixa_links" rows="7" style="width:100%;max-width:640px"
+              placeholder="Ramais | /ramais&#10;Legislação | https://...">{{ cfg.faixa_links }}</textarea>
+
+    <h2 style="margin-top:1.6rem">Cartão “Em destaque”</h2>
+    <p class="dica">O cartão colorido que fica abaixo da lista de páginas, na
+      tela inicial. Sem título, ele não aparece.</p>
+    <label class="check"><input type="checkbox" name="destaque_ativo"
+      {{ 'checked' if cfg.destaque_ativo == '1' }}> Exibir o cartão</label>
+
+    <label>Chamada pequena (acima do título)</label>
+    <input name="destaque_rotulo" maxlength="40" value="{{ cfg.destaque_rotulo }}"
+           style="max-width:420px">
+    <label>Título *</label>
+    <input name="destaque_titulo" maxlength="90" value="{{ cfg.destaque_titulo }}"
+           style="max-width:420px">
+    <label>Texto</label>
+    <textarea name="destaque_texto" rows="3" maxlength="220"
+              style="width:100%;max-width:420px">{{ cfg.destaque_texto }}</textarea>
+    <label>Endereço do link (opcional)</label>
+    <input name="destaque_url" maxlength="300" value="{{ cfg.destaque_url }}"
+           placeholder="/modulo/documentos ou https://..." style="max-width:420px">
+    <label>Texto do link</label>
+    <input name="destaque_cta" maxlength="40" value="{{ cfg.destaque_cta }}"
+           style="max-width:420px">
+
+    <div class="acoes" style="margin-top:1rem">
+      <button class="btn btn-principal" type="submit">Salvar</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

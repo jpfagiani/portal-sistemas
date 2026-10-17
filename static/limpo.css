@@ -87,3 +87,69 @@ a.ladrilho:hover,a.atalho:hover{background:var(--tom-azul-fundo);transform:none;
 @media (min-width:601px) and (max-width:900px){
   .painel>.numeros{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+/* ── faixa de links de informação (topo de todas as páginas) ─────────────── */
+.faixa-info{background:var(--marinho);color:#e5e9f2}
+.faixa-info-miolo{max-width:var(--limpo-largura);margin:0 auto;padding:0 1rem;
+  display:flex;flex-wrap:wrap;align-items:center;gap:.15rem 1.5rem;min-height:2.4rem}
+.faixa-info a,.faixa-info span{font-size:.72rem;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:#e5e9f2;text-decoration:none;padding:.4rem 0}
+.faixa-info a:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+/* ── tela inicial: banner de ponta a ponta e, abaixo, menu de páginas + painel ── */
+.corpo-painel{display:flex;gap:1.8rem;align-items:flex-start;margin-top:1.4rem}
+.corpo-conteudo{flex:1 1 0;min-width:0}
+.lateral-paginas{flex:0 0 220px;width:220px;display:flex;flex-direction:column;gap:1rem}
+.lp-lista{background:var(--cartao-suave);border:1px solid var(--borda);border-radius:14px;
+  padding:.9rem .6rem;display:flex;flex-direction:column;gap:2px}
+.lp-titulo{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  padding:0 .6rem .6rem;display:flex;align-items:center;gap:.5rem;color:var(--texto)}
+.lp-titulo::before{content:"";width:3px;height:.95em;border-radius:2px;background:var(--azul)}
+.lp-lista a{display:flex;align-items:center;gap:.65rem;padding:.55rem .6rem;border-radius:8px;
+  color:var(--texto);text-decoration:none;font-size:.88rem;font-weight:500}
+.lp-lista a:hover{background:var(--tom-azul-fundo);color:var(--azul)}
+.lp-ic{display:inline-flex;width:1.05rem;height:1.05rem;flex-shrink:0;color:var(--texto-fraco)}
+.lp-ic svg,.lp-ic img{width:100%;height:100%}
+.lp-lista a:hover .lp-ic{color:var(--azul)}
+.lp-lista .lp-editar{margin-top:.4rem;border-top:1px solid var(--borda-suave);border-radius:0 0 8px 8px;
+  font-size:.78rem;color:var(--texto-fraco)}
+.lp-destaque{display:flex;flex-direction:column;gap:.45rem;padding:1.1rem 1rem;border-radius:14px;
+  background:var(--azul);color:#fff;text-decoration:none}
+.lp-destaque small{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+.lp-destaque strong{font-size:1.05rem;font-weight:800;line-height:1.25}
+.lp-destaque span{font-size:.8rem;line-height:1.5;opacity:.92}
+.lp-destaque b{font-size:.82rem;font-weight:700;margin-top:.2rem}
+a.lp-destaque:hover{background:var(--azul-forte)}
+
+@media (max-width:900px){
+  .corpo-painel{flex-direction:column;gap:1.2rem}
+  .lateral-paginas{width:100%;flex:none}
+  .lp-lista{flex-direction:row;flex-wrap:wrap;gap:.3rem}
+  .lp-titulo{flex-basis:100%}
+}
+
+/* ── páginas de conteúdo (/modulo/<chave>): só o que foi escrito ────────── */
+.pagina-conteudo{max-width:var(--limpo-largura);width:100%;margin:0 auto;padding:1.4rem 1rem 2rem;
+  display:flex;flex-direction:column;gap:1.1rem}
+.migalha{display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:var(--texto-fraco)}
+.migalha a{color:var(--azul);font-weight:600;text-decoration:none}
+.migalha a:hover{text-decoration:underline}
+.pagina-titulo{font-size:2.1rem;font-weight:800;line-height:1.15;color:var(--texto)}
+.pagina-subtitulo{font-size:1.35rem;font-weight:700;color:var(--texto);margin-top:.6rem}
+.pagina-texto{max-width:860px;font-size:1rem;line-height:1.75;color:var(--texto)}
+.pagina-texto p{margin:0 0 .9rem}
+.pagina-texto ul{margin:0 0 .9rem 1.2rem;padding:0}
+.pagina-texto li{margin-bottom:.3rem}
+.pagina-galeria{display:grid;gap:1rem}
+.pagina-galeria.g1{grid-template-columns:minmax(0,1fr)}
+.pagina-galeria.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pagina-galeria.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pagina-galeria figure{margin:0}
+.pagina-galeria img{width:100%;height:auto;display:block;border-radius:14px;background:var(--cartao-suave)}
+.pagina-galeria.g1 img{max-height:480px;object-fit:cover}
+.pagina-galeria figcaption{font-size:.8rem;color:var(--texto-fraco);margin-top:.4rem}
+.pagina-acoes{margin-top:1rem}
+@media (max-width:700px){
+  .pagina-galeria.g2,.pagina-galeria.g3{grid-template-columns:minmax(0,1fr)}
+  .pagina-titulo{font-size:1.6rem}
+}

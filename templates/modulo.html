@@ -2,19 +2,58 @@
 {% set pagina = chave %}
 {% block titulo %}{{ nome }}{% endblock %}
 
+{#  Página de conteúdo de um item do menu. Sem lista de links ao lado: só o que
+    o administrador escreveu para ela (Administração → Blocos do painel → Menu
+    lateral → Conteúdo). Sem nenhum bloco, mostra o aviso de página em
+    preparação. #}
 {% block miolo %}
-<main class="pagina">
-  <div class="cartao" style="max-width:640px;margin:0 auto">
-    <div class="cartao-cab"><h2>{{ nome }}</h2></div>
-    <div class="cartao-corpo">
-      <p class="vazio">Este módulo ainda não está disponível.</p>
-      <p class="dica">O espaço já existe no portal: quando o conteúdo de
-        <strong>{{ nome }}</strong> estiver definido, ele passa a abrir aqui —
-        sem mudar o endereço nem o menu.</p>
-      <div class="acoes">
-        <a class="btn btn-principal" href="{{ url_for('index') }}">Voltar ao início</a>
+<main class="pagina pagina-conteudo">
+  <div class="migalha">
+    <a href="{{ url_for('index') }}">← Início</a><span>/</span><span>{{ nome }}</span>
+  </div>
+
+  <h1 class="pagina-titulo">{{ nome }}</h1>
+
+  {% for b in blocos %}
+    {% if b.tipo == 'subtitulo' %}
+      <h2 class="pagina-subtitulo">{{ b.texto }}</h2>
+    {% elif b.tipo == 'texto' %}
+      <div class="pagina-texto">
+        {% for p in b.paragrafos %}
+          {% if p.lista %}
+            <ul>{% for li in p.lista %}<li>{{ li }}</li>{% endfor %}</ul>
+          {% else %}
+            <p>{% for l in p.linhas %}{{ l }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% elif b.tipo == 'galeria' %}
+      <div class="pagina-galeria g{{ b.colunas }}">
+        {% for img in b.imagens %}
+        <figure>
+          <img src="{{ url_for('static', filename='uploads/' ~ img.arquivo) }}"
+               alt="{{ img.legenda }}" loading="lazy">
+          {% if img.legenda %}<figcaption>{{ img.legenda }}</figcaption>{% endif %}
+        </figure>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="cartao" style="max-width:640px">
+      <div class="cartao-corpo">
+        <p class="vazio">Esta página ainda não tem conteúdo.</p>
+        <p class="dica">O espaço já existe no portal: quando o texto e as imagens de
+          <strong>{{ nome }}</strong> forem publicados, eles passam a aparecer aqui —
+          sem mudar o endereço nem o menu.</p>
       </div>
     </div>
+  {% endfor %}
+
+  <div class="acoes pagina-acoes">
+    <a class="btn" href="{{ url_for('index') }}">Voltar ao início</a>
+    {% if eh_admin %}
+    <a class="btn btn-principal" href="{{ url_for('admin_pagina', chave=chave) }}">Editar esta página</a>
+    {% endif %}
   </div>
 </main>
 {% endblock %}

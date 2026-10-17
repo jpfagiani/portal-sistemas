@@ -1,0 +1,118 @@
+{% extends 'admin_base.html' %}
+{% set aba = 'painel' %}
+{% block titulo %}Conteúdo — {{ item.nome }}{% endblock %}
+
+{% block admin %}
+<p style="margin-bottom:1rem">
+  <a href="{{ url_for('admin_painel', bloco='menu') }}">← Menu lateral</a>
+  &nbsp;·&nbsp;
+  <a href="{{ url_for('modulo', chave=item.chave) }}" target="_blank" rel="noopener">Ver a página</a>
+</p>
+
+<div class="painel painel-duplo">
+  <section class="painel-caixa">
+    <h2>{{ 'Editar bloco' if editar else 'Adicionar à página' }} — {{ item.nome }}</h2>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="id" value="{{ editar.id if editar else '' }}">
+
+      <label>O que adicionar</label>
+      {% if editar %}
+        <p><strong>{{ tipos[editar.tipo] }}</strong></p>
+      {% else %}
+        <select name="tipo" id="tipo-bloco">
+          {% for chave, rotulo in tipos.items() %}
+          <option value="{{ chave }}">{{ rotulo }}</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+
+      {% set tipo_atual = editar.tipo if editar else 'subtitulo' %}
+      <div id="campo-imagem" {% if tipo_atual != 'imagem' %}hidden{% endif %}>
+        <label>Imagem {% if editar and editar.arquivo %}(envie outra para trocar){% endif %}</label>
+        {% if editar and editar.arquivo %}
+        <img src="{{ url_for('static', filename='uploads/' ~ editar.arquivo) }}" alt=""
+             style="max-width:100%;max-height:160px;border-radius:8px;display:block;margin-bottom:.5rem">
+        {% endif %}
+        <input type="file" name="arquivo" accept=".png,.jpg,.jpeg,.webp,.gif">
+        <p class="dica">PNG, JPG, WEBP ou GIF. Imagens enviadas em sequência ficam
+          lado a lado (até três por linha).</p>
+      </div>
+
+      <label id="rotulo-texto">{% if tipo_atual == 'imagem' %}Legenda (opcional){% elif tipo_atual == 'texto' %}Texto{% else %}Subtítulo{% endif %}</label>
+      <textarea name="texto" id="campo-texto" rows="{{ 8 if tipo_atual == 'texto' else 3 }}"
+                style="width:100%">{{ editar.texto if editar else '' }}</textarea>
+      <p class="dica" id="dica-texto" {% if tipo_atual != 'texto' %}hidden{% endif %}>
+        Deixe uma linha em branco para começar um novo parágrafo. Linhas que
+        começam com “- ” viram uma lista.</p>
+
+      <label class="check"><input type="checkbox" name="ativo"
+        {{ 'checked' if (not editar or editar.ativo) }}> Exibir na página</label>
+      <div class="acoes">
+        <button class="btn btn-principal" type="submit">{{ 'Salvar' if editar else 'Adicionar' }}</button>
+        {% if editar %}<a class="btn" href="{{ url_for('admin_pagina', chave=item.chave) }}">Cancelar</a>{% endif %}
+      </div>
+    </form>
+  </section>
+
+  <section class="painel-caixa">
+    <h2>Conteúdo da página ({{ itens|length }})</h2>
+    <table class="tabela">
+      <thead><tr><th></th><th>Tipo</th><th>Conteúdo</th><th>Situação</th><th></th></tr></thead>
+      <tbody data-ordenavel="{{ url_for('admin_pagina', chave=item.chave) }}"
+             data-csrf="{{ csrf_token }}">
+        {% for i in itens %}
+        <tr data-id="{{ i.id }}">
+          <td class="pega" title="Arraste para reordenar">⠿</td>
+          <td>{{ tipos[i.tipo] }}</td>
+          <td>
+            {% if i.tipo == 'imagem' and i.arquivo %}
+              <img src="{{ url_for('static', filename='uploads/' ~ i.arquivo) }}" alt=""
+                   style="height:44px;border-radius:6px;vertical-align:middle">
+              {{ i.texto }}
+            {% else %}{{ i.texto|truncate(90) }}{% endif %}
+          </td>
+          <td>{% if i.ativo %}<span class="tag tag-ok">visível</span>
+              {% else %}<span class="tag">oculto</span>{% endif %}</td>
+          <td class="acoes-linha">
+            <a class="btn btn-sm" href="{{ url_for('admin_pagina', chave=item.chave, editar=i.id) }}">Editar</a>
+            <form method="post" onsubmit="return confirm('Remover este bloco?')">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <input type="hidden" name="acao" value="excluir">
+              <input type="hidden" name="id" value="{{ i.id }}">
+              <button class="btn btn-sm btn-perigo" type="submit">Excluir</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="vazio">Nenhum bloco ainda. Comece adicionando um subtítulo, um texto ou uma imagem.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="dica">Arraste as linhas para mudar a ordem em que aparecem na página.</p>
+  </section>
+</div>
+
+<script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script>
+  /* O formulário muda conforme o tipo escolhido: imagem mostra o envio de
+     arquivo, texto abre a caixa maior. */
+  (function () {
+    var tipo = document.getElementById('tipo-bloco');
+    if (!tipo) return;
+    var imagem = document.getElementById('campo-imagem');
+    var rotulo = document.getElementById('rotulo-texto');
+    var texto = document.getElementById('campo-texto');
+    var dica = document.getElementById('dica-texto');
+    function aplicar() {
+      var t = tipo.value;
+      imagem.hidden = t !== 'imagem';
+      dica.hidden = t !== 'texto';
+      rotulo.textContent = t === 'imagem' ? 'Legenda (opcional)' : (t === 'texto' ? 'Texto' : 'Subtítulo');
+      texto.rows = t === 'texto' ? 8 : 3;
+    }
+    tipo.addEventListener('change', aplicar);
+    aplicar();
+  })();
+</script>
+{% endblock %}
