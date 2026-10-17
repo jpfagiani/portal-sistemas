@@ -111,16 +111,22 @@
   {#  Abaixo do banner: à esquerda o menu de páginas (e o cartão "Em
       destaque"), à direita os cartões do painel. As páginas abertas por esse
       menu não repetem a lista — só mostram o conteúdo. #}
-  {% set paginas = menu|rejectattr('chave', 'in', ['inicio', 'admin'])|list %}
-  <div class="corpo-painel{{ ' sem-lateral' if not (paginas or destaque) }}">
-  {% if paginas or destaque %}
+  {#  O menu lateral só leva às páginas de conteúdo que o administrador cria.
+      Ramais tem cartão próprio aqui na inicial (e a faixa do topo), então o
+      item de menu "Ramais" não entra nesta lista. #}
+  {% set paginas = menu|rejectattr('chave', 'in', ['inicio', 'admin', 'ramais'])|list %}
+  {% set mostra_lateral = paginas or destaque or modo_edicao %}
+  <div class="corpo-painel{{ ' sem-lateral' if not mostra_lateral }}">
+  {% if mostra_lateral %}
   <aside class="lateral-paginas">
-    {% if paginas %}
+    {% if paginas or modo_edicao %}
     <nav class="lp-lista" aria-label="Páginas do portal">
       <div class="lp-titulo">Páginas</div>
       {% for item in paginas %}
       <a href="{{ item.href }}"{% if item.externo %} target="_blank" rel="noopener"{% endif %}>
         <span class="lp-ic">{{ ic(item.ic) }}</span><span>{{ item.nome }}</span></a>
+      {% else %}
+      <p class="lp-vazio">Nenhuma página criada ainda.</p>
       {% endfor %}
       {% if modo_edicao %}
       <a class="lp-editar" href="{{ url_for('admin_painel', bloco='menu') }}">Editar páginas</a>

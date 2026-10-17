@@ -17,6 +17,7 @@ import sqlite3
 import time
 import zipfile
 from datetime import datetime
+from html.parser import HTMLParser
 from functools import wraps
 
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template,
@@ -1064,6 +1065,13 @@ def init_db():
             ('cartoes_painel', 'gw', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'gh', 'INTEGER NOT NULL DEFAULT 0'),
             ('lateral',  'data',     "TEXT DEFAULT ''"),
+            # Páginas de conteúdo: largura (% da página) e posição da imagem, estilo
+            # do bloco de texto e se o texto é HTML formatado ou texto simples
+            # (blocos criados na versão 1.3.0).
+            ('pagina_blocos', 'larg',    'INTEGER NOT NULL DEFAULT 100'),
+            ('pagina_blocos', 'alinh',   "TEXT DEFAULT 'centro'"),
+            ('pagina_blocos', 'estilo',  "TEXT DEFAULT 'normal'"),
+            ('pagina_blocos', 'formato', "TEXT DEFAULT 'texto'"),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
             ('usuarios', 'ultimo_acesso', "TEXT DEFAULT ''")):
         existentes = {c[1] for c in con.execute(f'PRAGMA table_info({tabela})')}
@@ -1185,7 +1193,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.3.0'
+VERSAO = '1.4.0'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1390,29 +1398,201 @@ def _texto_em_paragrafos(texto):
     return saida
 
 
+def texto_para_html(texto):
+    """Texto simples (blocos da versão 1.3.0) como HTML, para o editor e para a
+    página. Tudo é escapado: o que foi digitado nunca vira marcação."""
+    partes = []
+    for p in _texto_em_paragrafos(texto):
+        if 'lista' in p:
+            partes.append('<ul>' + ''.join(f'<li>{escape(i)}</li>' for i in p['lista']) + '</ul>')
+        else:
+            partes.append('<p>' + '<br>'.join(str(escape(l)) for l in p['linhas']) + '</p>')
+    return ''.join(partes)
+
+
+# ── texto formatado das páginas ────────────────────────────────────────────────
+# O editor da página grava HTML. Como esse HTML é mostrado a todos, nada do que
+# chega do navegador é confiado: tudo passa por esta limpeza, que só deixa
+# passar uma lista curta de tags e de propriedades de estilo. Script, evento
+# (onclick…), iframe, classe e endereço javascript: nunca chegam à página.
+
+_TAGS_OK = {'p', 'br', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'h2', 'h3',
+            'h4', 'blockquote', 'a', 'span', 'div'}
+_TAGS_COM_ESTILO = {'p', 'div', 'span', 'li', 'h2', 'h3', 'h4', 'blockquote'}
+_SINONIMOS = {'b': 'strong', 'i': 'em', 'strike': 's', 'del': 's', 'h1': 'h2',
+              'h5': 'h4', 'h6': 'h4', 'font': 'span'}
+_DESCARTA = {'script', 'style', 'iframe', 'object', 'embed', 'noscript',
+             'template', 'svg', 'math', 'head', 'title'}
+_FONT_SIZE = {'1': .75, '2': .875, '3': 1, '4': 1.125, '5': 1.5, '6': 2, '7': 3}
+_FONT_PALAVRA = {'xx-small': .6, 'x-small': .7, 'small': .875, 'medium': 1,
+                 'large': 1.25, 'x-large': 1.5, 'xx-large': 2, 'xxx-large': 3}
+_COR = re.compile(r'^(#[0-9a-f]{3}|#[0-9a-f]{6})$', re.I)
+_RGB = re.compile(r'^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$', re.I)
+_TAM = re.compile(r'^(\d+(?:\.\d+)?)(rem|em|px|%)$')
+
+
+def _cor_limpa(valor):
+    valor = (valor or '').strip()
+    if _COR.match(valor):
+        return valor.lower()
+    m = _RGB.match(valor)
+    if m and all(int(x) <= 255 for x in m.groups()):
+        return '#%02x%02x%02x' % tuple(int(x) for x in m.groups())
+    return ''
+
+
+def _estilo_limpo(css):
+    """Só as propriedades que o editor produz, com valores conferidos."""
+    saida = []
+    for decl in (css or '').split(';'):
+        prop, _, valor = decl.partition(':')
+        prop, valor = prop.strip().lower(), valor.strip().lower()
+        if prop in ('color', 'background-color'):
+            c = _cor_limpa(valor)
+            if c:
+                saida.append(f'{prop}:{c}')
+        elif prop == 'font-size':
+            rem = _FONT_PALAVRA.get(valor)
+            m = _TAM.match(valor)
+            if m:
+                n, un = float(m.group(1)), m.group(2)
+                rem = {'rem': n, 'em': n, 'px': n / 16, '%': n / 100}[un]
+            if rem is not None and .6 <= rem <= 4:
+                saida.append(f'font-size:{round(rem, 3)}rem')
+        elif prop == 'text-align' and valor in ('left', 'center', 'right', 'justify'):
+            saida.append(f'text-align:{valor}')
+        elif prop == 'font-weight' and valor in ('bold', '700', '600', '800'):
+            saida.append('font-weight:700')
+        elif prop == 'font-style' and valor == 'italic':
+            saida.append('font-style:italic')
+        elif prop == 'text-decoration' and valor in ('underline', 'line-through'):
+            saida.append(f'text-decoration:{valor}')
+    return ';'.join(saida)
+
+
+class _LimpaHTML(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.saida, self.pilha, self.pular = [], [], 0
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in _DESCARTA:
+            self.pular += 1
+            return
+        if self.pular:
+            return
+        original = tag
+        tag = _SINONIMOS.get(tag, tag)
+        attrs = {k.lower(): (v or '') for k, v in attrs}
+        emitida = None
+        if tag in _TAGS_OK:
+            estilo = _estilo_limpo(attrs.get('style'))
+            if original == 'font':                # <font color size> do editor
+                extra = []
+                c = _cor_limpa(attrs.get('color'))
+                if c:
+                    extra.append(f'color:{c}')
+                if attrs.get('size') in _FONT_SIZE:
+                    extra.append(f"font-size:{_FONT_SIZE[attrs['size']]}rem")
+                estilo = ';'.join(filter(None, [estilo] + extra))
+            if tag == 'br':
+                self.saida.append('<br>')
+                return
+            marcas = ''
+            if tag == 'a':
+                href = endereco_seguro(attrs.get('href'))
+                if href:
+                    ext = ' target="_blank" rel="noopener"' if not href.startswith('/') else ''
+                    marcas = f' href="{escape(href)}"{ext}'
+                    emitida = tag
+            else:
+                emitida = tag
+            if emitida:
+                if estilo and tag in _TAGS_COM_ESTILO:
+                    marcas += f' style="{escape(estilo)}"'
+                self.saida.append(f'<{tag}{marcas}>')
+        self.pilha.append((original, emitida))
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in _DESCARTA:
+            self.pular = max(0, self.pular - 1)
+            return
+        if self.pular:
+            return
+        for i in range(len(self.pilha) - 1, -1, -1):
+            if self.pilha[i][0] == tag:
+                while len(self.pilha) > i:
+                    _, emitida = self.pilha.pop()
+                    if emitida:
+                        self.saida.append(f'</{emitida}>')
+                return
+
+    def handle_data(self, dados):
+        if not self.pular:
+            self.saida.append(str(escape(dados)))
+
+    def resultado(self):
+        while self.pilha:
+            _, emitida = self.pilha.pop()
+            if emitida:
+                self.saida.append(f'</{emitida}>')
+        return ''.join(self.saida)
+
+
+def limpa_html(html):
+    """HTML do editor da página, reduzido ao que é permitido (ver acima)."""
+    p = _LimpaHTML()
+    p.feed((html or '')[:60000])
+    p.close()
+    return p.resultado()
+
+
+def so_texto(html):
+    """O texto visível de um trecho de HTML, para saber se o bloco está vazio."""
+    return re.sub(r'<[^>]+>', '', html or '').replace('&nbsp;', ' ').strip()
+
+
+ALINHA_IMG = {'esq': 'flex-start', 'centro': 'center', 'dir': 'flex-end'}
+ROTULO_ALINHA = {'esq': 'À esquerda', 'centro': 'Centralizada', 'dir': 'À direita'}
+LARGURAS_IMG = {100: 'Largura total', 75: '3/4 da largura', 50: 'Metade',
+                33: 'Um terço', 25: 'Um quarto'}
+ESTILOS_TEXTO = {'normal': 'Normal', 'destaque': 'Destaque (fundo azul claro)',
+                 'aviso': 'Aviso (fundo amarelo)', 'quadro': 'Quadro (com contorno)'}
+
+
 def agrupar_blocos(linhas):
-    """Blocos da página prontos para desenhar. Imagens seguidas viram uma
-    galeria (uma sozinha ocupa a largura toda; duas ou três lado a lado)."""
+    """Blocos da página prontos para desenhar. Imagens seguidas entram na mesma
+    fileira e se acomodam lado a lado conforme a largura de cada uma."""
     saida = []
     for b in linhas:
+        ativo = bool(b['ativo'])
         if b['tipo'] == 'imagem':
             if not b['arquivo']:
                 continue
-            item = {'arquivo': b['arquivo'], 'legenda': b['texto'] or ''}
-            if saida and saida[-1]['tipo'] == 'galeria':
-                saida[-1]['imagens'].append(item)
+            item = {'id': b['id'], 'arquivo': b['arquivo'], 'ativo': ativo,
+                    'legenda': b['texto'] or '',
+                    'larg': b['larg'] if b['larg'] in LARGURAS_IMG else 100,
+                    'alinh': b['alinh'] if b['alinh'] in ALINHA_IMG else 'centro'}
+            if saida and saida[-1]['tipo'] == 'imagens':
+                saida[-1]['itens'].append(item)
             else:
-                saida.append({'tipo': 'galeria', 'imagens': [item]})
+                saida.append({'tipo': 'imagens', 'itens': [item]})
         elif b['tipo'] == 'subtitulo':
             if (b['texto'] or '').strip():
-                saida.append({'tipo': 'subtitulo', 'texto': b['texto'].strip()})
+                saida.append({'tipo': 'subtitulo', 'id': b['id'], 'ativo': ativo,
+                              'texto': b['texto'].strip()})
         else:
-            paragrafos = _texto_em_paragrafos(b['texto'])
-            if paragrafos:
-                saida.append({'tipo': 'texto', 'paragrafos': paragrafos})
+            html = (limpa_html(b['texto']) if b['formato'] == 'html'
+                    else texto_para_html(b['texto']))
+            if so_texto(html) or '<li' in html:
+                saida.append({'tipo': 'texto', 'id': b['id'], 'ativo': ativo,
+                              'html': Markup(html),
+                              'estilo': b['estilo'] if b['estilo'] in ESTILOS_TEXTO else 'normal'})
     for g in saida:
-        if g['tipo'] == 'galeria':
-            g['colunas'] = min(len(g['imagens']), 3)
+        if g['tipo'] == 'imagens':
+            g['justifica'] = ALINHA_IMG[g['itens'][0]['alinh']]
     return saida
 
 
@@ -3222,7 +3402,8 @@ TIPOS_BLOCO = {'subtitulo': 'Subtítulo', 'texto': 'Texto', 'imagem': 'Imagem'}
 @app.route('/admin/pagina/<chave>', methods=['GET', 'POST'])
 @admin_obrigatorio
 def admin_pagina(chave):
-    """Editor do conteúdo de uma página do menu: subtítulos, textos e imagens."""
+    """Editor do conteúdo de uma página do menu: subtítulos, textos formatados e
+    imagens, com prévia da página ao lado do formulário."""
     con = db()
     item = con.execute('SELECT * FROM menu_itens WHERE chave=?', (chave,)).fetchone()
     if not item:
@@ -3246,50 +3427,82 @@ def admin_pagina(chave):
                 flash('Bloco removido.', 'ok')
             return redirect(volta)
 
+        if acao == 'mover':
+            ids = [r['id'] for r in con.execute(
+                'SELECT id FROM pagina_blocos WHERE chave=? ORDER BY ordem, id', (chave,))]
+            if atual and ident in ids:
+                i = ids.index(ident)
+                j = i - 1 if request.form.get('direcao') == 'subir' else i + 1
+                if 0 <= j < len(ids):
+                    ids[i], ids[j] = ids[j], ids[i]
+                for pos, bid in enumerate(ids):
+                    con.execute('UPDATE pagina_blocos SET ordem=? WHERE id=?', (pos, bid))
+                con.commit()
+            return redirect(f'{volta}#b{ident}')
+
         tipo = request.form.get('tipo') if request.form.get('tipo') in TIPOS_BLOCO else 'texto'
         if atual:
             tipo = atual['tipo']        # o tipo de um bloco existente não muda
-        # strip() inteiro comeria a indentação da primeira linha: tira só as
-        # quebras das pontas e o espaço do fim.
-        texto = request.form.get('texto', '').strip('\r\n').rstrip()
-        try:
-            arquivo = salva_upload('arquivo', atual['arquivo'] if atual else '') \
-                if tipo == 'imagem' else ''
-        except ValueError as e:
-            flash(str(e), 'erro')
-            return redirect(volta)
-        if atual and atual['arquivo'] and arquivo != atual['arquivo']:
-            remove_upload(atual['arquivo'])      # trocou a imagem: a antiga sai
+        larg = _int(request.form.get('larg'), 100)
+        larg = larg if larg in LARGURAS_IMG else 100
+        alinh = request.form.get('alinh') if request.form.get('alinh') in ALINHA_IMG else 'centro'
+        estilo = request.form.get('estilo') if request.form.get('estilo') in ESTILOS_TEXTO else 'normal'
+        formato, arquivo = 'texto', ''
+        if tipo == 'texto':
+            # O editor manda HTML; é limpo aqui, e só o resultado é guardado.
+            texto, formato = limpa_html(request.form.get('html', '')), 'html'
+            vazio = not (so_texto(texto) or '<li' in texto)
+        elif tipo == 'subtitulo':
+            texto = request.form.get('texto', '').strip()[:200]
+            vazio = not texto
+        else:
+            texto = request.form.get('texto', '').strip()[:300]
+            try:
+                arquivo = salva_upload('arquivo', atual['arquivo'] if atual else '')
+            except ValueError as e:
+                flash(str(e), 'erro')
+                return redirect(volta)
+            if atual and atual['arquivo'] and arquivo != atual['arquivo']:
+                remove_upload(atual['arquivo'])      # trocou a imagem: a antiga sai
+            vazio = not arquivo
 
-        if tipo == 'imagem' and not arquivo:
-            flash('Escolha uma imagem para este bloco.', 'erro')
-        elif tipo != 'imagem' and not texto:
-            flash('Escreva o texto do bloco.', 'erro')
+        ativo = 1 if request.form.get('ativo') else 0
+        if vazio:
+            flash('Escolha uma imagem para este bloco.' if tipo == 'imagem'
+                  else 'Escreva o conteúdo do bloco.', 'erro')
         elif atual:
-            con.execute('UPDATE pagina_blocos SET texto=?,arquivo=?,ativo=? WHERE id=?',
-                        (texto, arquivo, 1 if request.form.get('ativo') else 0, ident))
+            con.execute('UPDATE pagina_blocos SET texto=?,arquivo=?,ativo=?,larg=?,'
+                        'alinh=?,estilo=?,formato=? WHERE id=?',
+                        (texto, arquivo, ativo, larg, alinh, estilo, formato, ident))
             con.commit()
             flash('Bloco atualizado.', 'ok')
-            return redirect(url_for('admin_pagina', chave=chave, editar=ident))
+            return redirect(url_for('admin_pagina', chave=chave, editar=ident) + f'#b{ident}')
         else:
             proxima = con.execute('SELECT COALESCE(MAX(ordem),-1)+1 FROM pagina_blocos'
                                   ' WHERE chave=?', (chave,)).fetchone()[0]
-            con.execute('INSERT INTO pagina_blocos (chave,tipo,texto,arquivo,ordem,ativo)'
-                        ' VALUES (?,?,?,?,?,?)',
-                        (chave, tipo, texto, arquivo, proxima,
-                         1 if request.form.get('ativo') else 0))
+            novo = con.execute(
+                'INSERT INTO pagina_blocos (chave,tipo,texto,arquivo,ordem,ativo,larg,'
+                'alinh,estilo,formato) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                (chave, tipo, texto, arquivo, proxima, ativo, larg, alinh, estilo, formato))
             con.commit()
             flash('Bloco adicionado.', 'ok')
+            return redirect(f'{volta}#b{novo.lastrowid}')
         return redirect(volta)
 
     editar = None
     if request.args.get('editar'):
         editar = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
                              (_int(request.args['editar']), chave)).fetchone()
+    html_editar = ''
+    if editar and editar['tipo'] == 'texto':
+        html_editar = Markup(limpa_html(editar['texto']) if editar['formato'] == 'html'
+                             else texto_para_html(editar['texto']))
+    linhas = con.execute('SELECT * FROM pagina_blocos WHERE chave=?'
+                         ' ORDER BY ordem, id', (chave,)).fetchall()
     return render_template(
         'admin_pagina.html', item=item, editar=editar, tipos=TIPOS_BLOCO,
-        itens=con.execute('SELECT * FROM pagina_blocos WHERE chave=?'
-                          ' ORDER BY ordem, id', (chave,)).fetchall())
+        html_editar=html_editar, larguras=LARGURAS_IMG, alinhamentos=ROTULO_ALINHA,
+        estilos=ESTILOS_TEXTO, blocos=agrupar_blocos(linhas), total=len(linhas))
 
 
 init_db()

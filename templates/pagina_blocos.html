@@ -1,0 +1,58 @@
+{#  Desenha os blocos de uma página de conteúdo. É a mesma peça para a página
+    pública (editor=False) e para a prévia do editor (editor=True), onde cada
+    bloco ganha os botões de subir, descer, editar e excluir. Importar com
+    `with context` para ter o csrf_token. #}
+
+{% macro controles(b, chave, editando) %}
+<div class="bl-ctl">
+  <form method="post" action="{{ url_for('admin_pagina', chave=chave) }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="acao" value="mover">
+    <input type="hidden" name="id" value="{{ b.id }}">
+    <button name="direcao" value="subir" type="submit" title="Subir">↑</button>
+    <button name="direcao" value="descer" type="submit" title="Descer">↓</button>
+  </form>
+  <a href="{{ url_for('admin_pagina', chave=chave, editar=b.id) }}#b{{ b.id }}"
+     class="{{ 'ativo' if editando == b.id }}">Editar</a>
+  <form method="post" action="{{ url_for('admin_pagina', chave=chave) }}"
+        onsubmit="return confirm('Remover este bloco?')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="acao" value="excluir">
+    <input type="hidden" name="id" value="{{ b.id }}">
+    <button type="submit" class="perigo">Excluir</button>
+  </form>
+  {% if not b.ativo %}<span class="bl-tag">oculto</span>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro desenha(blocos, editor=False, chave='', editando=0) %}
+{% for b in blocos %}
+  {% if b.tipo == 'subtitulo' %}
+    <div class="bl{{ ' bl-ed' if editor }}{{ ' bl-oculto' if not b.ativo }}{{ ' bl-sel' if editando == b.id }}" id="b{{ b.id }}">
+      {% if editor %}{{ controles(b, chave, editando) }}{% endif %}
+      <h2 class="pagina-subtitulo">{{ b.texto }}</h2>
+    </div>
+
+  {% elif b.tipo == 'texto' %}
+    <div class="bl{{ ' bl-ed' if editor }}{{ ' bl-oculto' if not b.ativo }}{{ ' bl-sel' if editando == b.id }}" id="b{{ b.id }}">
+      {% if editor %}{{ controles(b, chave, editando) }}{% endif %}
+      <div class="pagina-texto estilo-{{ b.estilo }}">{{ b.html }}</div>
+    </div>
+
+  {% elif b.tipo == 'imagens' %}
+    <div class="pagina-imagens" style="justify-content:{{ b.justifica }}">
+      {% for it in b.itens %}
+      <figure class="pi{{ ' bl-ed' if editor }}{{ ' bl-oculto' if not it.ativo }}{{ ' bl-sel' if editando == it.id }}"
+              id="b{{ it.id }}"
+              style="flex:0 0 calc({{ it.larg }}% - {{ ((1 - it.larg / 100) * 1.0)|round(2) }}rem)">
+        {% if editor %}{{ controles(it, chave, editando) }}{% endif %}
+        {% set src = url_for('static', filename='uploads/' ~ it.arquivo) %}
+        {% if editor %}<img src="{{ src }}" alt="{{ it.legenda }}">
+        {% else %}<a href="{{ src }}" target="_blank" rel="noopener"><img src="{{ src }}" alt="{{ it.legenda }}" loading="lazy"></a>{% endif %}
+        {% if it.legenda %}<figcaption>{{ it.legenda }}</figcaption>{% endif %}
+      </figure>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endfor %}
+{% endmacro %}

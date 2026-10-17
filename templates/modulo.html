@@ -1,10 +1,11 @@
 {% extends 'shell.html' %}
+{% import 'pagina_blocos.html' as pb with context %}
 {% set pagina = chave %}
 {% block titulo %}{{ nome }}{% endblock %}
 
 {#  Página de conteúdo de um item do menu. Sem lista de links ao lado: só o que
-    o administrador escreveu para ela (Administração → Blocos do painel → Menu
-    lateral → Conteúdo). Sem nenhum bloco, mostra o aviso de página em
+    o administrador escreveu para ela (Administração → Sistemas e atalhos →
+    Menu lateral → Conteúdo). Sem nenhum bloco, mostra o aviso de página em
     preparação. #}
 {% block miolo %}
 <main class="pagina pagina-conteudo">
@@ -14,31 +15,8 @@
 
   <h1 class="pagina-titulo">{{ nome }}</h1>
 
-  {% for b in blocos %}
-    {% if b.tipo == 'subtitulo' %}
-      <h2 class="pagina-subtitulo">{{ b.texto }}</h2>
-    {% elif b.tipo == 'texto' %}
-      <div class="pagina-texto">
-        {% for p in b.paragrafos %}
-          {% if p.lista %}
-            <ul>{% for li in p.lista %}<li>{{ li }}</li>{% endfor %}</ul>
-          {% else %}
-            <p>{% for l in p.linhas %}{{ l }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
-          {% endif %}
-        {% endfor %}
-      </div>
-    {% elif b.tipo == 'galeria' %}
-      <div class="pagina-galeria g{{ b.colunas }}">
-        {% for img in b.imagens %}
-        <figure>
-          <img src="{{ url_for('static', filename='uploads/' ~ img.arquivo) }}"
-               alt="{{ img.legenda }}" loading="lazy">
-          {% if img.legenda %}<figcaption>{{ img.legenda }}</figcaption>{% endif %}
-        </figure>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% else %}
+  {{ pb.desenha(blocos) }}
+  {% if not blocos %}
     <div class="cartao" style="max-width:640px">
       <div class="cartao-corpo">
         <p class="vazio">Esta página ainda não tem conteúdo.</p>
@@ -47,7 +25,7 @@
           sem mudar o endereço nem o menu.</p>
       </div>
     </div>
-  {% endfor %}
+  {% endif %}
 
   <div class="acoes pagina-acoes">
     <a class="btn" href="{{ url_for('index') }}">Voltar ao início</a>
