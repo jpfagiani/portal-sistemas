@@ -483,6 +483,20 @@ PADROES.update({
                          (f'{pref}_texto_tam', x_tam),  (f'{pref}_texto_cor', x_cor))
     if chave not in PADROES})
 
+# Faixa escura de links de informação no topo de todas as páginas, e o cartão
+# "Em destaque" que fica abaixo do menu de páginas na tela inicial. Os dois são
+# editados em Administração → Navegação.
+PADROES.update({
+    # Um link por linha, no formato "Nome | endereço".
+    'faixa_links':     'Ramais | /ramais\nSistemas | /sistemas',
+    'destaque_ativo':  '0',
+    'destaque_rotulo': 'Em destaque',
+    'destaque_titulo': '',
+    'destaque_texto':  '',
+    'destaque_url':    '',
+    'destaque_cta':    'Saiba mais',
+})
+
 
 # "Título" e "texto" apontam para coisas diferentes em cada cartão. Dito na
 # tela, ninguém precisa mexer para descobrir o que vai mudar.
@@ -759,6 +773,18 @@ CREATE TABLE IF NOT EXISTS cartoes (
     titulo_cor TEXT DEFAULT '',
     texto_cor  TEXT DEFAULT '',
     fundo_cor  TEXT DEFAULT '',
+    ordem   INTEGER NOT NULL DEFAULT 0,
+    ativo   INTEGER NOT NULL DEFAULT 1
+);
+-- Conteúdo das páginas do menu lateral. Cada item do menu (sem endereço
+-- próprio) abre /modulo/<chave>, e esta tabela guarda o que aparece nela: uma
+-- sequência de blocos de subtítulo, texto e imagem, na ordem escolhida.
+CREATE TABLE IF NOT EXISTS pagina_blocos (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    chave   TEXT NOT NULL,                -- chave do item em menu_itens
+    tipo    TEXT NOT NULL DEFAULT 'texto',-- subtitulo | texto | imagem
+    texto   TEXT DEFAULT '',              -- subtítulo, parágrafos ou legenda
+    arquivo TEXT DEFAULT '',              -- imagem em static/uploads
     ordem   INTEGER NOT NULL DEFAULT 0,
     ativo   INTEGER NOT NULL DEFAULT 1
 );
@@ -1159,7 +1185,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.2.0'
+VERSAO = '1.3.0'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1302,12 +1328,103 @@ def montar_menu():
     return itens
 
 
+def endereco_seguro(url):
+    """Endereço digitado à mão, pronto para ir num href.
+
+    Aceita caminho interno (/ramais), http(s), mailto e tel; sem esquema,
+    assume http. Qualquer outro esquema (javascript:, data:) vira vazio —
+    quem edita é administrador, mas um href não deve executar código.
+    """
+    url = (url or '').strip()
+    if not url:
+        return ''
+    if url.startswith('/') and not url.startswith('//'):
+        return url
+    esquema = re.match(r'^([a-z][a-z0-9+.\-]*):', url, re.I)
+    if esquema:
+        return url if esquema.group(1).lower() in ('http', 'https', 'mailto', 'tel') else ''
+    return 'http://' + url
+
+
+def linhas_faixa(texto):
+    """Faixa de links do topo: "Nome | endereço" por linha. Sem endereço, o
+    nome aparece como texto, sem link."""
+    itens = []
+    for linha in (texto or '').splitlines():
+        nome, _, url = linha.partition('|')
+        nome = nome.strip()
+        if not nome:
+            continue
+        href = endereco_seguro(url)
+        itens.append({'nome': nome, 'href': href,
+                      'externo': bool(href) and not href.startswith('/')})
+    return itens
+
+
+def dados_destaque():
+    """Cartão "Em destaque" da tela inicial, ou None se estiver desligado ou
+    sem título (um cartão sem título seria só uma caixa colorida)."""
+    c = cfg()
+    if c.get('destaque_ativo') != '1' or not c.get('destaque_titulo', '').strip():
+        return None
+    href = endereco_seguro(c.get('destaque_url'))
+    return {'rotulo': c.get('destaque_rotulo', '').strip(),
+            'titulo': c['destaque_titulo'].strip(),
+            'texto': c.get('destaque_texto', '').strip(),
+            'cta': c.get('destaque_cta', '').strip(),
+            'href': href, 'externo': bool(href) and not href.startswith('/')}
+
+
+def _texto_em_paragrafos(texto):
+    """Quebra o texto digitado em parágrafos (separados por linha em branco).
+    Um parágrafo em que toda linha começa por "- " vira lista."""
+    saida = []
+    for bloco in re.split(r'\n\s*\n', (texto or '').replace('\r\n', '\n').strip('\n')):
+        linhas = [l.rstrip() for l in bloco.split('\n') if l.strip()]
+        if not linhas:
+            continue
+        if all(l.lstrip().startswith(('- ', '• ')) for l in linhas):
+            saida.append({'lista': [l.lstrip()[2:].strip() for l in linhas]})
+        else:
+            saida.append({'linhas': [l.strip() for l in linhas]})
+    return saida
+
+
+def agrupar_blocos(linhas):
+    """Blocos da página prontos para desenhar. Imagens seguidas viram uma
+    galeria (uma sozinha ocupa a largura toda; duas ou três lado a lado)."""
+    saida = []
+    for b in linhas:
+        if b['tipo'] == 'imagem':
+            if not b['arquivo']:
+                continue
+            item = {'arquivo': b['arquivo'], 'legenda': b['texto'] or ''}
+            if saida and saida[-1]['tipo'] == 'galeria':
+                saida[-1]['imagens'].append(item)
+            else:
+                saida.append({'tipo': 'galeria', 'imagens': [item]})
+        elif b['tipo'] == 'subtitulo':
+            if (b['texto'] or '').strip():
+                saida.append({'tipo': 'subtitulo', 'texto': b['texto'].strip()})
+        else:
+            paragrafos = _texto_em_paragrafos(b['texto'])
+            if paragrafos:
+                saida.append({'tipo': 'texto', 'paragrafos': paragrafos})
+    for g in saida:
+        if g['tipo'] == 'galeria':
+            g['colunas'] = min(len(g['imagens']), 3)
+    return saida
+
+
 @app.route('/modulo/<chave>')
 def modulo(chave):
     row = db().execute('SELECT nome FROM menu_itens WHERE chave=?', (chave,)).fetchone()
     if not row:
         abort(404)
-    return render_template('modulo.html', chave=chave, nome=row['nome'])
+    blocos = db().execute('SELECT * FROM pagina_blocos WHERE chave=? AND ativo=1'
+                          ' ORDER BY ordem, id', (chave,)).fetchall()
+    return render_template('modulo.html', chave=chave, nome=row['nome'],
+                           blocos=agrupar_blocos(blocos))
 
 
 @app.context_processor
@@ -1331,6 +1448,8 @@ def _injeta():
         "SELECT COUNT(*) c FROM lateral WHERE ativo=1 AND urgencia='urgente'"
     ).fetchone()['c']
     return {'cfg': cfg(), 'csrf_token': token_csrf(),
+            'faixa_links': linhas_faixa(cfg('faixa_links')),
+            'destaque': dados_destaque(),
             'fundo_nome': fundo, 'fundo_versao': fundo_v,
             'logo_nome': logo, 'logo_versao': logo_v,
             'tem_ramais': tem_ramais, 'menu': menu, 'versao': VERSAO,
@@ -2684,6 +2803,17 @@ def admin_painel():
         if acao == 'ordenar':
             return reordenar(tabela)
         if acao == 'excluir':
+            if tabela == 'menu_itens':
+                # O conteúdo da página (textos e imagens) sai junto com o item;
+                # senão ficaria órfão, ocupando espaço em uploads/.
+                morto = con.execute('SELECT chave FROM menu_itens WHERE id=?',
+                                    (ident,)).fetchone()
+                if morto:
+                    for b in con.execute('SELECT arquivo FROM pagina_blocos'
+                                         ' WHERE chave=?', (morto['chave'],)):
+                        remove_upload(b['arquivo'])
+                    con.execute('DELETE FROM pagina_blocos WHERE chave=?',
+                                (morto['chave'],))
             con.execute(f'DELETE FROM {tabela} WHERE id=?{e_mais}',
                         [ident] + filtrados)
             flash('Item removido.', 'ok')
@@ -3052,6 +3182,114 @@ def admin_aparencia():
         flash('Aparência salva.', 'ok')
         return redirect(url_for('admin_aparencia'))
     return render_template('admin_aparencia.html', fontes=FONTES_TEXTO)
+
+
+@app.route('/admin/navegacao', methods=['GET', 'POST'])
+@admin_obrigatorio
+def admin_navegacao():
+    """Faixa de links do topo e cartão "Em destaque" da tela inicial."""
+    if request.method == 'POST':
+        def campo(nome, limite):
+            return request.form.get(nome, '').strip()[:limite]
+
+        # Linha sem nome é descartada; o resto é gravado como foi digitado, e
+        # o endereço só é validado na hora de desenhar (linhas_faixa).
+        linhas = [l.strip() for l in request.form.get('faixa_links', '').splitlines()
+                  if l.strip()][:20]
+        novos = {
+            'faixa_links':     '\n'.join(l[:200] for l in linhas),
+            'destaque_ativo':  '1' if request.form.get('destaque_ativo') else '0',
+            'destaque_rotulo': campo('destaque_rotulo', 40),
+            'destaque_titulo': campo('destaque_titulo', 90),
+            'destaque_texto':  campo('destaque_texto', 220),
+            'destaque_url':    campo('destaque_url', 300),
+            'destaque_cta':    campo('destaque_cta', 40),
+        }
+        con = db()
+        for k, v in novos.items():
+            con.execute('INSERT INTO config (chave,valor) VALUES (?,?) '
+                        'ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor',
+                        (k, v))
+        con.commit()
+        flash('Navegação salva.', 'ok')
+        return redirect(url_for('admin_navegacao'))
+    return render_template('admin_navegacao.html')
+
+
+TIPOS_BLOCO = {'subtitulo': 'Subtítulo', 'texto': 'Texto', 'imagem': 'Imagem'}
+
+
+@app.route('/admin/pagina/<chave>', methods=['GET', 'POST'])
+@admin_obrigatorio
+def admin_pagina(chave):
+    """Editor do conteúdo de uma página do menu: subtítulos, textos e imagens."""
+    con = db()
+    item = con.execute('SELECT * FROM menu_itens WHERE chave=?', (chave,)).fetchone()
+    if not item:
+        abort(404)
+    volta = url_for('admin_pagina', chave=chave)
+
+    if request.method == 'POST':
+        acao = request.form.get('acao')
+        ident = _int(request.form.get('id'))
+        if acao == 'ordenar':
+            return reordenar('pagina_blocos')
+
+        atual = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
+                            (ident, chave)).fetchone() if ident else None
+
+        if acao == 'excluir':
+            if atual:
+                remove_upload(atual['arquivo'])
+                con.execute('DELETE FROM pagina_blocos WHERE id=?', (ident,))
+                con.commit()
+                flash('Bloco removido.', 'ok')
+            return redirect(volta)
+
+        tipo = request.form.get('tipo') if request.form.get('tipo') in TIPOS_BLOCO else 'texto'
+        if atual:
+            tipo = atual['tipo']        # o tipo de um bloco existente não muda
+        # strip() inteiro comeria a indentação da primeira linha: tira só as
+        # quebras das pontas e o espaço do fim.
+        texto = request.form.get('texto', '').strip('\r\n').rstrip()
+        try:
+            arquivo = salva_upload('arquivo', atual['arquivo'] if atual else '') \
+                if tipo == 'imagem' else ''
+        except ValueError as e:
+            flash(str(e), 'erro')
+            return redirect(volta)
+        if atual and atual['arquivo'] and arquivo != atual['arquivo']:
+            remove_upload(atual['arquivo'])      # trocou a imagem: a antiga sai
+
+        if tipo == 'imagem' and not arquivo:
+            flash('Escolha uma imagem para este bloco.', 'erro')
+        elif tipo != 'imagem' and not texto:
+            flash('Escreva o texto do bloco.', 'erro')
+        elif atual:
+            con.execute('UPDATE pagina_blocos SET texto=?,arquivo=?,ativo=? WHERE id=?',
+                        (texto, arquivo, 1 if request.form.get('ativo') else 0, ident))
+            con.commit()
+            flash('Bloco atualizado.', 'ok')
+            return redirect(url_for('admin_pagina', chave=chave, editar=ident))
+        else:
+            proxima = con.execute('SELECT COALESCE(MAX(ordem),-1)+1 FROM pagina_blocos'
+                                  ' WHERE chave=?', (chave,)).fetchone()[0]
+            con.execute('INSERT INTO pagina_blocos (chave,tipo,texto,arquivo,ordem,ativo)'
+                        ' VALUES (?,?,?,?,?,?)',
+                        (chave, tipo, texto, arquivo, proxima,
+                         1 if request.form.get('ativo') else 0))
+            con.commit()
+            flash('Bloco adicionado.', 'ok')
+        return redirect(volta)
+
+    editar = None
+    if request.args.get('editar'):
+        editar = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
+                             (_int(request.args['editar']), chave)).fetchone()
+    return render_template(
+        'admin_pagina.html', item=item, editar=editar, tipos=TIPOS_BLOCO,
+        itens=con.execute('SELECT * FROM pagina_blocos WHERE chave=?'
+                          ' ORDER BY ordem, id', (chave,)).fetchall())
 
 
 init_db()
