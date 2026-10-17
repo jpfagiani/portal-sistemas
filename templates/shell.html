@@ -1,18 +1,6 @@
 {% extends 'base.html' %}
 {% set iniciais = (usuario_nome or 'Administrador')|iniciais %}
 {% block conteudo %}
-{#  Faixa de links de informação, no topo de todas as páginas. Os links são
-    editados em Administração → Navegação; sem nenhum, a faixa some. #}
-{% if faixa_links %}
-<nav class="faixa-info" aria-label="Links de informação">
-  <div class="faixa-info-miolo">
-    {% for l in faixa_links %}
-      {% if l.href %}<a href="{{ l.href }}"{% if l.externo %} target="_blank" rel="noopener"{% endif %}>{{ l.nome }}</a>
-      {% else %}<span>{{ l.nome }}</span>{% endif %}
-    {% endfor %}
-  </div>
-</nav>
-{% endif %}
 <div class="layout">
 
   <div class="principal">

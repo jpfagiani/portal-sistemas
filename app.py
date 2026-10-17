@@ -17,7 +17,6 @@ import sqlite3
 import time
 import zipfile
 from datetime import datetime
-from html.parser import HTMLParser
 from functools import wraps
 
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template,
@@ -484,20 +483,6 @@ PADROES.update({
                          (f'{pref}_texto_tam', x_tam),  (f'{pref}_texto_cor', x_cor))
     if chave not in PADROES})
 
-# Faixa escura de links de informação no topo de todas as páginas, e o cartão
-# "Em destaque" que fica abaixo do menu de páginas na tela inicial. Os dois são
-# editados em Administração → Navegação.
-PADROES.update({
-    # Um link por linha, no formato "Nome | endereço".
-    'faixa_links':     'Ramais | /ramais\nSistemas | /sistemas',
-    'destaque_ativo':  '0',
-    'destaque_rotulo': 'Em destaque',
-    'destaque_titulo': '',
-    'destaque_texto':  '',
-    'destaque_url':    '',
-    'destaque_cta':    'Saiba mais',
-})
-
 
 # "Título" e "texto" apontam para coisas diferentes em cada cartão. Dito na
 # tela, ninguém precisa mexer para descobrir o que vai mudar.
@@ -777,18 +762,6 @@ CREATE TABLE IF NOT EXISTS cartoes (
     ordem   INTEGER NOT NULL DEFAULT 0,
     ativo   INTEGER NOT NULL DEFAULT 1
 );
--- Conteúdo das páginas do menu lateral. Cada item do menu (sem endereço
--- próprio) abre /modulo/<chave>, e esta tabela guarda o que aparece nela: uma
--- sequência de blocos de subtítulo, texto e imagem, na ordem escolhida.
-CREATE TABLE IF NOT EXISTS pagina_blocos (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    chave   TEXT NOT NULL,                -- chave do item em menu_itens
-    tipo    TEXT NOT NULL DEFAULT 'texto',-- subtitulo | texto | imagem
-    texto   TEXT DEFAULT '',              -- subtítulo, parágrafos ou legenda
-    arquivo TEXT DEFAULT '',              -- imagem em static/uploads
-    ordem   INTEGER NOT NULL DEFAULT 0,
-    ativo   INTEGER NOT NULL DEFAULT 1
-);
 CREATE TABLE IF NOT EXISTS config (
     chave TEXT PRIMARY KEY,
     valor TEXT NOT NULL
@@ -1065,13 +1038,6 @@ def init_db():
             ('cartoes_painel', 'gw', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'gh', 'INTEGER NOT NULL DEFAULT 0'),
             ('lateral',  'data',     "TEXT DEFAULT ''"),
-            # Páginas de conteúdo: largura (% da página) e posição da imagem, estilo
-            # do bloco de texto e se o texto é HTML formatado ou texto simples
-            # (blocos criados na versão 1.3.0).
-            ('pagina_blocos', 'larg',    'INTEGER NOT NULL DEFAULT 100'),
-            ('pagina_blocos', 'alinh',   "TEXT DEFAULT 'centro'"),
-            ('pagina_blocos', 'estilo',  "TEXT DEFAULT 'normal'"),
-            ('pagina_blocos', 'formato', "TEXT DEFAULT 'texto'"),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
             ('usuarios', 'ultimo_acesso', "TEXT DEFAULT ''")):
         existentes = {c[1] for c in con.execute(f'PRAGMA table_info({tabela})')}
@@ -1193,7 +1159,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.4.0'
+VERSAO = '1.2.0'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1336,275 +1302,12 @@ def montar_menu():
     return itens
 
 
-def endereco_seguro(url):
-    """Endereço digitado à mão, pronto para ir num href.
-
-    Aceita caminho interno (/ramais), http(s), mailto e tel; sem esquema,
-    assume http. Qualquer outro esquema (javascript:, data:) vira vazio —
-    quem edita é administrador, mas um href não deve executar código.
-    """
-    url = (url or '').strip()
-    if not url:
-        return ''
-    if url.startswith('/') and not url.startswith('//'):
-        return url
-    esquema = re.match(r'^([a-z][a-z0-9+.\-]*):', url, re.I)
-    if esquema:
-        return url if esquema.group(1).lower() in ('http', 'https', 'mailto', 'tel') else ''
-    return 'http://' + url
-
-
-def linhas_faixa(texto):
-    """Faixa de links do topo: "Nome | endereço" por linha. Sem endereço, o
-    nome aparece como texto, sem link."""
-    itens = []
-    for linha in (texto or '').splitlines():
-        nome, _, url = linha.partition('|')
-        nome = nome.strip()
-        if not nome:
-            continue
-        href = endereco_seguro(url)
-        itens.append({'nome': nome, 'href': href,
-                      'externo': bool(href) and not href.startswith('/')})
-    return itens
-
-
-def dados_destaque():
-    """Cartão "Em destaque" da tela inicial, ou None se estiver desligado ou
-    sem título (um cartão sem título seria só uma caixa colorida)."""
-    c = cfg()
-    if c.get('destaque_ativo') != '1' or not c.get('destaque_titulo', '').strip():
-        return None
-    href = endereco_seguro(c.get('destaque_url'))
-    return {'rotulo': c.get('destaque_rotulo', '').strip(),
-            'titulo': c['destaque_titulo'].strip(),
-            'texto': c.get('destaque_texto', '').strip(),
-            'cta': c.get('destaque_cta', '').strip(),
-            'href': href, 'externo': bool(href) and not href.startswith('/')}
-
-
-def _texto_em_paragrafos(texto):
-    """Quebra o texto digitado em parágrafos (separados por linha em branco).
-    Um parágrafo em que toda linha começa por "- " vira lista."""
-    saida = []
-    for bloco in re.split(r'\n\s*\n', (texto or '').replace('\r\n', '\n').strip('\n')):
-        linhas = [l.rstrip() for l in bloco.split('\n') if l.strip()]
-        if not linhas:
-            continue
-        if all(l.lstrip().startswith(('- ', '• ')) for l in linhas):
-            saida.append({'lista': [l.lstrip()[2:].strip() for l in linhas]})
-        else:
-            saida.append({'linhas': [l.strip() for l in linhas]})
-    return saida
-
-
-def texto_para_html(texto):
-    """Texto simples (blocos da versão 1.3.0) como HTML, para o editor e para a
-    página. Tudo é escapado: o que foi digitado nunca vira marcação."""
-    partes = []
-    for p in _texto_em_paragrafos(texto):
-        if 'lista' in p:
-            partes.append('<ul>' + ''.join(f'<li>{escape(i)}</li>' for i in p['lista']) + '</ul>')
-        else:
-            partes.append('<p>' + '<br>'.join(str(escape(l)) for l in p['linhas']) + '</p>')
-    return ''.join(partes)
-
-
-# ── texto formatado das páginas ────────────────────────────────────────────────
-# O editor da página grava HTML. Como esse HTML é mostrado a todos, nada do que
-# chega do navegador é confiado: tudo passa por esta limpeza, que só deixa
-# passar uma lista curta de tags e de propriedades de estilo. Script, evento
-# (onclick…), iframe, classe e endereço javascript: nunca chegam à página.
-
-_TAGS_OK = {'p', 'br', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'h2', 'h3',
-            'h4', 'blockquote', 'a', 'span', 'div'}
-_TAGS_COM_ESTILO = {'p', 'div', 'span', 'li', 'h2', 'h3', 'h4', 'blockquote'}
-_SINONIMOS = {'b': 'strong', 'i': 'em', 'strike': 's', 'del': 's', 'h1': 'h2',
-              'h5': 'h4', 'h6': 'h4', 'font': 'span'}
-_DESCARTA = {'script', 'style', 'iframe', 'object', 'embed', 'noscript',
-             'template', 'svg', 'math', 'head', 'title'}
-_FONT_SIZE = {'1': .75, '2': .875, '3': 1, '4': 1.125, '5': 1.5, '6': 2, '7': 3}
-_FONT_PALAVRA = {'xx-small': .6, 'x-small': .7, 'small': .875, 'medium': 1,
-                 'large': 1.25, 'x-large': 1.5, 'xx-large': 2, 'xxx-large': 3}
-_COR = re.compile(r'^(#[0-9a-f]{3}|#[0-9a-f]{6})$', re.I)
-_RGB = re.compile(r'^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$', re.I)
-_TAM = re.compile(r'^(\d+(?:\.\d+)?)(rem|em|px|%)$')
-
-
-def _cor_limpa(valor):
-    valor = (valor or '').strip()
-    if _COR.match(valor):
-        return valor.lower()
-    m = _RGB.match(valor)
-    if m and all(int(x) <= 255 for x in m.groups()):
-        return '#%02x%02x%02x' % tuple(int(x) for x in m.groups())
-    return ''
-
-
-def _estilo_limpo(css):
-    """Só as propriedades que o editor produz, com valores conferidos."""
-    saida = []
-    for decl in (css or '').split(';'):
-        prop, _, valor = decl.partition(':')
-        prop, valor = prop.strip().lower(), valor.strip().lower()
-        if prop in ('color', 'background-color'):
-            c = _cor_limpa(valor)
-            if c:
-                saida.append(f'{prop}:{c}')
-        elif prop == 'font-size':
-            rem = _FONT_PALAVRA.get(valor)
-            m = _TAM.match(valor)
-            if m:
-                n, un = float(m.group(1)), m.group(2)
-                rem = {'rem': n, 'em': n, 'px': n / 16, '%': n / 100}[un]
-            if rem is not None and .6 <= rem <= 4:
-                saida.append(f'font-size:{round(rem, 3)}rem')
-        elif prop == 'text-align' and valor in ('left', 'center', 'right', 'justify'):
-            saida.append(f'text-align:{valor}')
-        elif prop == 'font-weight' and valor in ('bold', '700', '600', '800'):
-            saida.append('font-weight:700')
-        elif prop == 'font-style' and valor == 'italic':
-            saida.append('font-style:italic')
-        elif prop == 'text-decoration' and valor in ('underline', 'line-through'):
-            saida.append(f'text-decoration:{valor}')
-    return ';'.join(saida)
-
-
-class _LimpaHTML(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.saida, self.pilha, self.pular = [], [], 0
-
-    def handle_starttag(self, tag, attrs):
-        tag = tag.lower()
-        if tag in _DESCARTA:
-            self.pular += 1
-            return
-        if self.pular:
-            return
-        original = tag
-        tag = _SINONIMOS.get(tag, tag)
-        attrs = {k.lower(): (v or '') for k, v in attrs}
-        emitida = None
-        if tag in _TAGS_OK:
-            estilo = _estilo_limpo(attrs.get('style'))
-            if original == 'font':                # <font color size> do editor
-                extra = []
-                c = _cor_limpa(attrs.get('color'))
-                if c:
-                    extra.append(f'color:{c}')
-                if attrs.get('size') in _FONT_SIZE:
-                    extra.append(f"font-size:{_FONT_SIZE[attrs['size']]}rem")
-                estilo = ';'.join(filter(None, [estilo] + extra))
-            if tag == 'br':
-                self.saida.append('<br>')
-                return
-            marcas = ''
-            if tag == 'a':
-                href = endereco_seguro(attrs.get('href'))
-                if href:
-                    ext = ' target="_blank" rel="noopener"' if not href.startswith('/') else ''
-                    marcas = f' href="{escape(href)}"{ext}'
-                    emitida = tag
-            else:
-                emitida = tag
-            if emitida:
-                if estilo and tag in _TAGS_COM_ESTILO:
-                    marcas += f' style="{escape(estilo)}"'
-                self.saida.append(f'<{tag}{marcas}>')
-        self.pilha.append((original, emitida))
-
-    def handle_endtag(self, tag):
-        tag = tag.lower()
-        if tag in _DESCARTA:
-            self.pular = max(0, self.pular - 1)
-            return
-        if self.pular:
-            return
-        for i in range(len(self.pilha) - 1, -1, -1):
-            if self.pilha[i][0] == tag:
-                while len(self.pilha) > i:
-                    _, emitida = self.pilha.pop()
-                    if emitida:
-                        self.saida.append(f'</{emitida}>')
-                return
-
-    def handle_data(self, dados):
-        if not self.pular:
-            self.saida.append(str(escape(dados)))
-
-    def resultado(self):
-        while self.pilha:
-            _, emitida = self.pilha.pop()
-            if emitida:
-                self.saida.append(f'</{emitida}>')
-        return ''.join(self.saida)
-
-
-def limpa_html(html):
-    """HTML do editor da página, reduzido ao que é permitido (ver acima)."""
-    p = _LimpaHTML()
-    p.feed((html or '')[:60000])
-    p.close()
-    return p.resultado()
-
-
-def so_texto(html):
-    """O texto visível de um trecho de HTML, para saber se o bloco está vazio."""
-    return re.sub(r'<[^>]+>', '', html or '').replace('&nbsp;', ' ').strip()
-
-
-ALINHA_IMG = {'esq': 'flex-start', 'centro': 'center', 'dir': 'flex-end'}
-ROTULO_ALINHA = {'esq': 'À esquerda', 'centro': 'Centralizada', 'dir': 'À direita'}
-LARGURAS_IMG = {100: 'Largura total', 75: '3/4 da largura', 50: 'Metade',
-                33: 'Um terço', 25: 'Um quarto'}
-ESTILOS_TEXTO = {'normal': 'Normal', 'destaque': 'Destaque (fundo azul claro)',
-                 'aviso': 'Aviso (fundo amarelo)', 'quadro': 'Quadro (com contorno)'}
-
-
-def agrupar_blocos(linhas):
-    """Blocos da página prontos para desenhar. Imagens seguidas entram na mesma
-    fileira e se acomodam lado a lado conforme a largura de cada uma."""
-    saida = []
-    for b in linhas:
-        ativo = bool(b['ativo'])
-        if b['tipo'] == 'imagem':
-            if not b['arquivo']:
-                continue
-            item = {'id': b['id'], 'arquivo': b['arquivo'], 'ativo': ativo,
-                    'legenda': b['texto'] or '',
-                    'larg': b['larg'] if b['larg'] in LARGURAS_IMG else 100,
-                    'alinh': b['alinh'] if b['alinh'] in ALINHA_IMG else 'centro'}
-            if saida and saida[-1]['tipo'] == 'imagens':
-                saida[-1]['itens'].append(item)
-            else:
-                saida.append({'tipo': 'imagens', 'itens': [item]})
-        elif b['tipo'] == 'subtitulo':
-            if (b['texto'] or '').strip():
-                saida.append({'tipo': 'subtitulo', 'id': b['id'], 'ativo': ativo,
-                              'texto': b['texto'].strip()})
-        else:
-            html = (limpa_html(b['texto']) if b['formato'] == 'html'
-                    else texto_para_html(b['texto']))
-            if so_texto(html) or '<li' in html:
-                saida.append({'tipo': 'texto', 'id': b['id'], 'ativo': ativo,
-                              'html': Markup(html),
-                              'estilo': b['estilo'] if b['estilo'] in ESTILOS_TEXTO else 'normal'})
-    for g in saida:
-        if g['tipo'] == 'imagens':
-            g['justifica'] = ALINHA_IMG[g['itens'][0]['alinh']]
-    return saida
-
-
 @app.route('/modulo/<chave>')
 def modulo(chave):
     row = db().execute('SELECT nome FROM menu_itens WHERE chave=?', (chave,)).fetchone()
     if not row:
         abort(404)
-    blocos = db().execute('SELECT * FROM pagina_blocos WHERE chave=? AND ativo=1'
-                          ' ORDER BY ordem, id', (chave,)).fetchall()
-    return render_template('modulo.html', chave=chave, nome=row['nome'],
-                           blocos=agrupar_blocos(blocos))
+    return render_template('modulo.html', chave=chave, nome=row['nome'])
 
 
 @app.context_processor
@@ -1628,8 +1331,6 @@ def _injeta():
         "SELECT COUNT(*) c FROM lateral WHERE ativo=1 AND urgencia='urgente'"
     ).fetchone()['c']
     return {'cfg': cfg(), 'csrf_token': token_csrf(),
-            'faixa_links': linhas_faixa(cfg('faixa_links')),
-            'destaque': dados_destaque(),
             'fundo_nome': fundo, 'fundo_versao': fundo_v,
             'logo_nome': logo, 'logo_versao': logo_v,
             'tem_ramais': tem_ramais, 'menu': menu, 'versao': VERSAO,
@@ -2983,17 +2684,6 @@ def admin_painel():
         if acao == 'ordenar':
             return reordenar(tabela)
         if acao == 'excluir':
-            if tabela == 'menu_itens':
-                # O conteúdo da página (textos e imagens) sai junto com o item;
-                # senão ficaria órfão, ocupando espaço em uploads/.
-                morto = con.execute('SELECT chave FROM menu_itens WHERE id=?',
-                                    (ident,)).fetchone()
-                if morto:
-                    for b in con.execute('SELECT arquivo FROM pagina_blocos'
-                                         ' WHERE chave=?', (morto['chave'],)):
-                        remove_upload(b['arquivo'])
-                    con.execute('DELETE FROM pagina_blocos WHERE chave=?',
-                                (morto['chave'],))
             con.execute(f'DELETE FROM {tabela} WHERE id=?{e_mais}',
                         [ident] + filtrados)
             flash('Item removido.', 'ok')
@@ -3362,147 +3052,6 @@ def admin_aparencia():
         flash('Aparência salva.', 'ok')
         return redirect(url_for('admin_aparencia'))
     return render_template('admin_aparencia.html', fontes=FONTES_TEXTO)
-
-
-@app.route('/admin/navegacao', methods=['GET', 'POST'])
-@admin_obrigatorio
-def admin_navegacao():
-    """Faixa de links do topo e cartão "Em destaque" da tela inicial."""
-    if request.method == 'POST':
-        def campo(nome, limite):
-            return request.form.get(nome, '').strip()[:limite]
-
-        # Linha sem nome é descartada; o resto é gravado como foi digitado, e
-        # o endereço só é validado na hora de desenhar (linhas_faixa).
-        linhas = [l.strip() for l in request.form.get('faixa_links', '').splitlines()
-                  if l.strip()][:20]
-        novos = {
-            'faixa_links':     '\n'.join(l[:200] for l in linhas),
-            'destaque_ativo':  '1' if request.form.get('destaque_ativo') else '0',
-            'destaque_rotulo': campo('destaque_rotulo', 40),
-            'destaque_titulo': campo('destaque_titulo', 90),
-            'destaque_texto':  campo('destaque_texto', 220),
-            'destaque_url':    campo('destaque_url', 300),
-            'destaque_cta':    campo('destaque_cta', 40),
-        }
-        con = db()
-        for k, v in novos.items():
-            con.execute('INSERT INTO config (chave,valor) VALUES (?,?) '
-                        'ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor',
-                        (k, v))
-        con.commit()
-        flash('Navegação salva.', 'ok')
-        return redirect(url_for('admin_navegacao'))
-    return render_template('admin_navegacao.html')
-
-
-TIPOS_BLOCO = {'subtitulo': 'Subtítulo', 'texto': 'Texto', 'imagem': 'Imagem'}
-
-
-@app.route('/admin/pagina/<chave>', methods=['GET', 'POST'])
-@admin_obrigatorio
-def admin_pagina(chave):
-    """Editor do conteúdo de uma página do menu: subtítulos, textos formatados e
-    imagens, com prévia da página ao lado do formulário."""
-    con = db()
-    item = con.execute('SELECT * FROM menu_itens WHERE chave=?', (chave,)).fetchone()
-    if not item:
-        abort(404)
-    volta = url_for('admin_pagina', chave=chave)
-
-    if request.method == 'POST':
-        acao = request.form.get('acao')
-        ident = _int(request.form.get('id'))
-        if acao == 'ordenar':
-            return reordenar('pagina_blocos')
-
-        atual = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
-                            (ident, chave)).fetchone() if ident else None
-
-        if acao == 'excluir':
-            if atual:
-                remove_upload(atual['arquivo'])
-                con.execute('DELETE FROM pagina_blocos WHERE id=?', (ident,))
-                con.commit()
-                flash('Bloco removido.', 'ok')
-            return redirect(volta)
-
-        if acao == 'mover':
-            ids = [r['id'] for r in con.execute(
-                'SELECT id FROM pagina_blocos WHERE chave=? ORDER BY ordem, id', (chave,))]
-            if atual and ident in ids:
-                i = ids.index(ident)
-                j = i - 1 if request.form.get('direcao') == 'subir' else i + 1
-                if 0 <= j < len(ids):
-                    ids[i], ids[j] = ids[j], ids[i]
-                for pos, bid in enumerate(ids):
-                    con.execute('UPDATE pagina_blocos SET ordem=? WHERE id=?', (pos, bid))
-                con.commit()
-            return redirect(f'{volta}#b{ident}')
-
-        tipo = request.form.get('tipo') if request.form.get('tipo') in TIPOS_BLOCO else 'texto'
-        if atual:
-            tipo = atual['tipo']        # o tipo de um bloco existente não muda
-        larg = _int(request.form.get('larg'), 100)
-        larg = larg if larg in LARGURAS_IMG else 100
-        alinh = request.form.get('alinh') if request.form.get('alinh') in ALINHA_IMG else 'centro'
-        estilo = request.form.get('estilo') if request.form.get('estilo') in ESTILOS_TEXTO else 'normal'
-        formato, arquivo = 'texto', ''
-        if tipo == 'texto':
-            # O editor manda HTML; é limpo aqui, e só o resultado é guardado.
-            texto, formato = limpa_html(request.form.get('html', '')), 'html'
-            vazio = not (so_texto(texto) or '<li' in texto)
-        elif tipo == 'subtitulo':
-            texto = request.form.get('texto', '').strip()[:200]
-            vazio = not texto
-        else:
-            texto = request.form.get('texto', '').strip()[:300]
-            try:
-                arquivo = salva_upload('arquivo', atual['arquivo'] if atual else '')
-            except ValueError as e:
-                flash(str(e), 'erro')
-                return redirect(volta)
-            if atual and atual['arquivo'] and arquivo != atual['arquivo']:
-                remove_upload(atual['arquivo'])      # trocou a imagem: a antiga sai
-            vazio = not arquivo
-
-        ativo = 1 if request.form.get('ativo') else 0
-        if vazio:
-            flash('Escolha uma imagem para este bloco.' if tipo == 'imagem'
-                  else 'Escreva o conteúdo do bloco.', 'erro')
-        elif atual:
-            con.execute('UPDATE pagina_blocos SET texto=?,arquivo=?,ativo=?,larg=?,'
-                        'alinh=?,estilo=?,formato=? WHERE id=?',
-                        (texto, arquivo, ativo, larg, alinh, estilo, formato, ident))
-            con.commit()
-            flash('Bloco atualizado.', 'ok')
-            return redirect(url_for('admin_pagina', chave=chave, editar=ident) + f'#b{ident}')
-        else:
-            proxima = con.execute('SELECT COALESCE(MAX(ordem),-1)+1 FROM pagina_blocos'
-                                  ' WHERE chave=?', (chave,)).fetchone()[0]
-            novo = con.execute(
-                'INSERT INTO pagina_blocos (chave,tipo,texto,arquivo,ordem,ativo,larg,'
-                'alinh,estilo,formato) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                (chave, tipo, texto, arquivo, proxima, ativo, larg, alinh, estilo, formato))
-            con.commit()
-            flash('Bloco adicionado.', 'ok')
-            return redirect(f'{volta}#b{novo.lastrowid}')
-        return redirect(volta)
-
-    editar = None
-    if request.args.get('editar'):
-        editar = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
-                             (_int(request.args['editar']), chave)).fetchone()
-    html_editar = ''
-    if editar and editar['tipo'] == 'texto':
-        html_editar = Markup(limpa_html(editar['texto']) if editar['formato'] == 'html'
-                             else texto_para_html(editar['texto']))
-    linhas = con.execute('SELECT * FROM pagina_blocos WHERE chave=?'
-                         ' ORDER BY ordem, id', (chave,)).fetchall()
-    return render_template(
-        'admin_pagina.html', item=item, editar=editar, tipos=TIPOS_BLOCO,
-        html_editar=html_editar, larguras=LARGURAS_IMG, alinhamentos=ROTULO_ALINHA,
-        estilos=ESTILOS_TEXTO, blocos=agrupar_blocos(linhas), total=len(linhas))
 
 
 init_db()

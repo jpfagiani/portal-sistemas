@@ -108,44 +108,6 @@
     </div>
   </section>
 
-  {#  Abaixo do banner: à esquerda o menu de páginas (e o cartão "Em
-      destaque"), à direita os cartões do painel. As páginas abertas por esse
-      menu não repetem a lista — só mostram o conteúdo. #}
-  {#  O menu lateral só leva às páginas de conteúdo que o administrador cria.
-      Ramais tem cartão próprio aqui na inicial (e a faixa do topo), então o
-      item de menu "Ramais" não entra nesta lista. #}
-  {% set paginas = menu|rejectattr('chave', 'in', ['inicio', 'admin', 'ramais'])|list %}
-  {% set mostra_lateral = paginas or destaque or modo_edicao %}
-  <div class="corpo-painel{{ ' sem-lateral' if not mostra_lateral }}">
-  {% if mostra_lateral %}
-  <aside class="lateral-paginas">
-    {% if paginas or modo_edicao %}
-    <nav class="lp-lista" aria-label="Páginas do portal">
-      <div class="lp-titulo">Páginas</div>
-      {% for item in paginas %}
-      <a href="{{ item.href }}"{% if item.externo %} target="_blank" rel="noopener"{% endif %}>
-        <span class="lp-ic">{{ ic(item.ic) }}</span><span>{{ item.nome }}</span></a>
-      {% else %}
-      <p class="lp-vazio">Nenhuma página criada ainda.</p>
-      {% endfor %}
-      {% if modo_edicao %}
-      <a class="lp-editar" href="{{ url_for('admin_painel', bloco='menu') }}">Editar páginas</a>
-      {% endif %}
-    </nav>
-    {% endif %}
-    {% if destaque %}
-    <{{ 'a' if destaque.href else 'div' }} class="lp-destaque"
-       {% if destaque.href %}href="{{ destaque.href }}"{% if destaque.externo %} target="_blank" rel="noopener"{% endif %}{% endif %}>
-      {% if destaque.rotulo %}<small>{{ destaque.rotulo }}</small>{% endif %}
-      <strong>{{ destaque.titulo }}</strong>
-      {% if destaque.texto %}<span>{{ destaque.texto }}</span>{% endif %}
-      {% if destaque.href and destaque.cta %}<b>{{ destaque.cta }} →</b>{% endif %}
-    </{{ 'a' if destaque.href else 'div' }}>
-    {% endif %}
-  </aside>
-  {% endif %}
-  <div class="corpo-conteudo">
-
   {#  Barra do editor: só em /editor. Fora dele o administrador vê o portal
       igual aos demais. #}
   {% if modo_edicao %}
@@ -196,8 +158,6 @@
     {% for c, itens in cartoes_painel.baixo %}{{ desenha(c, itens) }}{% endfor %}
   </div>
   {% endif %}
-  </div>{# corpo-conteudo #}
-  </div>{# corpo-painel #}
 </main>
 
 <script src="{{ url_for('static', filename='ramais.js') }}"></script>

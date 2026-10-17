@@ -1,37 +1,20 @@
 {% extends 'shell.html' %}
-{% import 'pagina_blocos.html' as pb with context %}
 {% set pagina = chave %}
 {% block titulo %}{{ nome }}{% endblock %}
 
-{#  Página de conteúdo de um item do menu. Sem lista de links ao lado: só o que
-    o administrador escreveu para ela (Administração → Sistemas e atalhos →
-    Menu lateral → Conteúdo). Sem nenhum bloco, mostra o aviso de página em
-    preparação. #}
 {% block miolo %}
-<main class="pagina pagina-conteudo">
-  <div class="migalha">
-    <a href="{{ url_for('index') }}">← Início</a><span>/</span><span>{{ nome }}</span>
-  </div>
-
-  <h1 class="pagina-titulo">{{ nome }}</h1>
-
-  {{ pb.desenha(blocos) }}
-  {% if not blocos %}
-    <div class="cartao" style="max-width:640px">
-      <div class="cartao-corpo">
-        <p class="vazio">Esta página ainda não tem conteúdo.</p>
-        <p class="dica">O espaço já existe no portal: quando o texto e as imagens de
-          <strong>{{ nome }}</strong> forem publicados, eles passam a aparecer aqui —
-          sem mudar o endereço nem o menu.</p>
+<main class="pagina">
+  <div class="cartao" style="max-width:640px;margin:0 auto">
+    <div class="cartao-cab"><h2>{{ nome }}</h2></div>
+    <div class="cartao-corpo">
+      <p class="vazio">Este módulo ainda não está disponível.</p>
+      <p class="dica">O espaço já existe no portal: quando o conteúdo de
+        <strong>{{ nome }}</strong> estiver definido, ele passa a abrir aqui —
+        sem mudar o endereço nem o menu.</p>
+      <div class="acoes">
+        <a class="btn btn-principal" href="{{ url_for('index') }}">Voltar ao início</a>
       </div>
     </div>
-  {% endif %}
-
-  <div class="acoes pagina-acoes">
-    <a class="btn" href="{{ url_for('index') }}">Voltar ao início</a>
-    {% if eh_admin %}
-    <a class="btn btn-principal" href="{{ url_for('admin_pagina', chave=chave) }}">Editar esta página</a>
-    {% endif %}
   </div>
 </main>
 {% endblock %}

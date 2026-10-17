@@ -81,26 +81,6 @@ tem nome, ícone e um endereço opcional:
 
 Desmarcar *Exibir* esconde o item sem apagá-lo, e a ordem se muda arrastando.
 
-### Páginas de conteúdo
-
-Na tela inicial, a lista **Páginas** (ao lado dos cartões) mostra os itens do menu
-lateral — menos "Ramais", que já tem cartão próprio. Um item **sem endereço** abre
-uma página própria, que o administrador monta em *Sistemas e atalhos → Menu lateral →
-botão **Conteúdo***:
-
-- **Texto** com formatação: título e subtítulo, negrito, itálico, sublinhado, listas,
-  alinhamento, cor, tamanho e links. Cada texto pode ter uma aparência (normal,
-  destaque azul, aviso amarelo ou quadro). O que não for compatível é descartado ao salvar.
-- **Subtítulo** simples.
-- **Imagem** com legenda, largura (inteira, 3/4, metade, um terço, um quarto) e posição.
-  Imagens seguidas ficam lado a lado quando cabem. Clicar na imagem a abre ampliada.
-- À direita do formulário fica a **prévia** da página, com os botões de subir, descer,
-  editar e excluir em cada bloco. Blocos desmarcados em *Exibir* ficam esmaecidos na
-  prévia e não aparecem no portal.
-
-A faixa escura de links do topo e o cartão "Em destaque" da tela inicial são editados em
-*Administração → Navegação*.
-
 ## Acesso por nome, sem servidor DNS
 
 O instalador pergunta o endereço que as pessoas vão digitar (por exemplo
