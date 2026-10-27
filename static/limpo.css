@@ -582,3 +582,8 @@ a.lp-destaque:hover{background:var(--azul-forte)}
 
 .lista-admin{display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-start;padding:.5rem 1rem;border-bottom:1px dashed #cbd5e1}
 .lista-admin details{flex:1 1 100%}.lista-admin ul{margin:.4rem 0 0;padding-left:1rem;list-style:none}
+/* Puxadores azuis de arrastar sobre as imagens dos cartões: removidos da tela.
+   O tamanho da imagem continua sendo ajustado na edição do cartão. */
+.com-img-alca,.com-img-etiqueta{display:none!important}
+.com-img-caixa[data-editavel].livre .com-imagem{cursor:auto}
+.cartao-cab h2::before,.tela-livre>.cartao .cartao-cab h2::before{content:none!important;display:none!important}

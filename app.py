@@ -1246,7 +1246,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.9.19'
+VERSAO = '1.9.21'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
