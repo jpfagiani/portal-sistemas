@@ -1,0 +1,101 @@
+{% extends 'admin_base.html' %}
+{% set aba = 'midia' %}
+{% block titulo %}Mídia{% endblock %}
+{% block admin %}
+<section class="painel-caixa">
+  <h2>Biblioteca de imagens ({{ itens|length }})</h2>
+  <p class="dica">Todas as imagens do portal em um só lugar. Envie uma vez e use em páginas, banners, cartões e notícias.
+    Uma imagem em uso não pode ser excluída — a lista mostra onde ela aparece.</p>
+
+  <form method="post" enctype="multipart/form-data" class="mid-envio" id="mid-envio">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="acao" value="enviar">
+    <label class="mid-zona" id="mid-zona">
+      <strong>Arraste imagens para cá</strong>
+      <span>ou clique para procurar no computador · PNG, JPG, WEBP ou GIF, até 10 MB cada</span>
+      <input type="file" name="arquivos" accept=".png,.jpg,.jpeg,.webp,.gif,image/*" multiple>
+    </label>
+    <button class="btn btn-principal" type="submit">Enviar</button>
+  </form>
+
+  <form method="get" class="mid-filtros">
+    <input type="search" name="q" value="{{ busca }}" placeholder="Buscar por nome, título, descrição…" aria-label="Buscar imagens">
+    <select name="f" aria-label="Filtrar">
+      <option value="" {{ 'selected' if not filtro }}>Todas</option>
+      <option value="uso" {{ 'selected' if filtro == 'uso' }}>Em uso</option>
+      <option value="livre" {{ 'selected' if filtro == 'livre' }}>Sem uso</option>
+    </select>
+    <button class="btn btn-sm" type="submit">Filtrar</button>
+  </form>
+
+  {% if livres %}
+  <form method="post" onsubmit="return confirm('Excluir {{ livres }} imagem(ns) que não estão em uso em lugar nenhum?')" class="mid-limpar">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="acao" value="limpar">
+    <span>{{ livres }} imagem(ns) sem uso.</span>
+    <button class="btn btn-sm btn-perigo" type="submit">Excluir todas as sem uso</button>
+  </form>
+  {% endif %}
+
+  <div class="mid-grade">
+    {% for i in itens %}
+    <article class="mid-item">
+      <a class="mid-foto" href="{{ i.url }}" target="_blank" rel="noopener"><img src="{{ i.url }}" alt="{{ i.alt or i.nome }}" loading="lazy"></a>
+      <div class="mid-info">
+        <strong title="{{ i.nome }}">{{ i.nome }}</strong>
+        <small>{{ (i.tamanho / 1024)|round|int }} KB · {{ i.criado_em[:10] }}</small>
+        {% if i.usos %}<span class="tag tag-ok">em uso ({{ i.usos|length }})</span>
+        {% else %}<span class="tag tag-off">sem uso</span>{% endif %}
+        <code class="mid-url">{{ i.url }}</code>
+      </div>
+      <details class="mid-det">
+        <summary>Detalhes e edição</summary>
+        {% if i.usos %}
+        <ul class="mid-usos">
+          {% for desc, link in i.usos %}<li><a href="{{ link }}">{{ desc }}</a></li>{% endfor %}
+        </ul>
+        {% endif %}
+        <form method="post">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="acao" value="salvar">
+          <input type="hidden" name="arquivo" value="{{ i.arquivo }}">
+          <label>Título</label><input name="titulo" value="{{ i.titulo }}" maxlength="200">
+          <label>Texto alternativo <small>(descreve a imagem para quem não a enxerga)</small></label>
+          <input name="alt" value="{{ i.alt }}" maxlength="300">
+          <label>Legenda</label><input name="legenda" value="{{ i.legenda }}" maxlength="300">
+          <label>Descrição</label><textarea name="descricao" rows="2" maxlength="1000">{{ i.descricao }}</textarea>
+          <button class="btn btn-sm btn-principal" type="submit">Salvar dados</button>
+        </form>
+        <form method="post" enctype="multipart/form-data" class="mid-subst">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="acao" value="substituir">
+          <input type="hidden" name="arquivo" value="{{ i.arquivo }}">
+          <label>Substituir por outra imagem <small>(mesmo formato)</small></label>
+          <input type="file" name="novo" accept=".{{ i.arquivo.rsplit('.', 1)[1] }}">
+          {% if i.usos %}<label class="check"><input type="checkbox" name="confirmo">
+            Entendo que a troca vale para <strong>todos</strong> os lugares onde a imagem é usada</label>{% endif %}
+          <button class="btn btn-sm" type="submit">Substituir</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Excluir esta imagem?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="acao" value="excluir">
+          <input type="hidden" name="arquivo" value="{{ i.arquivo }}">
+          <button class="btn btn-sm btn-perigo" type="submit" {{ 'disabled title="Em uso: não pode ser excluída"' if i.usos }}>Excluir</button>
+        </form>
+      </details>
+    </article>
+    {% else %}
+    <p class="vazio">Nenhuma imagem{{ ' encontrada' if busca or filtro }}.</p>
+    {% endfor %}
+  </div>
+</section>
+<script>
+(function () {
+  var zona = document.getElementById('mid-zona'), campo = zona.querySelector('input');
+  ['dragenter', 'dragover'].forEach(function (n) { zona.addEventListener(n, function (e) { e.preventDefault(); zona.classList.add('sobre'); }); });
+  ['dragleave', 'drop'].forEach(function (n) { zona.addEventListener(n, function (e) { e.preventDefault(); zona.classList.remove('sobre'); }); });
+  zona.addEventListener('drop', function (e) { campo.files = e.dataTransfer.files; zona.querySelector('strong').textContent = campo.files.length + ' arquivo(s) escolhido(s)'; });
+  campo.addEventListener('change', function () { zona.querySelector('strong').textContent = campo.files.length + ' arquivo(s) escolhido(s)'; });
+})();
+</script>
+{% endblock %}

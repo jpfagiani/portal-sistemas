@@ -13,6 +13,67 @@
   <span class="dica" style="display:inline">O título da página é o nome do item no menu.</span>
 </p>
 
+{# ── cabeçalho de matéria ───────────────────────────────────────────────────── #}
+<details class="painel-caixa pe-cab" id="cabecalho" {{ 'open' if cab_aberto }}>
+  <summary><strong>Cabeçalho da página</strong>
+    <span class="dica" style="display:inline">chapéu, linha fina, autor, foto de capa e resumo — tudo opcional</span></summary>
+  <form method="post" enctype="multipart/form-data" class="pe-cab-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="acao" value="cabecalho">
+
+    <div class="pe-duas">
+      <div>
+        <label for="cb-chapeu">Chapéu (categoria)</label>
+        <input id="cb-chapeu" name="chapeu" maxlength="40" list="cb-cats" value="{{ item.chapeu or '' }}">
+        <datalist id="cb-cats">{% for c in categorias %}<option value="{{ c }}">{% endfor %}</datalist>
+      </div>
+      <div>
+        <label for="cb-autor">Autor ou setor</label>
+        <input id="cb-autor" name="autor" maxlength="60" value="{{ item.autor or '' }}" placeholder="ex.: Seção de Pessoal">
+      </div>
+    </div>
+
+    <label for="cb-fina">Linha fina</label>
+    <textarea id="cb-fina" name="linha_fina" maxlength="220" rows="2">{{ item.linha_fina or '' }}</textarea>
+    <p class="dica">Uma frase que completa o título.</p>
+
+    <label for="cb-pub">Publicada em</label>
+    <input id="cb-pub" type="datetime-local" name="publicada_em" value="{{ publicada_campo }}">
+    <p class="dica">“Atualizada em” é preenchido sozinho a cada alteração na página e só aparece junto do autor ou da data de publicação.</p>
+
+    <label>Foto de capa</label>
+    {% if cab.capa %}
+    <img class="pe-miniatura" src="{{ cab.capa_url }}" alt="">
+    <label class="check"><input type="checkbox" name="remover_capa"> Remover a foto de capa</label>
+    {% endif %}
+    <input type="file" name="capa_arquivo" accept=".png,.jpg,.jpeg,.webp,.gif" aria-label="Enviar foto de capa">
+    <select name="capa_arquivo_biblioteca" aria-label="Escolher da biblioteca">
+      <option value="">… ou escolha uma imagem da biblioteca</option>
+      {% for m in biblioteca %}<option value="{{ m.arquivo }}">{{ m.nome }}</option>{% endfor %}
+    </select>
+    <div class="pe-duas">
+      <div>
+        <label for="cb-leg">Legenda</label>
+        <input id="cb-leg" name="capa_legenda" maxlength="200" value="{{ item.capa_legenda or '' }}">
+      </div>
+      <div>
+        <label for="cb-cred">Crédito</label>
+        <input id="cb-cred" name="capa_credito" maxlength="80" value="{{ item.capa_credito or '' }}" placeholder="ex.: Imagem: Arquivo CDPNI">
+      </div>
+    </div>
+
+    <label class="check"><input type="checkbox" name="mostrar_resumo" {{ 'checked' if item.mostrar_resumo }}> Mostrar resumo recolhível</label>
+    <label for="cb-resumo">Resumo (uma linha por item, até 6)</label>
+    <textarea id="cb-resumo" name="resumo" rows="4">{{ item.resumo or '' }}</textarea>
+
+    <label class="check"><input type="checkbox" name="mostrar_leia" {{ 'checked' if item.mostrar_leia }}> Mostrar “Leia também” (últimas notícias) no fim da página</label>
+
+    <div class="acoes">
+      <button class="btn btn-principal" type="submit">Salvar cabeçalho</button>
+    </div>
+  </form>
+</details>
+
 <div class="pe-grade">
 
   {# ── formulário ─────────────────────────────────────────────────────────── #}
@@ -31,6 +92,7 @@
           <option value="texto">Texto (com formatação)</option>
           <option value="subtitulo">Subtítulo</option>
           <option value="imagem">Imagem</option>
+          <option value="botao">Botão de link</option>
         </select>
       {% endif %}
 
@@ -39,6 +101,26 @@
         <label for="campo-sub">Subtítulo</label>
         <input id="campo-sub" name="texto" maxlength="200"
                value="{{ editar.texto if editar and editar.tipo == 'subtitulo' else '' }}">
+        <label for="url-sub">Ao clicar, abrir (opcional)</label>
+        <input id="url-sub" name="url" list="destinos" maxlength="500" placeholder="escolha uma página ou cole um endereço https://..."
+               value="{{ editar.url if editar and editar.tipo == 'subtitulo' else '' }}">
+      </div>
+
+      {# Botão de link #}
+      <div data-tipo="botao" hidden>
+        <label for="campo-bot">Texto do botão</label>
+        <input id="campo-bot" name="texto" maxlength="100"
+               value="{{ editar.texto if editar and editar.tipo == 'botao' else '' }}">
+        <label for="url-bot">Para onde leva</label>
+        <input id="url-bot" name="url" list="destinos" maxlength="500" required placeholder="escolha uma página ou cole um endereço https://..."
+               value="{{ editar.url if editar and editar.tipo == 'botao' else '' }}">
+        <label for="campo-alinh-b">Posição</label>
+        <select name="alinh" id="campo-alinh-b">
+          {% for valor, rotulo in alinhamentos.items() %}
+          <option value="{{ valor }}" {{ 'selected' if (editar and editar.alinh == valor) or (not editar and valor == 'esq') }}>{{ rotulo }}</option>
+          {% endfor %}
+        </select>
+        <p class="dica">Um botão grande e visível que leva a outra página do portal ou a um site.</p>
       </div>
 
       {# Texto formatado #}
@@ -62,6 +144,10 @@
           <button type="button" data-cmd="justifyFull" title="Justificar">Just.</button>
           <span class="re-sep"></span>
           <button type="button" data-cmd="createLink" title="Transformar em link">Link</button>
+          <select id="re-pag" title="Transformar a seleção em link para uma página do portal" aria-label="Link para página">
+            <option value="">Link p/ página…</option>
+            {% for nome, end in destinos %}<option value="{{ end }}">{{ nome }}</option>{% endfor %}
+          </select>
           <button type="button" data-cmd="unlink" title="Remover o link">Sem link</button>
           <span class="re-sep"></span>
           <label class="re-cor" title="Cor do texto">Cor
@@ -106,6 +192,10 @@
         <input id="campo-leg" name="texto" maxlength="300"
                value="{{ editar.texto if editar and editar.tipo == 'imagem' else '' }}">
 
+        <label for="url-img">Ao clicar, abrir (opcional)</label>
+        <input id="url-img" name="url" list="destinos" maxlength="500" placeholder="escolha uma página ou cole um endereço https://..."
+               value="{{ editar.url if editar and editar.tipo == 'imagem' else '' }}">
+
         <div class="pe-duas">
           <div>
             <label for="campo-larg">Largura na página</label>
@@ -129,6 +219,9 @@
           “Metade”, três de “Um terço”…). A posição da primeira vale para a fileira.</p>
       </div>
 
+      <datalist id="destinos">
+        {% for nome, end in destinos %}<option value="{{ end }}">{{ nome }}</option>{% endfor %}
+      </datalist>
       <label class="check"><input type="checkbox" name="ativo"
         {{ 'checked' if (not editar or editar.ativo) }}> Exibir na página</label>
       <div class="acoes">
@@ -142,12 +235,13 @@
   <section class="painel-caixa pe-previa">
     <h2>Como a página fica ({{ total }} {{ 'bloco' if total == 1 else 'blocos' }})</h2>
     <div class="pe-folha">
-      <h1 class="pagina-titulo">{{ item.nome }}</h1>
+      {{ pb.topo(cab, item.nome) }}
       {{ pb.desenha(blocos, editor=True, chave=item.chave, editando=editar.id if editar else 0) }}
       {% if not blocos %}
       <p class="vazio">Nenhum bloco ainda. Use o formulário ao lado para adicionar o
         primeiro texto, subtítulo ou imagem.</p>
       {% endif %}
+      {{ pb.leia_tambem(leia) }}
     </div>
     <p class="dica">Blocos ocultos aparecem esmaecidos aqui e não são mostrados no portal.</p>
   </section>
@@ -210,6 +304,10 @@
   });
   document.getElementById('re-cor').addEventListener('input', function () {
     comando('foreColor', this.value);
+  });
+  document.getElementById('re-pag').addEventListener('change', function () {
+    if (this.value) comando('createLink', this.value);
+    this.value = '';
   });
   document.getElementById('re-tam').addEventListener('change', function () {
     if (this.value) comando('fontSize', this.value);

@@ -1,4 +1,5 @@
 {% extends 'admin_base.html' %}
+{% import 'visivel.html' as v %}
 {% import 'campos.html' as campos %}
 {#  Comunicados são um cartão do painel: a aba do topo e a barra de abas são as
     de "Blocos do painel". A tela é esta, e não o formulário genérico de blocos,
@@ -181,8 +182,7 @@
           <td><strong>{{ i.titulo or '(sem título)' }}</strong></td>
           <td>{{ {'urgente':'Urgente','comunicado':'Comunicado'}.get(i.urgencia,'Informação') }}</td>
           <td data-coluna-ordem>{{ i.ordem }}</td>
-          <td>{% if i.ativo %}<span class="tag tag-ok">visível</span>
-              {% else %}<span class="tag">oculto</span>{% endif %}</td>
+          <td>{{ v.caixa('lateral', i.id, i.ativo, i.titulo) }}</td>
           <td class="acoes-linha">
             <a class="btn btn-sm" href="{{ url_for('admin_lateral', cartao=cartao_atual.chave, editar=i.id) }}">Editar</a>
             <form method="post" onsubmit="return confirm('Remover {{ i.titulo or "este item" }}?')">
@@ -204,5 +204,6 @@
   </section>
 </div>
 <script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script src="{{ url_for('static', filename='visivel.js') }}"></script>
 <script src="{{ url_for('static', filename='paleta.js') }}"></script>
 {% endblock %}

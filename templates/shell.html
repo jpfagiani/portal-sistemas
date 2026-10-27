@@ -1,6 +1,31 @@
 {% extends 'base.html' %}
 {% set iniciais = (usuario_nome or 'Administrador')|iniciais %}
 {% block conteudo %}
+{#  Faixa escura no topo, como nos grandes portais: links de informação à
+    esquerda (Administração → Navegação) e, à direita, a data e a conta. Ela
+    sempre existe, porque é onde ficam "Entrar" e as ações do administrador. #}
+<div class="faixa-info">
+  <div class="faixa-info-miolo">
+    <nav class="faixa-links" aria-label="Links de informação">
+      {% for l in faixa_links %}
+        {% if l.href %}<a href="{{ l.href }}"{% if l.externo %} target="_blank" rel="noopener"{% endif %}>{{ l.nome }}</a>
+        {% else %}<span>{{ l.nome }}</span>{% endif %}
+      {% endfor %}
+    </nav>
+    <div class="faixa-conta">
+      <span class="faixa-data">{{ data_extenso }}</span>
+      {% if eh_admin %}
+        {% if modo_edicao %}<a href="{{ url_for('index') }}">Ver o portal</a>
+        {% else %}<a href="{{ url_for('editor') }}">Editar portal</a>{% endif %}
+        <a href="{{ url_for('admin') }}" class="faixa-usuario"
+           title="Administração{% if ultimo_acesso %} (último acesso: {{ ultimo_acesso }}){% endif %}">{{ usuario_nome or 'Administrador' }}</a>
+        <a href="{{ url_for('sair') }}">Sair</a>
+      {% else %}
+        <a class="faixa-entrar" href="{{ url_for('login') }}">Entrar</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
 <div class="layout">
 
   <div class="principal">
@@ -9,17 +34,11 @@
         <img src="{{ url_for('static', filename=logo_nome) }}?v={{ logo_versao }}" alt="">
         <span><strong>{{ cfg.site_sigla }}</strong><small>{{ cfg.site_sub }}</small></span>
       </a>
-      <button class="menu-botao" id="abrir-menu" aria-label="Abrir menu">{{ ic('barras') }}</button>
-      <nav class="menu-topo" id="lateral">
-        {% for item in menu if item.chave == 'inicio' %}
-        <a href="{{ item.href }}" class="{{ 'ativo' if pagina == item.chave }}">{{ item.nome }}</a>
-        {% endfor %}
-      </nav>
 
       <form class="busca" action="{{ url_for('ramais') }}" method="get" role="search">
         <span class="busca-lupa" aria-hidden="true">{{ ic('lupa') }}</span>
         <input id="busca-topo" type="search" name="q"
-               placeholder="Pesquisar ramais, setores..."
+               placeholder="Buscar ramais e setores"
                aria-label="Pesquisar" value="{{ request.args.get('q', '') }}">
       </form>
 
@@ -31,26 +50,26 @@
           <span class="ic-lua">{{ ic('lua') }}</span>
           <span class="ic-sol" style="display:none">{{ ic('sol') }}</span>
         </button>
-        {% if eh_admin %}
-        {#  Do portal para o editor e de volta. #}
-        {% if modo_edicao %}<a class="btn btn-sm" href="{{ url_for('index') }}">Ver o portal</a>
-        {% else %}<a class="btn btn-sm btn-principal" href="{{ url_for('editor') }}">Editar portal</a>{% endif %}
-        {#  O nome do administrador leva à Administração (que saiu do menu). #}
-        <a class="chip-topo" href="{{ url_for('admin') }}"
-           title="Administração — {{ usuario_nome or 'Administrador' }}{% if ultimo_acesso %} (último acesso: {{ ultimo_acesso }}){% endif %}">
-          <span class="avatar-topo">{{ iniciais }}</span>
-          <span class="chip-nome"><b>{{ usuario_nome or 'Administrador' }}</b>
-            <small>Administração</small></span>
-        </a>
-        <a class="ic-topo sair-topo" href="{{ url_for('sair') }}" title="Sair" aria-label="Sair">{{ ic('sair') }}</a>
-        {% else %}
-        <a class="chip-topo" href="{{ url_for('login') }}">
-          <span class="avatar-topo">{{ ic('cadeado') }}</span>
-          <span class="chip-nome"><b>Entrar</b></span>
-        </a>
-        {% endif %}
       </div>
     </header>
+
+    {#  Barra de categorias, colada ao cabeçalho e fixa ao rolar. Reúne o menu
+        principal e as páginas cadastradas; no celular vira uma fileira de
+        botões que rola para o lado. #}
+    <nav class="barra-secoes" aria-label="Seções do portal">
+      <div class="barra-secoes-lista">
+        {% set vistos = [] %}
+        {% for item in menu if item.chave != 'admin' %}
+          {% if vistos.append(item.chave) %}{% endif %}
+          <a href="{{ item.href }}"{% if item.externo %} target="_blank" rel="noopener"{% endif %}
+             class="{{ 'ativo' if pagina == item.chave }}">{{ item.nome }}</a>
+        {% endfor %}
+        {% for item in paginas_lateral if item.chave not in vistos %}
+          <a href="{{ item.href }}"{% if item.externo %} target="_blank" rel="noopener"{% endif %}
+             class="{{ 'ativo' if pagina == item.chave }}">{{ item.nome }}</a>
+        {% endfor %}
+      </div>
+    </nav>
 
     {% with mensagens = get_flashed_messages(with_categories=true) %}
       {% if mensagens %}
@@ -74,9 +93,6 @@
 <script src="{{ url_for('static', filename='tema.js') }}"></script>
 {% if modo_edicao %}<script src="{{ url_for('static', filename='imagem.js') }}"></script>{% endif %}
 <script>
-  document.getElementById('abrir-menu').addEventListener('click', function () {
-    document.getElementById('lateral').classList.toggle('aberta');
-  });
   // Ctrl+K leva o cursor para a busca, como indicado ao lado do campo.
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {

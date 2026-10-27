@@ -3,6 +3,54 @@
     bloco ganha os botões de subir, descer, editar e excluir. Importar com
     `with context` para ter o csrf_token. #}
 
+{#  Cabeçalho de matéria da página: chapéu, título, linha fina, assinatura
+    (autor e datas), foto de capa com legenda e crédito, e resumo recolhível.
+    Tudo menos o título é opcional; sem nenhum deles sai só o título, como antes. #}
+{% macro topo(cab, nome) %}
+<header class="mat-cab">
+  {% if cab.chapeu %}<div class="mat-chapeu">{{ cab.chapeu }}</div>{% endif %}
+  <h1 class="pagina-titulo">{{ nome }}</h1>
+  {% if cab.linha_fina %}<p class="mat-fina">{{ cab.linha_fina }}</p>{% endif %}
+  {% if cab.autor or cab.publicada %}
+  <p class="mat-byline">
+    {% if cab.autor %}<span>Por <b>{{ cab.autor }}</b></span>{% endif %}
+    {% if cab.publicada %}<span>Publicada em {{ cab.publicada }}</span>{% endif %}
+    {% if cab.atualizada %}<span>Atualizada em {{ cab.atualizada }}</span>{% endif %}
+  </p>
+  {% endif %}
+</header>
+{% if cab.capa %}
+<figure class="mat-capa">
+  <img src="{{ cab.capa_url }}" alt="{{ cab.capa_alt }}">
+  {% if cab.legenda or cab.credito %}
+  <figcaption class="mat-leg">{{ cab.legenda }}{% if cab.credito %}<small>{{ cab.credito }}</small>{% endif %}</figcaption>
+  {% endif %}
+</figure>
+{% endif %}
+{% if cab.resumo %}
+<details class="mat-resumo" open>
+  <summary>Resumo</summary>
+  <ul>{% for linha in cab.resumo %}<li>{{ linha }}</li>{% endfor %}</ul>
+</details>
+{% endif %}
+{% endmacro %}
+
+{#  "Leia também": as últimas notícias publicadas, no fim da página. #}
+{% macro leia_tambem(itens) %}
+{% if itens %}
+<aside class="mat-leia" aria-label="Leia também">
+  <h3>Leia também</h3>
+  {% for n in itens %}
+  <a href="{{ n.url }}"{% if n.externo %} target="_blank" rel="noopener"{% endif %}>
+    {% if n.capa %}<img src="{{ url_for('static', filename='uploads/' ~ n.capa) }}" alt="{{ n.alt }}" loading="lazy">
+    {% else %}<span class="mat-leia-sem" aria-hidden="true"></span>{% endif %}
+    <span><b>{{ n.titulo }}</b>{% if n.data %}<small>{{ n.data }}</small>{% endif %}</span>
+  </a>
+  {% endfor %}
+</aside>
+{% endif %}
+{% endmacro %}
+
 {% macro controles(b, chave, editando) %}
 <div class="bl-ctl">
   <form method="post" action="{{ url_for('admin_pagina', chave=chave) }}">
@@ -30,7 +78,14 @@
   {% if b.tipo == 'subtitulo' %}
     <div class="bl{{ ' bl-ed' if editor }}{{ ' bl-oculto' if not b.ativo }}{{ ' bl-sel' if editando == b.id }}" id="b{{ b.id }}">
       {% if editor %}{{ controles(b, chave, editando) }}{% endif %}
-      <h2 class="pagina-subtitulo">{{ b.texto }}</h2>
+      <h2 class="pagina-subtitulo">{% if b.url %}<a href="{{ b.url }}"{% if not b.url.startswith('/') %} target="_blank" rel="noopener"{% endif %}>{{ b.texto }}</a>{% else %}{{ b.texto }}{% endif %}</h2>
+    </div>
+
+  {% elif b.tipo == 'botao' %}
+    <div class="bl{{ ' bl-ed' if editor }}{{ ' bl-oculto' if not b.ativo }}{{ ' bl-sel' if editando == b.id }}" id="b{{ b.id }}">
+      {% if editor %}{{ controles(b, chave, editando) }}{% endif %}
+      <p class="pagina-botao" style="text-align:{{ {'esq':'left','centro':'center','dir':'right'}[b.alinh] }}">
+        <a class="btn btn-principal" href="{{ b.url }}"{% if not b.url.startswith('/') %} target="_blank" rel="noopener"{% endif %}>{{ b.texto }}</a></p>
     </div>
 
   {% elif b.tipo == 'texto' %}
@@ -47,8 +102,10 @@
               style="flex:0 0 calc({{ it.larg }}% - {{ ((1 - it.larg / 100) * 1.0)|round(2) }}rem)">
         {% if editor %}{{ controles(it, chave, editando) }}{% endif %}
         {% set src = url_for('static', filename='uploads/' ~ it.arquivo) %}
-        {% if editor %}<img src="{{ src }}" alt="{{ it.legenda }}">
-        {% else %}<a href="{{ src }}" target="_blank" rel="noopener"><img src="{{ src }}" alt="{{ it.legenda }}" loading="lazy"></a>{% endif %}
+        {# Com endereço, o clique na imagem leva até ele; sem, amplia a imagem. #}
+        {% set destino = it.url or src %}
+        {% if editor %}<img src="{{ src }}" alt="{{ it.legenda }}"{% if it.url %} title="Leva a: {{ it.url }}"{% endif %}>{% if it.url %}<span class="bl-tag" style="position:absolute;left:6px;bottom:6px">link → {{ it.url }}</span>{% endif %}
+        {% else %}<a href="{{ destino }}"{% if not destino.startswith('/') or destino == src %} target="_blank" rel="noopener"{% endif %}><img src="{{ src }}" alt="{{ it.legenda }}" loading="lazy"></a>{% endif %}
         {% if it.legenda %}<figcaption>{{ it.legenda }}</figcaption>{% endif %}
       </figure>
       {% endfor %}

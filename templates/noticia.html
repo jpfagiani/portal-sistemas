@@ -1,0 +1,84 @@
+{% extends 'shell.html' %}
+{% import 'rico.html' as r with context %}
+{% set pagina = 'noticias' %}
+{% block titulo %}{{ n.titulo }}{% endblock %}
+{% block meta %}{% if n.meta or n.resumo %}<meta name="description" content="{{ n.meta or n.resumo }}">{% endif %}{% endblock %}
+{% block miolo %}
+<main class="pagina pagina-noticia">
+  <div class="migalha"><a href="{{ url_for('index') }}">← Início</a><span>/</span><a href="{{ url_for('noticias') }}">Notícias</a></div>
+  {% if previa %}
+  <div class="pe-dica"><span><strong>Pré-visualização.</strong> Esta notícia está <b>{{ situacao|lower }}</b> e só você a vê.
+    {% if eh_admin %}<a href="{{ url_for('admin_noticias', editar=n.id) }}">Voltar à edição</a>{% endif %}</span></div>
+  {% endif %}
+  <article class="noticia">
+    <header>
+      {% if n.categoria %}<span class="noticia-cat">{{ n.categoria }}</span>{% endif %}
+      <h1 class="pagina-titulo">{{ n.titulo }}</h1>
+      {% if n.subtitulo %}<p class="noticia-sub">{{ n.subtitulo }}</p>{% endif %}
+      <p class="noticia-meta">{% if n.publicar_em %}{{ n.publicar_em|data_br }}{% endif %}</p>
+    </header>
+    {% if n.capa %}
+    <figure class="noticia-capa">
+      <img src="{{ url_for('static', filename='uploads/' ~ n.capa) }}" alt="{{ n.capa_alt or midia_alt(n.capa, '') }}">
+      {% if n.legenda %}<figcaption>{{ n.legenda }}</figcaption>{% endif %}
+    </figure>
+    {% endif %}
+    <div class="pagina-texto noticia-corpo">{{ corpo }}</div>
+  </article>
+  <div class="acoes pagina-acoes">
+    <a class="btn" href="{{ url_for('noticias') }}">Todas as notícias</a>
+    {% if eh_admin %}<button type="button" class="btn btn-principal" data-editar-noticia>Editar nesta página</button>
+    <a class="btn" href="{{ url_for('admin_noticias', editar=n.id) }}">Editor completo</a>{% endif %}
+  </div>
+</main>
+{% if eh_admin %}
+<div class="pe-fundo" id="noticia-fundo" style="display:none">
+  <div class="pe-janela" role="dialog" aria-modal="true" aria-labelledby="noticia-ed-titulo">
+    <h3 id="noticia-ed-titulo">Editar notícia</h3>
+    <form id="form-noticia" method="post" action="{{ url_for('admin_noticia_rapida') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="id" value="{{ n.id }}">
+      <input type="hidden" name="capa_biblioteca" value="">
+      <label for="ne-titulo">Título</label>
+      <input id="ne-titulo" name="titulo" required maxlength="200" value="{{ n.titulo }}">
+      <label for="ne-sub">Subtítulo</label>
+      <input id="ne-sub" name="subtitulo" maxlength="300" value="{{ n.subtitulo }}">
+      <div class="pe-duas">
+        <div><label for="ne-cat">Categoria</label><input id="ne-cat" name="categoria" maxlength="60" value="{{ n.categoria }}"></div>
+        <div><label for="ne-estado">Situação</label>
+          <select id="ne-estado" name="estado">{% for k, v in estados_noticia.items() %}<option value="{{ k }}" {{ 'selected' if n.estado == k }}>{{ v }}</option>{% endfor %}</select></div>
+      </div>
+      <label for="ne-resumo">Resumo <small>(aparece nas listas)</small></label>
+      <textarea id="ne-resumo" name="resumo" rows="2" maxlength="600">{{ n.resumo }}</textarea>
+
+      <label>Imagem de capa</label>
+      <div class="ne-capa">
+        <img id="ne-capa-prev" alt="" {% if n.capa %}src="{{ url_for('static', filename='uploads/' ~ n.capa) }}"{% else %}hidden{% endif %}>
+        <div class="ne-capa-acoes">
+          <button type="button" class="btn btn-sm" id="ne-capa-biblioteca">Escolher da biblioteca</button>
+          <label class="btn btn-sm" for="ne-capa-arquivo">Enviar do computador</label>
+          <input type="file" id="ne-capa-arquivo" name="capa_arquivo" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+          <label class="check"><input type="checkbox" name="remover_capa" id="ne-capa-remover"> Remover a capa</label>
+        </div>
+      </div>
+      <div class="pe-duas">
+        <div><label for="ne-leg">Legenda da capa</label><input id="ne-leg" name="legenda" maxlength="300" value="{{ n.legenda }}"></div>
+        <div><label for="ne-alt">Texto alternativo da capa</label><input id="ne-alt" name="capa_alt" maxlength="300" value="{{ n.capa_alt }}"></div>
+      </div>
+
+      <label>Texto e imagens <small>(arraste ou cole imagens no texto; clique numa imagem para mudar tamanho e posição)</small></label>
+      {{ r.editor('corpo', corpo, destinos_links, csrf_token) }}
+      <label class="check"><input type="checkbox" name="destaque" {{ 'checked' if n.destaque }}> Fixar no topo da lista de notícias</label>
+      <p class="pe-erro" id="noticia-erro" role="alert"></p>
+      <div class="pe-rodape">
+        <button type="button" class="btn" id="noticia-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-principal">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
+<script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
+<script src="{{ url_for('static', filename='noticia-edicao.js') }}"></script>
+{% endif %}
+{% endblock %}

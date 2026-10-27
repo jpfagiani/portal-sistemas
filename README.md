@@ -81,6 +81,45 @@ tem nome, ícone e um endereço opcional:
 
 Desmarcar *Exibir* esconde o item sem apagá-lo, e a ordem se muda arrastando.
 
+### Páginas de conteúdo
+
+Na tela inicial, a lista **Páginas** (ao lado dos cartões) mostra os itens do menu
+lateral — menos "Ramais", que já tem cartão próprio. Um item **sem endereço** abre
+uma página própria, que o administrador monta em *Sistemas e atalhos → Menu lateral →
+botão **Conteúdo***:
+
+- **Texto** com formatação: título e subtítulo, negrito, itálico, sublinhado, listas,
+  alinhamento, cor, tamanho e links. Cada texto pode ter uma aparência (normal,
+  destaque azul, aviso amarelo ou quadro). O que não for compatível é descartado ao salvar.
+- **Subtítulo** simples.
+- **Imagem** com legenda, largura (inteira, 3/4, metade, um terço, um quarto) e posição.
+  Imagens seguidas ficam lado a lado quando cabem. Clicar na imagem a abre ampliada.
+- À direita do formulário fica a **prévia** da página, com os botões de subir, descer,
+  editar e excluir em cada bloco. Blocos desmarcados em *Exibir* ficam esmaecidos na
+  prévia e não aparecem no portal.
+
+**Cabeçalho de matéria.** Acima dos blocos, cada página pode ter um cabeçalho, editado em
+*Conteúdo → Cabeçalho da página* (ou pelo atalho **Editar cabeçalho** na edição direta). Tudo
+é opcional; sem nenhum campo preenchido a página sai só com o título, como antes:
+
+- **Chapéu** (categoria), **linha fina**, **autor ou setor** e **data de publicação**.
+  O *Atualizada em* é preenchido sozinho a cada alteração na página e só aparece junto do
+  autor ou da data de publicação.
+- **Foto de capa** com legenda e crédito, enviada na hora ou escolhida da biblioteca. A capa
+  conta como uso da imagem, então a biblioteca não deixa excluí-la enquanto estiver na página.
+- **Resumo recolhível**, uma linha por item (até 6).
+- **Leia também**, com as três últimas notícias publicadas. Começa desligado em cada página.
+
+A faixa escura de links do topo e o cartão "Em destaque" da tela inicial são editados em
+*Administração → Navegação*.
+
+### Barra lateral no layout livre
+
+Em **Editar layout** (layout livre) a lista de páginas e o cartão "Em destaque"
+viram cartões do quadro: arraste-os para qualquer lugar da página, inclusive
+para o espaço branco ao lado, e redimensione pelo canto. O quadro ocupa a
+largura toda, abaixo do banner.
+
 ## Acesso por nome, sem servidor DNS
 
 O instalador pergunta o endereço que as pessoas vão digitar (por exemplo
@@ -131,6 +170,16 @@ com `admin` (ou outro usuário administrador criado depois) para abrir o painel:
 | Usuários | Criar logins, trocar senhas, desativar e definir quem é administrador |
 | Aparência | Foto de fundo, nome da unidade, cores e tempo de cada slide |
 
+### Caixa "visível" nas listas
+
+Em todas as listas com a coluna *Situação* (menu lateral, sistemas, atalhos, reservas,
+comunicados e demais cartões, banner, ramais, escalas, aniversariantes e chamados), a
+caixa marca e desmarca **visível** na hora, sem abrir o item em *Editar*. Se o servidor
+recusar ou a rede cair, a caixa volta ao que era e um aviso aparece. Cada mudança entra
+no **Histórico**, com o nome do item. Usuários ficam de fora de propósito, porque ali
+existe a proteção contra desativar o último administrador; notícias têm situação própria
+(rascunho, publicada, arquivada).
+
 ### Logo e foto de fundo
 
 As duas imagens da identidade são **arquivos soltos** em
@@ -171,7 +220,7 @@ git pull
 sudo ./atualizar.sh
 ```
 
-Copia apenas `app.py`, os templates e o CSS/JS, e reinicia o serviço. Banco de
+Copia apenas `app.py`, a pasta `modulos/`, os templates e o CSS/JS, e reinicia o serviço. Banco de
 dados, imagens enviadas, logo, foto de fundo e configurações ficam intactos.
 
 ## Operação
@@ -220,15 +269,55 @@ sudo ./desinstalar.sh    # remove o serviço; PRESERVA dados e imagens
 - Senhas guardadas com hash (PBKDF2, via Werkzeug) — nunca em texto puro.
 - Formulários protegidos contra CSRF; uploads limitados a 16 MB e às extensões
   PNG, JPG, WEBP e GIF.
+- Login com limite de tentativas (8 erros em 10 minutos por IP/usuário), cookies
+  `HttpOnly`/`SameSite`, cabeçalhos de segurança e páginas de erro próprias.
+  Defina `PORTAL_COOKIE_SEGURO=1` se o portal for servido por HTTPS.
+- Uploads conferidos pelo conteúdo (não só pela extensão). Textos formatados
+  passam por um filtro: só tags seguras; imagens só da biblioteca do portal.
+- Aba **Histórico**: quem alterou o quê e quando (sem senhas nem conteúdo).
+- O arquivo `secret.key` é gerado em cada instalação e **nunca** deve ir em
+  zip, e-mail ou repositório.
 - Sem HTTPS por padrão: é um portal de **rede interna**. Para expor fora da LAN,
   coloque um proxy reverso (nginx) com certificado na frente.
+
+## Biblioteca de mídia e notícias
+
+- **Administração → Mídia**: todas as imagens em um só lugar, com título, texto
+  alternativo e legenda. Mostra onde cada imagem está em uso, impede apagar a
+  que está em uso e permite substituir o arquivo mantendo todos os lugares.
+  Em qualquer campo de imagem (páginas, banners, cartões, notícias) há o botão
+  **Escolher da biblioteca**.
+- **Administração → Notícias**: título, subtítulo, resumo, capa, texto
+  formatado, categoria, destaque e link de destino. Situações: rascunho,
+  publicada, arquivada; com data futura a notícia fica **agendada** e aparece
+  sozinha na hora (sem agendador). Admin vê pré-visualização de rascunhos.
+- Público: `/noticias` (com categorias e paginação de 10 por página: a primeira notícia vira
+  manchete com foto e as demais saem em linhas com miniatura; a notícia marcada como
+  **destaque** fica fixada no topo, com a marca *Fixada*), `/noticias/<endereço>` e o
+  cartão "Últimas notícias" na página inicial (pode ser movido/ocultado como os
+  demais cartões).
+
+## Cartões de texto e imagem
+
+Em **Editar portal**, o botão **+ Texto ou imagem** cria um cartão com texto
+formatado e imagens da biblioteca, no primeiro espaço vazio do quadro. Clique no
+nome do cartão para editá-lo ou excluí-lo. No layout livre, arraste para onde
+quiser, inclusive para a coluna da esquerda.
+
+## Testes
+
+```bash
+python3 tests/test_modulos.py   # trabalha numa cópia temporária; não toca nos dados
+```
 
 ## Estrutura
 
 | Caminho | Papel |
 |---|---|
 | `app.py` | Aplicação Flask: login, página inicial e administração |
+| `modulos/` | Segurança, histórico, biblioteca de mídia e notícias (carregados pelo `app.py`) |
 | `templates/` | Páginas HTML (Jinja2) |
+| `tests/` | Testes automatizados dos módulos |
 | `static/style.css` | Estilo — azul institucional com o dourado do brasão |
 | `static/logo.*`, `static/fundo.*` | Identidade visual da unidade (trocáveis por arquivo) |
 | `static/banner.js` | Rotação automática do banner |

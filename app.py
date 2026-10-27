@@ -14,13 +14,15 @@ import os
 import re
 import secrets
 import sqlite3
+import sys
 import time
 import zipfile
 from datetime import datetime
+from html.parser import HTMLParser
 from functools import wraps
 
-from flask import (Flask, abort, flash, g, jsonify, redirect, render_template,
-                   request, send_file, session, url_for)
+from flask import (Flask, abort, flash, g, get_flashed_messages, jsonify, redirect,
+                   render_template, request, send_file, session, url_for)
 from markupsafe import Markup, escape
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -262,6 +264,15 @@ app = Flask(__name__)
 # 64 MB: um backup carrega o banco mais a foto de fundo, o logo e as imagens
 # do banner. As imagens avulsas continuam limitadas pela extensão aceita.
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
+# Cookie de sessão: inacessível ao JavaScript e não enviado em requisições de
+# outros sites. `Secure` só liga com PORTAL_COOKIE_SEGURO=1, que é para quando o
+# portal é servido por HTTPS — numa intranet em HTTP, o cookie seguro nunca
+# chegaria de volta e ninguém conseguiria entrar.
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('PORTAL_COOKIE_SEGURO') == '1',
+)
 
 
 def _secret_key():
@@ -448,9 +459,10 @@ PADROES.update({f'titulo_{chave}': texto for chave, texto in TITULOS_CARTAO})
 # aniversário", serve para o que a unidade quiser pôr dentro.
 CARTOES_FIXOS = [
     # chave        nome                          icone       regiao coluna ordem
-    ('sistemas',  'Acesso rápido aos sistemas', 'grade',     'topo',  1, -3),
+    ('sistemas',  'Acesso rápido aos sistemas', 'grade',     'topo',  3, -3),
     ('atalhos',   'Atalhos úteis',              'marcador',  'meio',  3, -2),
     ('ramais',    'Ramais mais utilizados',     'telefone',  'baixo', 1, -1),
+    ('noticias',  'Últimas notícias',           'megafone',  'meio',  3, -1),
 ]
 
 CARTOES_SEMENTE = [
@@ -482,6 +494,21 @@ PADROES.update({
                          (f'{pref}_titulo_tam', t_tam), (f'{pref}_titulo_cor', t_cor),
                          (f'{pref}_texto_tam', x_tam),  (f'{pref}_texto_cor', x_cor))
     if chave not in PADROES})
+
+# Faixa escura de links de informação no topo de todas as páginas, e o cartão
+# "Em destaque" que fica abaixo do menu de páginas na tela inicial. Os dois são
+# editados em Administração → Navegação.
+PADROES.update({
+    # Um link por linha, no formato "Nome | endereço".
+    'faixa_links':     '',
+    'lista_paginas_ativa': '0',
+    'destaque_ativo':  '0',
+    'destaque_rotulo': 'Em destaque',
+    'destaque_titulo': '',
+    'destaque_texto':  '',
+    'destaque_url':    '',
+    'destaque_cta':    'Saiba mais',
+})
 
 
 # "Título" e "texto" apontam para coisas diferentes em cada cartão. Dito na
@@ -723,6 +750,17 @@ CREATE TABLE IF NOT EXISTS menu_itens (
     ordem INTEGER NOT NULL DEFAULT 0,
     ativo INTEGER NOT NULL DEFAULT 1
 );
+-- A lista "Páginas" da tela inicial. É própria: não depende do menu do topo
+-- (menu_itens), então renomear um não mexe no outro.
+CREATE TABLE IF NOT EXISTS paginas_lateral (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    chave TEXT NOT NULL,
+    nome  TEXT NOT NULL,
+    icone TEXT DEFAULT '',
+    url   TEXT DEFAULT '',
+    ordem INTEGER NOT NULL DEFAULT 0,
+    ativo INTEGER NOT NULL DEFAULT 1
+);
 -- Os cartões da página inicial. Deixaram de ser cinco blocos especializados
 -- (escala, aniversário, chamado…) e passaram a ser cartões iguais entre si: o
 -- que muda de um para outro é o nome, a posição e o que se escreve dentro.
@@ -759,6 +797,18 @@ CREATE TABLE IF NOT EXISTS cartoes (
     titulo_cor TEXT DEFAULT '',
     texto_cor  TEXT DEFAULT '',
     fundo_cor  TEXT DEFAULT '',
+    ordem   INTEGER NOT NULL DEFAULT 0,
+    ativo   INTEGER NOT NULL DEFAULT 1
+);
+-- Conteúdo das páginas do menu lateral. Cada item do menu (sem endereço
+-- próprio) abre /modulo/<chave>, e esta tabela guarda o que aparece nela: uma
+-- sequência de blocos de subtítulo, texto e imagem, na ordem escolhida.
+CREATE TABLE IF NOT EXISTS pagina_blocos (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    chave   TEXT NOT NULL,                -- chave do item em menu_itens
+    tipo    TEXT NOT NULL DEFAULT 'texto',-- subtitulo | texto | imagem
+    texto   TEXT DEFAULT '',              -- subtítulo, parágrafos ou legenda
+    arquivo TEXT DEFAULT '',              -- imagem em static/uploads
     ordem   INTEGER NOT NULL DEFAULT 0,
     ativo   INTEGER NOT NULL DEFAULT 1
 );
@@ -935,6 +985,13 @@ def _semear_cartoes(con):
     # que ja passou pela migracao anterior.
     _adotar_cartoes_livres(con)
 
+    # 1.8.0: "Acesso rápido" e "Atalhos" passam a largura total (uma vez só; quem
+    # ajustar depois não é desfeito) e o cartão de notícias vai para a lateral.
+    if not con.execute("SELECT 1 FROM config WHERE chave='layout_v18'").fetchone():
+        con.execute("UPDATE cartoes_painel SET largura=3, coluna=0"
+                    " WHERE chave IN ('sistemas','atalhos')")
+        con.execute("INSERT OR REPLACE INTO config (chave,valor) VALUES ('layout_v18','1')")
+
     if con.execute("SELECT 1 FROM config WHERE chave='cartoes_migrados'").fetchone():
         return
     for chave, nome, icone, regiao, ordem in CARTOES_SEMENTE:
@@ -1030,6 +1087,7 @@ def init_db():
             ('cartoes',  'coluna',  'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'coluna', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'altura', 'INTEGER NOT NULL DEFAULT 0'),
+            ('cartoes_painel', 'z', 'INTEGER NOT NULL DEFAULT 0'),     # ordem de empilhamento (sobreposição)
             ('cartoes_painel', 'tipo', "TEXT NOT NULL DEFAULT 'itens'"),
             # Layout livre: posição em células de um quadro de 12 colunas e
             # linhas de 1,5rem. gw = 0 quer dizer "ainda sem posição".
@@ -1038,6 +1096,32 @@ def init_db():
             ('cartoes_painel', 'gw', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'gh', 'INTEGER NOT NULL DEFAULT 0'),
             ('lateral',  'data',     "TEXT DEFAULT ''"),
+            # Páginas de conteúdo: largura (% da página) e posição da imagem, estilo
+            # do bloco de texto e se o texto é HTML formatado ou texto simples
+            # (blocos criados na versão 1.3.0).
+            ('pagina_blocos', 'larg',    'INTEGER NOT NULL DEFAULT 100'),
+            ('pagina_blocos', 'alinh',   "TEXT DEFAULT 'centro'"),
+            ('pagina_blocos', 'estilo',  "TEXT DEFAULT 'normal'"),
+            ('pagina_blocos', 'formato', "TEXT DEFAULT 'texto'"),
+            ('pagina_blocos', 'url',     "TEXT DEFAULT ''"),
+            # Cabeçalho de matéria das páginas de conteúdo: chapéu, linha fina,
+            # autor, datas, foto de capa com legenda e crédito, resumo
+            # recolhível e "Leia também". Tudo opcional: página sem nenhum
+            # destes campos continua saindo só com o título, como antes.
+            ('paginas_lateral', 'corpo',          "TEXT DEFAULT ''"),     # texto único da página (editor livre)
+            ('paginas_lateral', 'chapeu',         "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'linha_fina',     "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'autor',          "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'publicada_em',   "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'atualizada_em',  "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'capa',           "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'capa_legenda',   "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'capa_credito',   "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'resumo',         "TEXT DEFAULT ''"),
+            ('paginas_lateral', 'mostrar_resumo', 'INTEGER NOT NULL DEFAULT 1'),
+            # "Leia também" começa desligado: ligá-lo é escolha de cada página,
+            # e as já existentes não ganham um bloco novo por conta da atualização.
+            ('paginas_lateral', 'mostrar_leia',   'INTEGER NOT NULL DEFAULT 0'),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
             ('usuarios', 'ultimo_acesso', "TEXT DEFAULT ''")):
         existentes = {c[1] for c in con.execute(f'PRAGMA table_info({tabela})')}
@@ -1096,10 +1180,13 @@ def init_db():
                         (titulo, simbolo, ordem + i))
         con.execute("INSERT INTO config (chave,valor) VALUES ('seed_atalhos','1')")
 
-    if not con.execute('SELECT 1 FROM menu_itens LIMIT 1').fetchone():
+    instalacao_nova = not con.execute('SELECT 1 FROM menu_itens LIMIT 1').fetchone()
+    if instalacao_nova:
         for i, (chave, nome, icone, _) in enumerate(MENU):
             con.execute('INSERT INTO menu_itens (chave,nome,icone,ordem)'
                         ' VALUES (?,?,?,?)', (chave, nome, icone, i))
+    _separar_paginas_laterais(con, instalacao_nova)
+    _migrar_v19(con, instalacao_nova)
 
     if not con.execute('SELECT 1 FROM lateral LIMIT 1').fetchone():
         con.execute("INSERT INTO lateral (tipo,titulo,conteudo,ordem) VALUES"
@@ -1159,7 +1246,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.2.0'
+VERSAO = '1.9.19'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1259,7 +1346,7 @@ def lista(chave):
     if registrado and registrado['tipo'] == 'itens':
         return render_template(
             'lista.html', chave=chave, titulo=registrado['nome'],
-            macro='comunicados', marca_bloco=marca_atual('comunicados'),
+            macro='comunicados', marca_bloco=marca_atual('comunicados'), editavel=True,
             itens=db().execute('SELECT * FROM lateral WHERE ativo=1 AND cartao=?'
                                ' ORDER BY ordem, id', (chave,)).fetchall())
     if chave not in FONTES:
@@ -1267,6 +1354,7 @@ def lista(chave):
     _, consulta, titulo, macro = FONTES[chave]
     return render_template('lista.html', chave=chave, titulo=titulo, macro=macro,
                            marca_bloco=marca_atual(macro),
+                           editavel=bool(cartao_por_chave(chave)),
                            itens=db().execute(consulta).fetchall())
 
 # Menu lateral. Os itens sem módulo próprio ainda levam a uma página que
@@ -1274,16 +1362,139 @@ def lista(chave):
 MENU = [
     ('inicio',     'Início',              'inicio',     'index'),
     ('ramais',     'Ramais',              'telefone',   'ramais'),
-    ('servidores', 'Servidores',          'usuarios',   None),
-    ('documentos', 'Documentos',          'documento',  None),
-    ('escalas',    'Escalas',             'calendario', None),
-    ('chamados',   'Chamados de TI',      'fone',       None),
-    ('reservas',   'Reserva de Recursos', 'arquivo',    None),
-    ('relatorios', 'Relatórios',          'grafico',    None),
+]
+
+# Páginas da barra lateral de uma instalação nova. Nome genérico: quem instala
+# troca por o que fizer sentido; a chave só aparece no endereço da página.
+PAGINAS_SEMENTE = [
+    ('servidores', 'Link 1', 'usuarios'),
+    ('documentos', 'Link 2', 'documento'),
+    ('escalas',    'Link 3', 'calendario'),
+    ('chamados',   'Link 4', 'fone'),
+    ('reservas',   'Link 5', 'arquivo'),
+    ('relatorios', 'Link 6', 'grafico'),
 ]
 
 
 ROTAS_INTERNAS = {'inicio': 'index', 'ramais': 'ramais'}
+MENU_PADRAO = {chave: (nome, icone) for chave, nome, icone, _ in MENU}
+
+
+def _slug(texto):
+    return re.sub(r'[^a-z0-9]+', '-', (texto or '').lower().strip()).strip('-') or 'pagina'
+
+
+def _migrar_v19(con, instalacao_nova):
+    """1.9: faixa escura do topo sem Ramais/Sistemas e itens do menu como
+    "Link N". Cada ajuste roda uma única vez; o que o administrador mudar
+    depois não é desfeito. (Sem row_factory aqui: colunas por posição.)"""
+    def feito(marca):
+        return con.execute('SELECT 1 FROM config WHERE chave=?', (marca,)).fetchone()
+
+    def marca(m):
+        con.execute("INSERT OR REPLACE INTO config (chave,valor) VALUES (?,'1')", (m,))
+
+    if not feito('faixa_v19'):
+        r = con.execute("SELECT valor FROM config WHERE chave='faixa_links'").fetchone()
+        if r:
+            padrao = ('ramais|/ramais', 'sistemas|/sistemas')
+            linhas = [l for l in r[0].splitlines()
+                      if re.sub(r'\s+', '', l).lower() not in padrao]
+            con.execute("UPDATE config SET valor=? WHERE chave='faixa_links'",
+                        ('\n'.join(linhas),))
+        marca('faixa_v19')
+
+    if not feito('menu_links_v19'):
+        if not instalacao_nova:
+            n = 0
+            for tabela in ('menu_itens', 'paginas_lateral'):
+                for rid, chave in con.execute(
+                        f"SELECT id,chave FROM {tabela} WHERE chave NOT IN ('inicio','admin')"
+                        ' ORDER BY ordem, id').fetchall():
+                    n += 1
+                    con.execute(f'UPDATE {tabela} SET nome=? WHERE id=?', (f'Link {n}', rid))
+        marca('menu_links_v19')
+
+    # 1.9.1: "Ramais" volta a ser Ramais (o Link 1 não é mais dele) e o Link 1
+    # passa a levar às Notícias, como primeira página da lista.
+    if not feito('menu_links_v19b'):
+        if not instalacao_nova:
+            con.execute("UPDATE menu_itens SET nome='Ramais' WHERE chave='ramais' AND nome='Link 1'")
+            if not con.execute("SELECT 1 FROM paginas_lateral WHERE chave='noticias-link'").fetchone():
+                menor = con.execute('SELECT COALESCE(MIN(ordem),0) FROM paginas_lateral').fetchone()[0]
+                con.execute("INSERT INTO paginas_lateral (chave,nome,icone,url,ordem,ativo)"
+                            " VALUES ('noticias-link','Link 1','','/noticias',?,1)", (menor - 1,))
+        marca('menu_links_v19b')
+
+    # 1.9.2: "Ramais" sai da barra de seções; ficam só o cartão da tela inicial e
+    # a página /ramais (aberta pelo nome do cartão). Só desligado, nunca apagado:
+    # dá para religar em Administração → Painel → Menu.
+    if not feito('menu_ramais_v192'):
+        con.execute("UPDATE menu_itens SET ativo=0 WHERE chave='ramais'")
+        marca('menu_ramais_v192')
+
+
+def _separar_paginas_laterais(con, instalacao_nova):
+    """Desvincula a lista "Páginas" do menu do topo, uma única vez.
+
+    Até a 1.4 as duas coisas eram a mesma tabela: renomear "Início" na lista
+    lateral mudava o topo do portal. Agora a lista tem tabela própria.
+    - Os itens que não são do sistema (nem Início, nem Ramais) passam para ela.
+    - Se Início ou Ramais tinham sido renomeados ou apontados para outro
+      endereço, é porque alguém os usava como link da lateral: viram uma
+      página da lateral e o item do topo volta ao que era."""
+    if con.execute("SELECT 1 FROM config WHERE chave='paginas_separadas'").fetchone():
+        return
+    # Sem a marca, a migração nunca terminou: recomeça do zero (uma tentativa
+    # interrompida não pode deixar itens repetidos).
+    con.execute('DELETE FROM paginas_lateral')
+    ordem = 0
+    usadas = {r[0] for r in con.execute('SELECT chave FROM paginas_lateral')}
+
+    def nova(chave_base, nome, icone, url, ativo=1):
+        nonlocal ordem
+        chave, n = chave_base, 2
+        while chave in usadas or chave in ('inicio', 'ramais', 'admin'):
+            chave, n = f'{chave_base}-{n}', n + 1
+        usadas.add(chave)
+        con.execute('INSERT INTO paginas_lateral (chave,nome,icone,url,ordem,ativo)'
+                    ' VALUES (?,?,?,?,?,?)', (chave, nome, icone, url, ordem, ativo))
+        ordem += 1
+        return chave
+
+    if instalacao_nova:
+        for chave, nome, icone in PAGINAS_SEMENTE:
+            nova(chave, nome, icone, '')
+    else:
+        # Sem row_factory aqui (init_db usa tuplas): colunas por posição.
+        for chave, nome, icone, url, ativo in con.execute(
+                "SELECT chave,nome,icone,url,ativo FROM menu_itens WHERE chave NOT IN"
+                " ('inicio','ramais','admin') ORDER BY ordem, id").fetchall():
+            nova(chave, nome, icone, url, ativo)
+        con.execute("DELETE FROM menu_itens WHERE chave NOT IN ('inicio','ramais','admin')")
+        for rid, chave_s, nome_s, icone_s, url_s, ativo_s in con.execute(
+                "SELECT id,chave,nome,icone,url,ativo FROM menu_itens"
+                " WHERE chave IN ('inicio','ramais')").fetchall():
+            nome, icone = MENU_PADRAO[chave_s]
+            if nome_s != nome or url_s or (icone_s or '') != icone:
+                chave = nova(_slug(nome_s), nome_s, icone_s, url_s, ativo_s)
+                con.execute('UPDATE pagina_blocos SET chave=? WHERE chave=?', (chave, chave_s))
+                con.execute("UPDATE menu_itens SET nome=?,icone=?,url='' WHERE id=?",
+                            (nome, icone, rid))
+    con.execute("INSERT INTO config (chave,valor) VALUES ('paginas_separadas','1')")
+
+
+def montar_paginas():
+    """Itens da lista "Páginas" da tela inicial (tabela própria)."""
+    itens = []
+    for r in db().execute('SELECT * FROM paginas_lateral WHERE ativo=1 ORDER BY ordem, id'):
+        if r['url']:
+            destino, externo = r['url'], not r['url'].startswith('/')
+        else:
+            destino, externo = url_for('modulo', chave=r['chave']), False
+        itens.append({'chave': r['chave'], 'nome': r['nome'],
+                      'ic': r['icone'] or '▸', 'href': destino, 'externo': externo})
+    return itens
 
 
 def montar_menu():
@@ -1302,12 +1513,436 @@ def montar_menu():
     return itens
 
 
+def endereco_seguro(url):
+    """Endereço digitado à mão, pronto para ir num href.
+
+    Aceita caminho interno (/ramais), http(s), mailto e tel; sem esquema,
+    assume http. Qualquer outro esquema (javascript:, data:) vira vazio —
+    quem edita é administrador, mas um href não deve executar código.
+    """
+    url = (url or '').strip()
+    if not url:
+        return ''
+    if url.startswith('/') and not url.startswith('//'):
+        return url
+    esquema = re.match(r'^([a-z][a-z0-9+.\-]*):', url, re.I)
+    if esquema:
+        return url if esquema.group(1).lower() in ('http', 'https', 'mailto', 'tel') else ''
+    return 'http://' + url
+
+
+def linhas_faixa(texto):
+    """Faixa de links do topo: "Nome | endereço" por linha. Sem endereço, o
+    nome aparece como texto, sem link."""
+    itens = []
+    for linha in (texto or '').splitlines():
+        nome, _, url = linha.partition('|')
+        nome = nome.strip()
+        if not nome:
+            continue
+        href = endereco_seguro(url)
+        itens.append({'nome': nome, 'href': href,
+                      'externo': bool(href) and not href.startswith('/')})
+    return itens
+
+
+def dados_destaque():
+    """Cartão "Em destaque" da tela inicial, ou None se estiver desligado ou
+    sem título (um cartão sem título seria só uma caixa colorida)."""
+    c = cfg()
+    if c.get('destaque_ativo') != '1' or not c.get('destaque_titulo', '').strip():
+        return None
+    href = endereco_seguro(c.get('destaque_url'))
+    return {'rotulo': c.get('destaque_rotulo', '').strip(),
+            'titulo': c['destaque_titulo'].strip(),
+            'texto': c.get('destaque_texto', '').strip(),
+            'cta': c.get('destaque_cta', '').strip(),
+            'href': href, 'externo': bool(href) and not href.startswith('/')}
+
+
+def _texto_em_paragrafos(texto):
+    """Quebra o texto digitado em parágrafos (separados por linha em branco).
+    Um parágrafo em que toda linha começa por "- " vira lista."""
+    saida = []
+    for bloco in re.split(r'\n\s*\n', (texto or '').replace('\r\n', '\n').strip('\n')):
+        linhas = [l.rstrip() for l in bloco.split('\n') if l.strip()]
+        if not linhas:
+            continue
+        if all(l.lstrip().startswith(('- ', '• ')) for l in linhas):
+            saida.append({'lista': [l.lstrip()[2:].strip() for l in linhas]})
+        else:
+            saida.append({'linhas': [l.strip() for l in linhas]})
+    return saida
+
+
+def texto_para_html(texto):
+    """Texto simples (blocos da versão 1.3.0) como HTML, para o editor e para a
+    página. Tudo é escapado: o que foi digitado nunca vira marcação."""
+    partes = []
+    for p in _texto_em_paragrafos(texto):
+        if 'lista' in p:
+            partes.append('<ul>' + ''.join(f'<li>{escape(i)}</li>' for i in p['lista']) + '</ul>')
+        else:
+            partes.append('<p>' + '<br>'.join(str(escape(l)) for l in p['linhas']) + '</p>')
+    return ''.join(partes)
+
+
+# ── texto formatado das páginas ────────────────────────────────────────────────
+# O editor da página grava HTML. Como esse HTML é mostrado a todos, nada do que
+# chega do navegador é confiado: tudo passa por esta limpeza, que só deixa
+# passar uma lista curta de tags e de propriedades de estilo. Script, evento
+# (onclick…), iframe, classe e endereço javascript: nunca chegam à página.
+
+_TAGS_OK = {'p', 'br', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'h2', 'h3',
+            'h4', 'blockquote', 'a', 'span', 'div'}
+_TAGS_COM_ESTILO = {'p', 'div', 'span', 'li', 'h2', 'h3', 'h4', 'blockquote'}
+_CLASSES_IMG = {'im-p', 'im-m', 'im-g', 'im-c', 'im-esq', 'im-dir', 'im-centro', 'im-bloco', 'im-bloco-dir'}
+_SINONIMOS = {'b': 'strong', 'i': 'em', 'strike': 's', 'del': 's', 'h1': 'h2',
+              'h5': 'h4', 'h6': 'h4', 'font': 'span'}
+_DESCARTA = {'script', 'style', 'iframe', 'object', 'embed', 'noscript',
+             'template', 'svg', 'math', 'head', 'title'}
+_FONT_SIZE = {'1': .75, '2': .875, '3': 1, '4': 1.125, '5': 1.5, '6': 2, '7': 3}
+_FONT_PALAVRA = {'xx-small': .6, 'x-small': .7, 'small': .875, 'medium': 1,
+                 'large': 1.25, 'x-large': 1.5, 'xx-large': 2, 'xxx-large': 3}
+_COR = re.compile(r'^(#[0-9a-f]{3}|#[0-9a-f]{6})$', re.I)
+_RGB = re.compile(r'^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$', re.I)
+_TAM = re.compile(r'^(\d+(?:\.\d+)?)(rem|em|px|%)$')
+
+
+def _cor_limpa(valor):
+    valor = (valor or '').strip()
+    if _COR.match(valor):
+        return valor.lower()
+    m = _RGB.match(valor)
+    if m and all(int(x) <= 255 for x in m.groups()):
+        return '#%02x%02x%02x' % tuple(int(x) for x in m.groups())
+    return ''
+
+
+def _estilo_limpo(css):
+    """Só as propriedades que o editor produz, com valores conferidos."""
+    saida = []
+    for decl in (css or '').split(';'):
+        prop, _, valor = decl.partition(':')
+        prop, valor = prop.strip().lower(), valor.strip().lower()
+        if prop in ('color', 'background-color'):
+            c = _cor_limpa(valor)
+            if c:
+                saida.append(f'{prop}:{c}')
+        elif prop == 'font-size':
+            rem = _FONT_PALAVRA.get(valor)
+            m = _TAM.match(valor)
+            if m:
+                n, un = float(m.group(1)), m.group(2)
+                rem = {'rem': n, 'em': n, 'px': n / 16, '%': n / 100}[un]
+            if rem is not None and .6 <= rem <= 4:
+                saida.append(f'font-size:{round(rem, 3)}rem')
+        elif prop == 'text-align' and valor in ('left', 'center', 'right', 'justify'):
+            saida.append(f'text-align:{valor}')
+        elif prop == 'font-weight' and valor in ('bold', '700', '600', '800'):
+            saida.append('font-weight:700')
+        elif prop == 'font-style' and valor == 'italic':
+            saida.append('font-style:italic')
+        elif prop == 'text-decoration' and valor in ('underline', 'line-through'):
+            saida.append(f'text-decoration:{valor}')
+    return ';'.join(saida)
+
+
+class _LimpaHTML(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.saida, self.pilha, self.pular = [], [], 0
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in _DESCARTA:
+            self.pular += 1
+            return
+        if self.pular:
+            return
+        original = tag
+        tag = _SINONIMOS.get(tag, tag)
+        attrs = {k.lower(): (v or '') for k, v in attrs}
+        emitida = None
+        if tag == 'img':
+            # Só imagens da própria biblioteca (static/uploads); nada de endereço
+            # externo, data: ou javascript:.
+            m = re.fullmatch(r'/static/uploads/([A-Za-z0-9._\-]+\.(?:png|jpe?g|gif|webp))',
+                             attrs.get('src', '').strip())
+            if m:
+                alt = escape(attrs.get('alt', '')[:300])
+                # Tamanho e posição escolhidos no editor; só valores conhecidos.
+                cls = ' '.join(c for c in attrs.get('class', '').split() if c in _CLASSES_IMG)
+                cls = f' class="{cls}"' if cls else ''
+                # Largura arrastada no editor, em % (5 a 100); nada de outro CSS.
+                w = re.search(r'(\d{1,3})(?:\.\d+)?\s*%?', attrs.get('data-w', '')) or \
+                    re.search(r'width\s*:\s*(\d{1,3})(?:\.\d+)?%', attrs.get('style', ''))
+                estilo_w = f' style="width:{max(5, min(100, int(w.group(1))))}%"' if w else ''
+                self.saida.append(f'<img src="/static/uploads/{m.group(1)}" alt="{alt}" loading="lazy"{cls}{estilo_w}>')
+            return
+        if tag in _TAGS_OK:
+            estilo = _estilo_limpo(attrs.get('style'))
+            if original == 'font':                # <font color size> do editor
+                extra = []
+                c = _cor_limpa(attrs.get('color'))
+                if c:
+                    extra.append(f'color:{c}')
+                if attrs.get('size') in _FONT_SIZE:
+                    extra.append(f"font-size:{_FONT_SIZE[attrs['size']]}rem")
+                estilo = ';'.join(filter(None, [estilo] + extra))
+            if tag == 'br':
+                self.saida.append('<br>')
+                return
+            marcas = ''
+            if tag == 'a':
+                href = endereco_seguro(attrs.get('href'))
+                if href:
+                    ext = ' target="_blank" rel="noopener"' if not href.startswith('/') else ''
+                    marcas = f' href="{escape(href)}"{ext}'
+                    emitida = tag
+            else:
+                emitida = tag
+            if emitida:
+                if estilo and tag in _TAGS_COM_ESTILO:
+                    marcas += f' style="{escape(estilo)}"'
+                self.saida.append(f'<{tag}{marcas}>')
+        self.pilha.append((original, emitida))
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in _DESCARTA:
+            self.pular = max(0, self.pular - 1)
+            return
+        if self.pular:
+            return
+        for i in range(len(self.pilha) - 1, -1, -1):
+            if self.pilha[i][0] == tag:
+                while len(self.pilha) > i:
+                    _, emitida = self.pilha.pop()
+                    if emitida:
+                        self.saida.append(f'</{emitida}>')
+                return
+
+    def handle_data(self, dados):
+        if not self.pular:
+            self.saida.append(str(escape(dados)))
+
+    def resultado(self):
+        while self.pilha:
+            _, emitida = self.pilha.pop()
+            if emitida:
+                self.saida.append(f'</{emitida}>')
+        return ''.join(self.saida)
+
+
+def limpa_html(html):
+    """HTML do editor da página, reduzido ao que é permitido (ver acima)."""
+    p = _LimpaHTML()
+    p.feed((html or '')[:60000])
+    p.close()
+    return p.resultado()
+
+
+def so_texto(html):
+    """O texto visível de um trecho de HTML, para saber se o bloco está vazio."""
+    return re.sub(r'<[^>]+>', '', html or '').replace('&nbsp;', ' ').strip()
+
+
+ALINHA_IMG = {'esq': 'flex-start', 'centro': 'center', 'dir': 'flex-end'}
+ROTULO_ALINHA = {'esq': 'À esquerda', 'centro': 'Centralizada', 'dir': 'À direita'}
+LARGURAS_IMG = {100: 'Largura total', 75: '3/4 da largura', 50: 'Metade',
+                33: 'Um terço', 25: 'Um quarto'}
+ESTILOS_TEXTO = {'normal': 'Normal', 'destaque': 'Destaque (fundo azul claro)',
+                 'aviso': 'Aviso (fundo amarelo)', 'quadro': 'Quadro (com contorno)'}
+
+
+def agrupar_blocos(linhas):
+    """Blocos da página prontos para desenhar. Imagens seguidas entram na mesma
+    fileira e se acomodam lado a lado conforme a largura de cada uma."""
+    saida = []
+    for b in linhas:
+        ativo = bool(b['ativo'])
+        if b['tipo'] == 'imagem':
+            if not b['arquivo']:
+                continue
+            item = {'id': b['id'], 'arquivo': b['arquivo'], 'ativo': ativo,
+                    'legenda': b['texto'] or '',
+                    'url': endereco_seguro(b['url']),
+                    'larg': b['larg'] if b['larg'] in LARGURAS_IMG else 100,
+                    'alinh': b['alinh'] if b['alinh'] in ALINHA_IMG else 'centro'}
+            if saida and saida[-1]['tipo'] == 'imagens':
+                saida[-1]['itens'].append(item)
+            else:
+                saida.append({'tipo': 'imagens', 'itens': [item]})
+        elif b['tipo'] == 'subtitulo':
+            if (b['texto'] or '').strip():
+                saida.append({'tipo': 'subtitulo', 'id': b['id'], 'ativo': ativo,
+                              'texto': b['texto'].strip(), 'url': endereco_seguro(b['url'])})
+        elif b['tipo'] == 'botao':
+            if (b['texto'] or '').strip() and endereco_seguro(b['url']):
+                saida.append({'tipo': 'botao', 'id': b['id'], 'ativo': ativo,
+                              'texto': b['texto'].strip(), 'url': endereco_seguro(b['url']),
+                              'alinh': b['alinh'] if b['alinh'] in ALINHA_IMG else 'esq'})
+        else:
+            html = (limpa_html(b['texto']) if b['formato'] == 'html'
+                    else texto_para_html(b['texto']))
+            if so_texto(html) or '<li' in html or '<img' in html:
+                saida.append({'tipo': 'texto', 'id': b['id'], 'ativo': ativo,
+                              'html': Markup(html),
+                              'estilo': b['estilo'] if b['estilo'] in ESTILOS_TEXTO else 'normal'})
+    for g in saida:
+        if g['tipo'] == 'imagens':
+            g['justifica'] = ALINHA_IMG[g['itens'][0]['alinh']]
+    return saida
+
+
+def _dt_banco(valor):
+    """'2026-10-21T05:30' (campo datetime-local) -> '2026-10-21 05:30:00'.
+    Devolve '' se não for uma data válida."""
+    valor = (valor or '').strip().replace('T', ' ')
+    for formato in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+        try:
+            return datetime.strptime(valor, formato).strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            continue
+    return ''
+
+
+def _dt_exibe(valor):
+    """'2026-10-21 05:30:00' -> '21/10/2026 05h30'."""
+    try:
+        return datetime.strptime((valor or '')[:16], '%Y-%m-%d %H:%M').strftime('%d/%m/%Y %Hh%M')
+    except ValueError:
+        return ''
+
+
+def _dt_campo(valor):
+    """'2026-10-21 05:30:00' -> '2026-10-21T05:30' (valor de datetime-local)."""
+    return (valor or '')[:16].replace(' ', 'T')
+
+
+def pagina_tocada(con, chave):
+    """Marca a página como atualizada agora. Chamada a cada alteração do
+    conteúdo, para o "Atualizada em" do cabeçalho nunca ficar desatualizado."""
+    con.execute("UPDATE paginas_lateral SET atualizada_em=datetime('now','localtime')"
+                " WHERE chave=?", (chave,))
+
+
+def cabecalho_pagina(item):
+    """Cabeçalho de matéria de uma página de conteúdo, pronto para o template:
+    chapéu, linha fina, autor e datas, foto de capa e resumo. Campo vazio fica
+    de fora; página sem nenhum deles mostra só o título, como sempre mostrou."""
+    def txt(campo):
+        return (item[campo] or '').strip()
+    autor = txt('autor')
+    publicada = _dt_exibe(item['publicada_em'])
+    atualizada = _dt_exibe(item['atualizada_em'])
+    # "Atualizada em" só acompanha uma assinatura: numa página sem autor nem data
+    # de publicação ele apareceria sozinho, só porque alguém mexeu num bloco.
+    if not (autor or publicada) or atualizada == publicada:
+        atualizada = ''
+    capa = os.path.basename(item['capa'] or '')
+    if capa and not os.path.isfile(os.path.join(UPLOAD_DIR, capa)):
+        capa = ''
+    legenda = txt('capa_legenda')
+    resumo = [l.strip()[:200] for l in (item['resumo'] or '').splitlines() if l.strip()][:6]
+    return {
+        'chapeu': txt('chapeu'), 'linha_fina': txt('linha_fina'), 'autor': autor,
+        'publicada': publicada, 'atualizada': atualizada,
+        'capa': capa,
+        'capa_url': url_for('static', filename='uploads/' + capa) if capa else '',
+        'capa_alt': modulos.midia.alt_de(capa, legenda) if capa else '',
+        'legenda': legenda, 'credito': txt('capa_credito'),
+        'resumo': resumo if item['mostrar_resumo'] else [],
+        'leia': bool(item['mostrar_leia']),
+    }
+
+
+def leia_tambem(limite=3):
+    """As últimas notícias publicadas, para o "Leia também" no fim da página."""
+    saida = []
+    for n in modulos.noticias.recentes(limite):
+        destino = n['destino_url'] or url_for('noticia', slug=n['slug'])
+        saida.append({'titulo': n['titulo'], 'url': destino,
+                      'externo': destino.startswith('http'),
+                      'data': modulos.noticias._data_br(n['publicar_em']),
+                      'capa': n['capa'] or '',
+                      'alt': n['capa_alt'] or ''})
+    return saida
+
+
+def blocos_para_html(linhas):
+    """Blocos antigos da página (subtítulo, texto, imagem, botão) como um único
+    HTML, para abrir no editor livre sem perder o que já foi escrito."""
+    partes = []
+    for b in linhas:
+        if not b['ativo']:
+            continue
+        t = b['tipo']
+        if t == 'subtitulo' and (b['texto'] or '').strip():
+            partes.append(f"<h2>{escape(b['texto'].strip())}</h2>")
+        elif t == 'texto':
+            partes.append(limpa_html(b['texto']) if b['formato'] == 'html'
+                          else str(texto_para_html(b['texto'])))
+        elif t == 'imagem' and b['arquivo']:
+            cls = {'esq': 'im-bloco', 'dir': 'im-bloco-dir'}.get(b['alinh'], 'im-centro')
+            w = f' data-w="{int(b["larg"])}"' if (b['larg'] or 100) < 100 else ''
+            img = (f'<img src="/static/uploads/{escape(os.path.basename(b["arquivo"]))}" '
+                   f'alt="{escape(b["texto"] or "")}" class="{cls}"{w}>')
+            if b['url']:
+                img = f'<a href="{escape(b["url"])}">{img}</a>'
+            partes.append(f'<p>{img}</p>')
+        elif t == 'botao' and b['url']:
+            partes.append(f'<p><a href="{escape(b["url"])}">{escape(b["texto"] or b["url"])}</a></p>')
+    return limpa_html(''.join(partes))
+
+
 @app.route('/modulo/<chave>')
 def modulo(chave):
-    row = db().execute('SELECT nome FROM menu_itens WHERE chave=?', (chave,)).fetchone()
+    row = db().execute('SELECT * FROM paginas_lateral WHERE chave=?', (chave,)).fetchone()
     if not row:
         abort(404)
-    return render_template('modulo.html', chave=chave, nome=row['nome'])
+    cab = cabecalho_pagina(row)
+    leia = leia_tambem() if cab['leia'] else []
+    admin = bool(session.get('admin'))
+    # O administrador vê também os blocos ocultos (esmaecidos): é por eles que
+    # edita a página diretamente, com o botão direito.
+    linhas = db().execute('SELECT * FROM pagina_blocos WHERE chave=?'
+                          + ('' if admin else ' AND ativo=1') + ' ORDER BY ordem, id',
+                          (chave,)).fetchall()
+    cru = []
+    if admin:
+        for b in linhas:
+            html = ''
+            if b['tipo'] == 'texto':
+                html = (limpa_html(b['texto']) if b['formato'] == 'html'
+                        else texto_para_html(b['texto']))
+            cru.append({'id': b['id'], 'tipo': b['tipo'], 'ativo': bool(b['ativo']),
+                        'texto': html if b['tipo'] == 'texto' else (b['texto'] or ''),
+                        'url': b['url'] or '', 'larg': b['larg'], 'alinh': b['alinh'],
+                        'estilo': b['estilo'],
+                        'imagem': url_for('static', filename='uploads/' + b['arquivo'])
+                                  if b['arquivo'] else ''})
+    corpo = limpa_html(row['corpo'] or '') if (row['corpo'] or '').strip() else ''
+    return render_template('modulo.html', chave=chave, nome=row['nome'],
+                           cab=cab, leia=leia, corpo=Markup(corpo),
+                           corpo_editar=Markup(corpo or (blocos_para_html(linhas) if admin else '')),
+                           cab_campos=row if admin else None,
+                           blocos=agrupar_blocos(linhas), edicao=admin, blocos_cru=cru,
+                           destinos=destinos_de_links() if admin else [],
+                           larguras=LARGURAS_IMG, alinhamentos=ROTULO_ALINHA,
+                           estilos=ESTILOS_TEXTO)
+
+
+DIAS_SEMANA = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira',
+               'sexta-feira', 'sábado', 'domingo']
+
+
+def data_extenso():
+    """"segunda-feira, 19 de outubro" — para a faixa do topo. Calculada a cada
+    resposta, pelo mesmo motivo do ano do rodapé."""
+    h = datetime.now()
+    return f'{DIAS_SEMANA[h.weekday()]}, {h.day} de {MESES[h.month - 1].lower()}'
 
 
 @app.context_processor
@@ -1331,11 +1966,15 @@ def _injeta():
         "SELECT COUNT(*) c FROM lateral WHERE ativo=1 AND urgencia='urgente'"
     ).fetchone()['c']
     return {'cfg': cfg(), 'csrf_token': token_csrf(),
+            'faixa_links': linhas_faixa(cfg('faixa_links')),
+            'destaque': dados_destaque(),
             'fundo_nome': fundo, 'fundo_versao': fundo_v,
             'logo_nome': logo, 'logo_versao': logo_v,
             'tem_ramais': tem_ramais, 'menu': menu, 'versao': VERSAO,
+            'paginas_lateral': montar_paginas(),
             # calculado a cada resposta: a virada de ano não exige reiniciar
             'ano_atual': datetime.now().year,
+            'data_extenso': data_extenso(),
             'meses': MESES,
             'mes_numero': datetime.now().month,
             'mes_atual_nome': MESES[datetime.now().month - 1],
@@ -1467,9 +2106,16 @@ def login():
     if request.method == 'POST':
         usuario = (request.form.get('usuario') or '').strip()
         senha   = request.form.get('senha') or ''
+        espera = modulos.seguranca.espera_login(usuario)
+        if espera:
+            minutos = -(-espera // 60)
+            modulos.auditoria.registrar('login bloqueado', usuario, 'muitas tentativas', usuario=usuario)
+            return render_template(
+                'login.html', erro=f'Muitas tentativas de acesso. Tente de novo em {minutos} minuto(s).'), 429
         row = db().execute('SELECT * FROM usuarios WHERE usuario=? AND ativo=1',
                            (usuario,)).fetchone()
         if row and check_password_hash(row['senha_hash'], senha):
+            modulos.seguranca.limpa_falhas(usuario)
             session.clear()
             session['uid']   = row['id']
             session['user']  = row['usuario']
@@ -1478,6 +2124,7 @@ def login():
             # Guarda o acesso anterior antes de gravar o de agora — quem entra
             # quer ver quando esteve aqui da última vez, não o relógio atual.
             session['ultimo_acesso'] = row['ultimo_acesso'] or ''
+            modulos.auditoria.registrar('login', row['usuario'], 'acesso ao portal')
             con = db()
             con.execute("UPDATE usuarios SET ultimo_acesso=datetime('now','localtime')"
                         ' WHERE id=?', (row['id'],))
@@ -1489,6 +2136,8 @@ def login():
             if not destino.startswith('/') or destino.startswith('//'):
                 destino = url_for('index')
             return redirect(destino)
+        modulos.seguranca.registra_falha(usuario)
+        modulos.auditoria.registrar('login falhou', usuario, 'usuário ou senha inválidos', usuario=usuario)
         erro = 'Usuário ou senha inválidos.'
     return render_template('login.html', erro=erro)
 
@@ -1645,15 +2294,23 @@ def index():
 
     livre = layout_livre_ativo()
     cartoes_livre = []
+    lateral_livre = {}
     if livre:
         _livre_converter(con)
+        _lateral_garantir(con)
+        lateral_livre = _lateral_posicoes(con)
         for c in cartoes_do_painel(so_ativos=True):
             cartoes_livre.append((c, itens_por_cartao.get(c['chave'], [])))
         cartoes_livre.sort(key=lambda par: (par[0]['gy'], par[0]['gx']))
 
     return render_template(
         'index.html', numeros=numeros, saudacao=saudacao(),
+        noticias_recentes=modulos.noticias.recentes(5),
         cartoes_painel=cartoes_painel, livre=livre, cartoes_livre=cartoes_livre,
+        lateral_livre=lateral_livre,
+        destinos_links=destinos_de_links() if session.get('admin') else [],
+        dados_conteudo=modulos.cartoes.dados_edicao() if session.get('admin') else {},
+        cartoes_ocultos=modulos.cartoes.ocultos() if (session.get('admin') and livre) else [],
         sistemas=agrupar_por_categoria(sistemas_todos),
         sistemas_total=len(sistemas_todos),
         atalhos=con.execute("SELECT * FROM links WHERE ativo=1 AND grupo='atalho'"
@@ -1690,20 +2347,35 @@ def salva_upload(campo, atual='', exts=None):
     """Grava um arquivo enviado e devolve o nome final (ou o atual, se nada veio)."""
     arq = request.files.get(campo)
     if not arq or not arq.filename:
+        # Imagem escolhida na biblioteca (campo "<campo>_biblioteca"): reaproveita
+        # o arquivo já enviado em vez de gravar outra cópia.
+        escolhida = os.path.basename(request.form.get(campo + '_biblioteca', '') or '')
+        if (escolhida and not exts and modulos.midia.registrada(escolhida)
+                and os.path.isfile(os.path.join(UPLOAD_DIR, escolhida))):
+            return escolhida
         return atual
     ext = os.path.splitext(arq.filename)[1].lower()
     if ext not in (exts or EXT_OK):
         raise ValueError('Formato de vídeo não aceito. Use MP4, WEBM ou OGG.'
                          if exts else
                          'Formato não aceito. Use PNG, JPG, WEBP ou GIF.')
+    if not modulos.seguranca.conteudo_confere(arq, ext):
+        raise ValueError('O arquivo não é uma imagem ou vídeo válido: o conteúdo não '
+                         'corresponde ao formato informado.')
     nome = f"{secrets.token_hex(8)}{ext}"
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     arq.save(os.path.join(UPLOAD_DIR, nome))
+    modulos.midia.registrar_arquivo(nome, arq.filename,
+                                    os.path.getsize(os.path.join(UPLOAD_DIR, nome)))
     return nome
 
 
 def remove_upload(nome):
     if not nome:
+        return
+    # Imagem catalogada na biblioteca só sai por ela (e só se não estiver em uso):
+    # outra página, banner ou notícia pode estar usando o mesmo arquivo.
+    if modulos.midia.registrada(nome):
         return
     caminho = os.path.join(UPLOAD_DIR, secure_filename(nome))
     if os.path.isfile(caminho):
@@ -2162,6 +2834,63 @@ def layout_livre_ativo():
     return cfg('layout_livre') == '1'
 
 
+# A lista de páginas e o cartão "Em destaque" (a barra lateral) também são
+# cartões do quadro livre. Não são linhas de `cartoes_painel`; a posição de
+# cada um fica em `config` como "gx,gy,gw,gh".
+LATERAL_LIVRE = {'paginas': 'livre_pos_paginas', 'destaque': 'livre_pos_destaque'}
+LATERAL_COLUNAS = 3          # largura inicial da barra, em colunas do quadro
+
+
+def _lateral_posicoes(con):
+    """Posição dos cartões da barra lateral no quadro livre ({chave: dict})."""
+    saida = {}
+    for chave, k in LATERAL_LIVRE.items():
+        r = con.execute('SELECT valor FROM config WHERE chave=?', (k,)).fetchone()
+        try:
+            gx, gy, gw, gh = [int(x) for x in (r['valor'] if r else '').split(',')]
+        except ValueError:
+            continue
+        saida[chave] = {'chave': chave, 'gx': gx, 'gy': gy, 'gw': gw, 'gh': gh}
+    return saida
+
+
+def lateral_desenhada(chave):
+    """A lista de páginas só ocupa o quadro quando está ligada em Navegação.
+    O cartão "Em destaque" aparece sempre no editor (desligado, com o convite
+    para ligar). Um cartão que não é desenhado não pode bloquear o espaço dele."""
+    if chave == 'paginas':
+        return cfg('lista_paginas_ativa') == '1'
+    return True
+
+
+def _lateral_gravar(con, chave, gx, gy, gw, gh):
+    con.execute('INSERT INTO config (chave,valor) VALUES (?,?) '
+                'ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor',
+                (LATERAL_LIVRE[chave], f'{gx},{gy},{gw},{gh}'))
+
+
+def _lateral_garantir(con):
+    """Dá lugar à barra lateral no quadro, uma única vez.
+
+    Os cartões que já existem são espremidos para as colunas da direita (as
+    fronteiras são arredondadas juntas, então nada passa a se sobrepor) e a
+    barra ocupa as colunas da esquerda."""
+    if con.execute("SELECT 1 FROM config WHERE chave='livre_lateral'").fetchone() \
+            and len(_lateral_posicoes(con)) == len(LATERAL_LIVRE):
+        return
+    n = LATERAL_COLUNAS
+    util = LIVRE_COLUNAS - n
+    for c in con.execute('SELECT chave,gx,gw FROM cartoes_painel WHERE gw>0').fetchall():
+        x0 = round(c['gx'] * util / LIVRE_COLUNAS)
+        x1 = max(x0 + 1, round((c['gx'] + c['gw']) * util / LIVRE_COLUNAS))
+        con.execute('UPDATE cartoes_painel SET gx=?,gw=? WHERE chave=?',
+                    (n + x0, x1 - x0, c['chave']))
+    _lateral_gravar(con, 'paginas', 0, 0, n, 16)
+    _lateral_gravar(con, 'destaque', 0, 16, n, 9)
+    con.execute("INSERT OR REPLACE INTO config (chave,valor) VALUES ('livre_lateral','1')")
+    con.commit()
+
+
 def _livre_converter(con, so_sem_posicao=True):
     """Dá posição no quadro livre a partir das regiões e colunas de hoje.
 
@@ -2180,6 +2909,9 @@ def _livre_converter(con, so_sem_posicao=True):
             if c['gw'] > 0:
                 for i in range(c['gx'], min(LIVRE_COLUNAS, c['gx'] + c['gw'])):
                     topo[i] = max(topo[i], c['gy'] + c['gh'])
+        for p in _lateral_posicoes(con).values():
+            for i in range(p['gx'], min(LIVRE_COLUNAS, p['gx'] + p['gw'])):
+                topo[i] = max(topo[i], p['gy'] + p['gh'])
         base = max(topo)
         for c in todos:
             if c['gw'] > 0:
@@ -2229,6 +2961,8 @@ def admin_layout_livre():
     acao = request.form.get('acao')
     if acao in ('ativar', 'refazer'):
         _livre_converter(con, so_sem_posicao=(acao == 'ativar'))
+        if acao == 'refazer':
+            con.execute("DELETE FROM config WHERE chave='livre_lateral'")
         valor = '1'
     elif acao == 'desativar':
         valor = '0'
@@ -2263,6 +2997,8 @@ def admin_cartao_pos():
         abort(400)
     cartoes = {r['chave']: dict(r) for r in con.execute(
         'SELECT * FROM cartoes_painel WHERE ativo=1')}
+    cartoes.update({k: v for k, v in _lateral_posicoes(con).items()
+                    if lateral_desenhada(k)})
     novos = {}
     for p in lista:
         chave = str(p.get('chave', ''))
@@ -2275,14 +3011,15 @@ def admin_cartao_pos():
             return jsonify(ok=False, erro='Posição fora do quadro.'), 400
         cartoes[chave].update(gx=gx, gy=gy, gw=gw, gh=gh)
         novos[chave] = (gx, gy, gw, gh)
-    pos = [c for c in cartoes.values() if c['gw'] > 0]
-    for i, a in enumerate(pos):
-        for b in pos[i + 1:]:
-            if _livre_sobrepoe(a, b):
-                return jsonify(ok=False, erro='Esse espaço já está ocupado por outro cartão.'), 409
+    # Sobrepor é permitido (o administrador aproxima os cartões como quiser).
+    # O cartão mexido vai para a frente: z = maior z atual + 1.
     for chave, v in novos.items():
-        con.execute('UPDATE cartoes_painel SET gx=?,gy=?,gw=?,gh=? WHERE chave=?',
-                    v + (chave,))
+        if chave in LATERAL_LIVRE:
+            _lateral_gravar(con, chave, *v)
+        else:
+            con.execute('UPDATE cartoes_painel SET gx=?,gy=?,gw=?,gh=?,'
+                        'z=(SELECT COALESCE(MAX(z),0)+1 FROM cartoes_painel) WHERE chave=?',
+                        v + (chave,))
     con.commit()
     return jsonify(ok=True)
 
@@ -2346,6 +3083,46 @@ def admin_mapa():
                            alturas=CARTAO_ALTURAS)
 
 
+# Listas do painel que têm a caixa "visível": chave enviada pela tela -> (tabela,
+# coluna que dá nome ao item no histórico). Lista fechada: o nome da tabela nunca
+# vem do navegador, só a chave.
+LISTAS_VISIVEL = {
+    'menu':            ('paginas_lateral', 'nome'),
+    'links':           ('links', 'titulo'),
+    'lateral':         ('lateral', 'titulo'),
+    'banners':         ('banners', 'titulo'),
+    'ramais':          ('ramais', 'setor'),
+    'escalas':         ('escalas', 'turno'),
+    'aniversariantes': ('aniversariantes', 'nome'),
+    'chamados':        ('chamados', 'titulo'),
+}
+
+
+@app.route('/admin/visivel', methods=['POST'])
+@admin_obrigatorio
+def admin_visivel():
+    """Liga ou desliga "visível" de um item da lista, sem abrir o formulário de
+    edição. Responde em JSON; o CSRF e o login já foram conferidos."""
+    lista = LISTAS_VISIVEL.get(request.form.get('lista', ''))
+    ident = _int(request.form.get('id'))
+    if not lista or not ident:
+        return jsonify(ok=False, erro='Item inválido.'), 400
+    tabela, coluna_nome = lista
+    con = db()
+    linha = con.execute(f'SELECT {coluna_nome} AS nome FROM {tabela} WHERE id=?',
+                        (ident,)).fetchone()
+    if not linha:
+        return jsonify(ok=False, erro='Este item não existe mais. Atualize a página.'), 404
+    valor = 1 if request.form.get('valor') == '1' else 0
+    con.execute(f'UPDATE {tabela} SET ativo=? WHERE id=?', (valor, ident))
+    con.commit()
+    modulos.auditoria.registrar(
+        'visibilidade', request.form.get('lista', ''),
+        f"id={ident} · {(str(linha['nome'] or '')).strip()[:120]} · "
+        + ('visível' if valor else 'oculto'))
+    return jsonify(ok=True, ativo=bool(valor))
+
+
 @app.route('/admin/ramais', methods=['GET', 'POST'])
 @admin_obrigatorio
 def admin_ramais():
@@ -2361,6 +3138,14 @@ def admin_ramais():
         if acao == 'aparencia_cartao':
             salvar_aparencia_cartao('ramais')
             return redirect(url_for('admin_ramais'))
+
+        if acao == 'destaque':
+            # Caixa de seleção da lista: grava na hora, sem abrir o ramal.
+            con.execute('UPDATE ramais SET destaque=? WHERE id=?',
+                        (1 if request.form.get('valor') == '1' else 0, ident))
+            con.commit()
+            return jsonify(ok=True, total=con.execute(
+                'SELECT COUNT(*) FROM ramais WHERE destaque=1 AND ativo=1').fetchone()[0])
 
         if acao == 'excluir':
             con.execute('DELETE FROM ramais WHERE id=?', (ident,))
@@ -2499,7 +3284,7 @@ BLOCOS = {
     },
     'menu': {
         'titulo': 'Menu lateral',
-        'tabela': 'menu_itens',
+        'tabela': 'paginas_lateral',
         'campos': ['nome', 'icone', 'url', 'ordem'],
         'obrigatorios': ['nome'],
         'ordem': 'ordem, id',
@@ -2684,6 +3469,18 @@ def admin_painel():
         if acao == 'ordenar':
             return reordenar(tabela)
         if acao == 'excluir':
+            if tabela == 'paginas_lateral':
+                # O conteúdo da página (textos e imagens) sai junto com o item;
+                # senão ficaria órfão, ocupando espaço em uploads/.
+                morto = con.execute('SELECT chave, capa FROM paginas_lateral WHERE id=?',
+                                    (ident,)).fetchone()
+                if morto:
+                    remove_upload(morto['capa'])    # a foto de capa também
+                    for b in con.execute('SELECT arquivo FROM pagina_blocos'
+                                         ' WHERE chave=?', (morto['chave'],)):
+                        remove_upload(b['arquivo'])
+                    con.execute('DELETE FROM pagina_blocos WHERE chave=?',
+                                (morto['chave'],))
             con.execute(f'DELETE FROM {tabela} WHERE id=?{e_mais}',
                         [ident] + filtrados)
             flash('Item removido.', 'ok')
@@ -2722,7 +3519,7 @@ def admin_painel():
                         base = re.sub(r'[^a-z0-9]+', '-',
                                       valores[0].lower().strip()).strip('-') or 'item'
                         chave, n = base, 2
-                        while con.execute('SELECT 1 FROM menu_itens WHERE chave=?',
+                        while con.execute('SELECT 1 FROM paginas_lateral WHERE chave=?',
                                           (chave,)).fetchone():
                             chave, n = f'{base}-{n}', n + 1
                         colunas = colunas + ['chave']
@@ -3053,6 +3850,274 @@ def admin_aparencia():
         return redirect(url_for('admin_aparencia'))
     return render_template('admin_aparencia.html', fontes=FONTES_TEXTO)
 
+
+@app.route('/admin/navegacao', methods=['GET', 'POST'])
+@admin_obrigatorio
+def admin_navegacao():
+    """Faixa de links do topo e cartão "Em destaque" da tela inicial."""
+    if request.method == 'POST':
+        def campo(nome, limite):
+            return request.form.get(nome, '').strip()[:limite]
+
+        # Linha sem nome é descartada; o resto é gravado como foi digitado, e
+        # o endereço só é validado na hora de desenhar (linhas_faixa).
+        linhas = [l.strip() for l in request.form.get('faixa_links', '').splitlines()
+                  if l.strip()][:20]
+        novos = {
+            'faixa_links':     '\n'.join(l[:200] for l in linhas),
+            'lista_paginas_ativa': '1' if request.form.get('lista_paginas_ativa') else '0',
+            'destaque_ativo':  '1' if request.form.get('destaque_ativo') else '0',
+            'destaque_rotulo': campo('destaque_rotulo', 40),
+            'destaque_titulo': campo('destaque_titulo', 90),
+            'destaque_texto':  campo('destaque_texto', 220),
+            'destaque_url':    campo('destaque_url', 300),
+            'destaque_cta':    campo('destaque_cta', 40),
+        }
+        con = db()
+        for k, v in novos.items():
+            con.execute('INSERT INTO config (chave,valor) VALUES (?,?) '
+                        'ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor',
+                        (k, v))
+        con.commit()
+        flash('Navegação salva.', 'ok')
+        return redirect(url_for('admin_navegacao'))
+    return render_template('admin_navegacao.html')
+
+
+@app.route('/admin/pagina-rapida', methods=['POST'])
+@admin_obrigatorio
+def admin_pagina_rapida():
+    """Edição da página inteira em uma janela só (cabeçalho, capa e texto livre
+    com imagens), pela própria página. Responde JSON."""
+    con = db()
+    chave = request.form.get('chave', '')
+    item = con.execute('SELECT * FROM paginas_lateral WHERE chave=?', (chave,)).fetchone()
+    if not item:
+        return jsonify(ok=False, erro='Página não encontrada.'), 404
+
+    def campo(nome, limite):
+        return request.form.get(nome, '').strip()[:limite]
+    capa_atual = item['capa'] or ''
+    try:
+        capa = salva_upload('capa_arquivo', capa_atual)
+        biblio = os.path.basename(request.form.get('capa_biblioteca', '') or '')
+        if capa == capa_atual and biblio and modulos.midia.registrada(biblio):
+            capa = biblio
+    except ValueError as e:
+        return jsonify(ok=False, erro=str(e)), 400
+    if request.form.get('remover_capa'):
+        capa = ''
+    resumo = '\n'.join([l.strip()[:200] for l in request.form.get('resumo', '').splitlines()
+                        if l.strip()][:6])
+    con.execute('UPDATE paginas_lateral SET chapeu=?,linha_fina=?,autor=?,publicada_em=?,capa=?,'
+                'capa_legenda=?,capa_credito=?,resumo=?,mostrar_resumo=?,mostrar_leia=?,corpo=?'
+                ' WHERE chave=?',
+                (campo('chapeu', 40), campo('linha_fina', 220), campo('autor', 60),
+                 _dt_banco(request.form.get('publicada_em')), capa,
+                 campo('capa_legenda', 200), campo('capa_credito', 80), resumo,
+                 1 if request.form.get('mostrar_resumo') else 0,
+                 1 if request.form.get('mostrar_leia') else 0,
+                 limpa_html(request.form.get('corpo', '')), chave))
+    pagina_tocada(con, chave)
+    con.commit()
+    return jsonify(ok=True)
+
+
+TIPOS_BLOCO = {'subtitulo': 'Subtítulo', 'texto': 'Texto', 'imagem': 'Imagem',
+               'botao': 'Botão de link'}
+
+
+def destinos_de_links():
+    """Páginas do portal para onde um link pode apontar: (nome, endereço)."""
+    return [('Início', '/'), ('Ramais', '/ramais'), ('Sistemas', '/sistemas')] + \
+        [(r['nome'], r['url'] if (r['url'] or '').startswith('/') else f"/modulo/{r['chave']}") for r in db().execute(
+            'SELECT nome,chave,url FROM paginas_lateral ORDER BY ordem, id')]
+
+
+@app.route('/admin/pagina/<chave>', methods=['GET', 'POST'])
+@admin_obrigatorio
+def admin_pagina(chave):
+    """Editor do conteúdo de uma página do menu: subtítulos, textos formatados e
+    imagens, com prévia da página ao lado do formulário."""
+    con = db()
+    item = con.execute('SELECT * FROM paginas_lateral WHERE chave=?', (chave,)).fetchone()
+    if not item:
+        abort(404)
+    volta = url_for('admin_pagina', chave=chave)
+    ajax = bool(request.form.get('ajax'))
+    ultimo = {'id': 0}
+
+    def fim(destino):
+        """Fim de uma ação: redireciona, ou, na edição direta pela página
+        (ajax), responde em JSON com o erro, se houve."""
+        if not ajax:
+            return redirect(destino)
+        erros = [m for c, m in get_flashed_messages(with_categories=True) if c == 'erro']
+        return jsonify(ok=not erros, erro=' '.join(erros), id=ultimo['id']), (400 if erros else 200)
+
+    if request.method == 'POST':
+        acao = request.form.get('acao')
+        ident = _int(request.form.get('id'))
+        if acao == 'ordenar':
+            pagina_tocada(con, chave)
+            return reordenar('pagina_blocos')
+
+        if acao == 'cabecalho':
+            # Cabeçalho de matéria: chapéu, linha fina, autor, data, capa e resumo.
+            def campo(nome, limite):
+                return request.form.get(nome, '').strip()[:limite]
+            volta_cab = url_for('admin_pagina', chave=chave, cab=1) + '#cabecalho'
+            capa_atual = item['capa'] or ''
+            try:
+                capa = salva_upload('capa_arquivo', capa_atual)
+            except ValueError as e:
+                flash(str(e), 'erro')
+                return redirect(volta_cab)
+            if request.form.get('remover_capa') and capa == capa_atual:
+                capa = ''
+            if capa_atual and capa != capa_atual:
+                remove_upload(capa_atual)      # a da biblioteca fica; só sai a avulsa
+            resumo = '\n'.join([l.strip()[:200] for l in
+                                request.form.get('resumo', '').splitlines() if l.strip()][:6])
+            con.execute('UPDATE paginas_lateral SET chapeu=?,linha_fina=?,autor=?,publicada_em=?,'
+                        'capa=?,capa_legenda=?,capa_credito=?,resumo=?,mostrar_resumo=?,'
+                        'mostrar_leia=? WHERE chave=?',
+                        (campo('chapeu', 40), campo('linha_fina', 220), campo('autor', 60),
+                         _dt_banco(request.form.get('publicada_em')), capa,
+                         campo('capa_legenda', 200), campo('capa_credito', 80), resumo,
+                         1 if request.form.get('mostrar_resumo') else 0,
+                         1 if request.form.get('mostrar_leia') else 0, chave))
+            pagina_tocada(con, chave)
+            con.commit()
+            flash('Cabeçalho da página salvo.', 'ok')
+            return redirect(volta_cab)
+
+        atual = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
+                            (ident, chave)).fetchone() if ident else None
+
+        if acao == 'excluir':
+            if atual:
+                remove_upload(atual['arquivo'])
+                con.execute('DELETE FROM pagina_blocos WHERE id=?', (ident,))
+                pagina_tocada(con, chave)
+                con.commit()
+                flash('Bloco removido.', 'ok')
+            return fim(volta)
+
+        if acao == 'mover':
+            ids = [r['id'] for r in con.execute(
+                'SELECT id FROM pagina_blocos WHERE chave=? ORDER BY ordem, id', (chave,))]
+            if atual and ident in ids:
+                i = ids.index(ident)
+                j = i - 1 if request.form.get('direcao') == 'subir' else i + 1
+                if 0 <= j < len(ids):
+                    ids[i], ids[j] = ids[j], ids[i]
+                for pos, bid in enumerate(ids):
+                    con.execute('UPDATE pagina_blocos SET ordem=? WHERE id=?', (pos, bid))
+                pagina_tocada(con, chave)
+                con.commit()
+            return fim(f'{volta}#b{ident}')
+
+        tipo = request.form.get('tipo') if request.form.get('tipo') in TIPOS_BLOCO else 'texto'
+        if atual:
+            tipo = atual['tipo']        # o tipo de um bloco existente não muda
+        larg = _int(request.form.get('larg'), 100)
+        larg = larg if larg in LARGURAS_IMG else 100
+        alinh = request.form.get('alinh') if request.form.get('alinh') in ALINHA_IMG else 'centro'
+        estilo = request.form.get('estilo') if request.form.get('estilo') in ESTILOS_TEXTO else 'normal'
+        formato, arquivo = 'texto', ''
+        # Para onde o clique leva (subtítulo, imagem e botão). Interno (/modulo/x)
+        # ou externo; qualquer outra coisa é descartada por `endereco_seguro`.
+        url = endereco_seguro(request.form.get('url', '')) if tipo != 'texto' else ''
+        if tipo == 'texto':
+            # O editor manda HTML; é limpo aqui, e só o resultado é guardado.
+            texto, formato = limpa_html(request.form.get('html', '')), 'html'
+            vazio = not (so_texto(texto) or '<li' in texto or '<img' in texto)
+        elif tipo == 'subtitulo':
+            texto = request.form.get('texto', '').strip()[:200]
+            vazio = not texto
+        elif tipo == 'botao':
+            texto = request.form.get('texto', '').strip()[:100]
+            vazio = not (texto and url)
+        else:
+            texto = request.form.get('texto', '').strip()[:300]
+            try:
+                arquivo = salva_upload('arquivo', atual['arquivo'] if atual else '')
+            except ValueError as e:
+                flash(str(e), 'erro')
+                return fim(volta)
+            if atual and atual['arquivo'] and arquivo != atual['arquivo']:
+                remove_upload(atual['arquivo'])      # trocou a imagem: a antiga sai
+            vazio = not arquivo
+
+        ativo = 1 if request.form.get('ativo') else 0
+        if vazio:
+            flash('Escolha uma imagem para este bloco.' if tipo == 'imagem'
+                  else 'Informe o texto e o endereço do botão.' if tipo == 'botao'
+                  else 'Escreva o conteúdo do bloco.', 'erro')
+        elif atual:
+            con.execute('UPDATE pagina_blocos SET texto=?,arquivo=?,ativo=?,larg=?,'
+                        'alinh=?,estilo=?,formato=?,url=? WHERE id=?',
+                        (texto, arquivo, ativo, larg, alinh, estilo, formato, url, ident))
+            pagina_tocada(con, chave)
+            con.commit()
+            flash('Bloco atualizado.', 'ok')
+            ultimo['id'] = ident
+            return fim(url_for('admin_pagina', chave=chave, editar=ident) + f'#b{ident}')
+        else:
+            proxima = con.execute('SELECT COALESCE(MAX(ordem),-1)+1 FROM pagina_blocos'
+                                  ' WHERE chave=?', (chave,)).fetchone()[0]
+            novo = con.execute(
+                'INSERT INTO pagina_blocos (chave,tipo,texto,arquivo,ordem,ativo,larg,'
+                'alinh,estilo,formato,url) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                (chave, tipo, texto, arquivo, proxima, ativo, larg, alinh, estilo, formato, url))
+            pagina_tocada(con, chave)
+            con.commit()
+            ultimo['id'] = novo.lastrowid
+            # "Adicionar aqui" (edição direta): entra logo depois do bloco indicado.
+            depois = request.form.get('depois', '')
+            if depois != '':
+                ids = [r['id'] for r in con.execute(
+                    'SELECT id FROM pagina_blocos WHERE chave=? AND id<>? ORDER BY ordem, id',
+                    (chave, novo.lastrowid))]
+                pos = ids.index(_int(depois)) + 1 if _int(depois) in ids else (0 if depois == '0' else len(ids))
+                ids.insert(pos, novo.lastrowid)
+                for n, bid in enumerate(ids):
+                    con.execute('UPDATE pagina_blocos SET ordem=? WHERE id=?', (n, bid))
+                con.commit()
+            flash('Bloco adicionado.', 'ok')
+            return fim(f'{volta}#b{novo.lastrowid}')
+        return fim(volta)
+
+    editar = None
+    if request.args.get('editar'):
+        editar = con.execute('SELECT * FROM pagina_blocos WHERE id=? AND chave=?',
+                             (_int(request.args['editar']), chave)).fetchone()
+    html_editar = ''
+    if editar and editar['tipo'] == 'texto':
+        html_editar = Markup(limpa_html(editar['texto']) if editar['formato'] == 'html'
+                             else texto_para_html(editar['texto']))
+    linhas = con.execute('SELECT * FROM pagina_blocos WHERE chave=?'
+                         ' ORDER BY ordem, id', (chave,)).fetchall()
+    cab = cabecalho_pagina(item)
+    return render_template(
+        'admin_pagina.html', item=item, editar=editar, tipos=TIPOS_BLOCO,
+        html_editar=html_editar, larguras=LARGURAS_IMG, alinhamentos=ROTULO_ALINHA,
+        estilos=ESTILOS_TEXTO, blocos=agrupar_blocos(linhas), total=len(linhas),
+        destinos=destinos_de_links(), cab=cab,
+        leia=leia_tambem() if cab['leia'] else [],
+        cab_aberto=bool(request.args.get('cab')),
+        publicada_campo=_dt_campo(item['publicada_em']),
+        categorias=modulos.noticias.categorias(),
+        biblioteca=modulos.midia.itens(limite=100))
+
+
+# Recursos em módulos (ver modulos/__init__.py). Rodando como `python app.py`, o
+# módulo se chama __main__; o alias evita que os módulos importem uma segunda
+# cópia do núcleo.
+sys.modules.setdefault('app', sys.modules[__name__])
+import modulos                                  # noqa: E402  (registra as rotas)
+SCHEMA += modulos.SCHEMA
 
 init_db()
 

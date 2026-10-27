@@ -4,16 +4,21 @@
 <main class="pagina pagina-admin">
   <nav class="abas">
     <a href="{{ url_for('admin') }}" class="{{ 'ativa' if aba=='inicio' }}">Visão geral</a>
+    <a href="{{ url_for('admin_noticias') }}" class="{{ 'ativa' if aba=='noticias' }}">Notícias</a>
+    <a href="{{ url_for('admin_midia') }}" class="{{ 'ativa' if aba=='midia' }}">Mídia</a>
     <a href="{{ url_for('admin_links') }}" class="{{ 'ativa' if aba=='links' }}">Sistemas e atalhos</a>
     <a href="{{ url_for('admin_banners') }}" class="{{ 'ativa' if aba=='banners' }}">Banner</a>
     <a href="{{ url_for('admin_lateral') }}" class="{{ 'ativa' if aba=='painel' }}">Cartões do painel</a>
     <a href="{{ url_for('admin_mapa') }}" class="{{ 'ativa' if aba=='mapa' }}">Mapa do painel</a>
+    <a href="{{ url_for('admin_navegacao') }}" class="{{ 'ativa' if aba=='navegacao' }}">Navegação</a>
     <a href="{{ url_for('admin_ramais') }}" class="{{ 'ativa' if aba=='ramais' }}">Ramais</a>
     <a href="{{ url_for('admin_usuarios') }}" class="{{ 'ativa' if aba=='usuarios' }}">Usuários</a>
     <a href="{{ url_for('admin_aparencia') }}" class="{{ 'ativa' if aba=='aparencia' }}">Aparência</a>
     <a href="{{ url_for('admin_icones') }}" class="{{ 'ativa' if aba=='icones' }}">Ícones</a>
+    <a href="{{ url_for('admin_historico') }}" class="{{ 'ativa' if aba=='historico' }}">Histórico</a>
     <a href="{{ url_for('admin_backup') }}" class="{{ 'ativa' if aba=='backup' }}">Backup</a>
   </nav>
   {% block admin %}{% endblock %}
 </main>
+<script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,11 @@
+{#  Caixa "visível" das listas do painel: marca ou desmarca na hora, sem abrir o
+    item para editar. Quem grava é static/visivel.js (POST em /admin/visivel).
+    {{ v.caixa('ramais', i.id, i.ativo, i.setor) }}
+    Sem `with context`: não depende de nada além dos argumentos. #}
+{% macro caixa(lista, id, ativo, nome='') %}
+<label class="vis-caixa">
+  <input type="checkbox" class="marca-visivel" data-lista="{{ lista }}" data-id="{{ id }}"
+         {{ 'checked' if ativo }} aria-label="Exibir {{ nome or 'este item' }} no portal">
+  <span class="tag {{ 'tag-ok' if ativo }}" data-vis>{{ 'visível' if ativo else 'oculto' }}</span>
+</label>
+{% endmacro %}

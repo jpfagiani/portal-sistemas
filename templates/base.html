@@ -20,6 +20,7 @@
    quando há várias abertas. Página que não se nomeia mostra só a sigla, em vez
    do "CDPNI — CDPNI" que saía quando o bloco caía no valor padrão. #}
 {%- set nome_pagina %}{% block titulo %}{% endblock %}{% endset -%}
+{% block meta %}{% endblock %}
 <title>{% if nome_pagina|trim %}{{ nome_pagina|trim }} {% endif %}{{ cfg.site_sigla }}</title>
 <link rel="icon" href="{{ url_for('static', filename=logo_nome) }}?v={{ logo_versao }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">

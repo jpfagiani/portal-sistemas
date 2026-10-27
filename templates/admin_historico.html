@@ -1,0 +1,37 @@
+{% extends 'admin_base.html' %}
+{% set aba = 'historico' %}
+{% block titulo %}Histórico{% endblock %}
+{% block admin %}
+<section class="painel-caixa">
+  <h2>Histórico de alterações ({{ total }})</h2>
+  <p class="dica">Quem alterou o quê na administração. Senhas e chaves nunca são registradas.</p>
+  <form method="get" class="hist-busca">
+    <input type="search" name="q" value="{{ busca }}" placeholder="Buscar por usuário, ação ou assunto…" aria-label="Buscar no histórico">
+    <button class="btn btn-sm" type="submit">Buscar</button>
+    {% if busca %}<a class="btn btn-sm" href="{{ url_for('admin_historico') }}">Limpar</a>{% endif %}
+  </form>
+  <table class="tabela">
+    <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Onde</th><th>Detalhe</th></tr></thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr>
+        <td>{{ l.quando }}</td>
+        <td><strong>{{ l.usuario or '—' }}</strong></td>
+        <td>{{ l.acao }}</td>
+        <td>{{ l.objeto }}</td>
+        <td>{{ l.detalhe }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="vazio">Nada registrado ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if paginas > 1 %}
+  <p class="hist-pag">
+    {% if pg > 1 %}<a class="btn btn-sm" href="{{ url_for('admin_historico', q=busca, p=pg-1) }}">← Mais recentes</a>{% endif %}
+    <span>Página {{ pg }} de {{ paginas }}</span>
+    {% if pg < paginas %}<a class="btn btn-sm" href="{{ url_for('admin_historico', q=busca, p=pg+1) }}">Mais antigos →</a>{% endif %}
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,20 +1,114 @@
 {% extends 'shell.html' %}
+{% import 'pagina_blocos.html' as pb with context %}
+{% import 'rico.html' as r with context %}
 {% set pagina = chave %}
 {% block titulo %}{{ nome }}{% endblock %}
 
+{#  Página de conteúdo de um item do menu. Sem lista de links ao lado: só o que
+    o administrador escreveu para ela (Administração → Sistemas e atalhos →
+    Menu lateral → Conteúdo). Sem nenhum bloco, mostra o aviso de página em
+    preparação. #}
 {% block miolo %}
-<main class="pagina">
-  <div class="cartao" style="max-width:640px;margin:0 auto">
-    <div class="cartao-cab"><h2>{{ nome }}</h2></div>
-    <div class="cartao-corpo">
-      <p class="vazio">Este módulo ainda não está disponível.</p>
-      <p class="dica">O espaço já existe no portal: quando o conteúdo de
-        <strong>{{ nome }}</strong> estiver definido, ele passa a abrir aqui —
-        sem mudar o endereço nem o menu.</p>
-      <div class="acoes">
-        <a class="btn btn-principal" href="{{ url_for('index') }}">Voltar ao início</a>
+<main class="pagina pagina-conteudo{{ ' pagina-materia' if corpo }}{{ ' editavel' if edicao and not corpo }}"{% if edicao and not corpo %} data-edicao data-csrf="{{ csrf_token }}" data-salvar="{{ url_for('admin_pagina', chave=chave) }}"{% endif %}>
+  <div class="migalha">
+    <a href="{{ url_for('index') }}">← Início</a><span>/</span><span>{{ nome }}</span>
+  </div>
+
+  {% if edicao and corpo %}
+  <div class="pe-dica">
+    <span><strong>Edição.</strong> Esta página é um texto único com imagens livres. Use o botão para editar cabeçalho, capa, texto e imagens em uma janela só.</span>
+    <button type="button" class="btn btn-sm btn-principal" data-editar-noticia>Editar nesta página</button>
+  </div>
+  {% elif edicao %}
+  <div class="pe-dica">
+    <span><strong>Edição direta.</strong> Clique com o <b>botão direito</b> em um texto, imagem ou título para
+    editar, mover ou excluir. Para trocar ou incluir imagem, <b>arraste o arquivo</b> para a página.</span>
+    <button type="button" class="btn btn-sm btn-principal" data-editar-noticia>Editar nesta página (janela única)</button>
+    <a class="btn btn-sm" href="{{ url_for('admin_pagina', chave=chave, cab=1) }}#cabecalho">Editar cabeçalho</a>
+    <button type="button" class="btn btn-sm" data-pe-novo>+ Adicionar bloco</button>
+  </div>
+  {% endif %}
+
+  {{ pb.topo(cab, nome) }}
+
+  {% if corpo %}
+  <div class="pagina-texto noticia-corpo mat-corpo">{{ corpo }}</div>
+  {% else %}
+  {{ pb.desenha(blocos) }}
+  {% endif %}
+  {% if not blocos and not corpo %}
+    <div class="cartao" style="max-width:640px">
+      <div class="cartao-corpo">
+        <p class="vazio">Esta página ainda não tem conteúdo.</p>
+        <p class="dica">O espaço já existe no portal: quando o texto e as imagens de
+          <strong>{{ nome }}</strong> forem publicados, eles passam a aparecer aqui —
+          sem mudar o endereço nem o menu.</p>
       </div>
     </div>
+  {% endif %}
+
+  {{ pb.leia_tambem(leia) }}
+
+  <div class="acoes pagina-acoes">
+    <a class="btn" href="{{ url_for('index') }}">Voltar ao início</a>
+    {% if eh_admin %}
+    <a class="btn" href="{{ url_for('admin_pagina', chave=chave) }}">Editor completo</a>
+    {% endif %}
   </div>
 </main>
+{% if edicao %}
+<div class="pe-fundo" id="noticia-fundo" style="display:none">
+  <div class="pe-janela" role="dialog" aria-modal="true" aria-labelledby="noticia-ed-titulo">
+    <h3 id="noticia-ed-titulo">Editar página: {{ nome }}</h3>
+    <form id="form-noticia" method="post" action="{{ url_for('admin_pagina_rapida') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="chave" value="{{ chave }}">
+      <input type="hidden" name="capa_biblioteca" value="">
+      <div class="pe-duas">
+        <div><label for="pm-chapeu">Chapéu (categoria)</label><input id="pm-chapeu" name="chapeu" maxlength="40" value="{{ cab_campos.chapeu or '' }}"></div>
+        <div><label for="pm-autor">Autor ou setor</label><input id="pm-autor" name="autor" maxlength="60" value="{{ cab_campos.autor or '' }}"></div>
+      </div>
+      <label for="pm-fina">Linha fina <small>(uma frase que completa o título)</small></label>
+      <input id="pm-fina" name="linha_fina" maxlength="220" value="{{ cab_campos.linha_fina or '' }}">
+      <label for="pm-pub">Publicada em <small>(opcional)</small></label>
+      <input id="pm-pub" name="publicada_em" type="datetime-local" value="{{ (cab_campos.publicada_em or '')[:16].replace(' ', 'T') }}">
+
+      <label>Imagem de capa</label>
+      <div class="ne-capa">
+        <img id="ne-capa-prev" alt="" {% if cab.capa %}src="{{ cab.capa_url }}"{% else %}hidden{% endif %}>
+        <div class="ne-capa-acoes">
+          <button type="button" class="btn btn-sm" id="ne-capa-biblioteca">Escolher da biblioteca</button>
+          <label class="btn btn-sm" for="ne-capa-arquivo">Enviar do computador</label>
+          <input type="file" id="ne-capa-arquivo" name="capa_arquivo" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+          <label class="check"><input type="checkbox" name="remover_capa" id="ne-capa-remover"> Remover a capa</label>
+        </div>
+      </div>
+      <div class="pe-duas">
+        <div><label for="pm-leg">Legenda da capa</label><input id="pm-leg" name="capa_legenda" maxlength="200" value="{{ cab_campos.capa_legenda or '' }}"></div>
+        <div><label for="pm-cred">Crédito da imagem</label><input id="pm-cred" name="capa_credito" maxlength="80" value="{{ cab_campos.capa_credito or '' }}"></div>
+      </div>
+      <label for="pm-resumo">Resumo recolhível <small>(um item por linha)</small></label>
+      <textarea id="pm-resumo" name="resumo" rows="3">{{ cab.resumo|join('\n') }}</textarea>
+      <label class="check"><input type="checkbox" name="mostrar_resumo" {{ 'checked' if cab_campos.mostrar_resumo }}> Mostrar o resumo na página</label>
+      <label class="check"><input type="checkbox" name="mostrar_leia" {{ 'checked' if cab.leia }}> Mostrar “Leia também” no fim da página</label>
+
+      <label>Texto e imagens <small>(arraste ou cole imagens no texto; clique numa imagem para mudar tamanho e posição)</small></label>
+      {{ r.editor('corpo', corpo_editar, destinos, csrf_token) }}
+      {% if not corpo and blocos %}<p class="dica">O conteúdo atual em blocos foi trazido para cá. Ao salvar, esta página passa a usar este texto único; os blocos antigos ficam guardados e não aparecem mais.</p>{% endif %}
+      <p class="pe-erro" id="noticia-erro" role="alert"></p>
+      <div class="pe-rodape">
+        <button type="button" class="btn" id="noticia-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-principal">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
+<script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
+<script src="{{ url_for('static', filename='noticia-edicao.js') }}"></script>
+<script type="application/json" id="dados-blocos">{{ blocos_cru|tojson }}</script>
+<script type="application/json" id="dados-destinos">{{ destinos|tojson }}</script>
+<script type="application/json" id="dados-opcoes">{{ {'larguras': larguras.items()|list, 'alinhamentos': alinhamentos.items()|list, 'estilos': estilos.items()|list}|tojson }}</script>
+<script src="{{ url_for('static', filename='pagina-edicao.js') }}"></script>
+{% endif %}
 {% endblock %}

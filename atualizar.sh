@@ -43,6 +43,8 @@ else
     echo "Atualizando o código em $DEST ..."
     cp -f  "$SRC/app.py"    "$DEST/"
     cp -rf "$SRC/templates" "$DEST/"
+    # Pacote de módulos (segurança, mídia, notícias, histórico): sem ele o portal não inicia.
+    rm -rf "$DEST/modulos"; cp -rf "$SRC/modulos" "$DEST/"
     # Todo o CSS/JS; as imagens enviadas pelo administrador não são tocadas.
     cp -f  "$SRC"/static/*.css "$SRC"/static/*.js "$DEST/static/"
     # Imagens que acompanham o código (brasão, marcas d'água): só copia as que

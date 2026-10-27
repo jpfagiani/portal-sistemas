@@ -1,0 +1,16 @@
+{% extends 'shell.html' %}
+{% set pagina = 'erro' %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block miolo %}
+<main class="pagina pagina-erro">
+  <div class="erro-caixa">
+    <span class="erro-codigo">{{ codigo }}</span>
+    <h1>{{ titulo }}</h1>
+    {% if mensagem %}<p>{{ mensagem }}</p>{% endif %}
+    <div class="acoes">
+      <a class="btn btn-principal" href="{{ url_for('index') }}">Voltar ao início</a>
+      <a class="btn" href="javascript:history.back()">Página anterior</a>
+    </div>
+  </div>
+</main>
+{% endblock %}

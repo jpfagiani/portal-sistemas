@@ -1,0 +1,120 @@
+{% extends 'admin_base.html' %}
+{% import 'rico.html' as r with context %}
+{% set aba = 'noticias' %}
+{% block titulo %}Notícias{% endblock %}
+
+{% block admin %}
+{% set formulario = editar or nova %}
+<div class="pe-grade">
+
+  <section class="painel-caixa pe-form">
+    {% if formulario %}
+    <h2>{{ 'Editar notícia' if editar else 'Nova notícia' }}</h2>
+    <form method="post" enctype="multipart/form-data" id="form-noticia">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="id" value="{{ editar.id if editar else '' }}">
+
+      <label for="n-titulo">Título *</label>
+      <input id="n-titulo" name="titulo" required maxlength="200" value="{{ editar.titulo if editar else '' }}">
+      <label for="n-sub">Subtítulo</label>
+      <input id="n-sub" name="subtitulo" maxlength="300" value="{{ editar.subtitulo if editar else '' }}">
+      <label for="n-resumo">Resumo <small>(aparece nas listas e nos cartões)</small></label>
+      <textarea id="n-resumo" name="resumo" rows="2" maxlength="600">{{ editar.resumo if editar else '' }}</textarea>
+
+      <label>Texto e imagens <small>(use o botão Imagem, ou arraste e cole imagens no texto)</small></label>
+      {{ r.editor('corpo', corpo_editar, destinos_links, csrf_token) }}
+
+      <div class="pe-duas">
+        <div>
+          <label for="n-cat">Categoria</label>
+          <input id="n-cat" name="categoria" list="n-cats" maxlength="60" value="{{ editar.categoria if editar else '' }}">
+          <datalist id="n-cats">{% for c in categorias %}<option value="{{ c }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label for="n-estado">Situação</label>
+          <select id="n-estado" name="estado">
+            {% for k, v in estados.items() %}<option value="{{ k }}" {{ 'selected' if editar and editar.estado == k }}>{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <label for="n-data">Publicar em <small>(vazio = agora; data futura = agendada)</small></label>
+      <input id="n-data" name="publicar_em" type="datetime-local" value="{{ campo_data(editar.publicar_em) if editar else '' }}">
+
+      <label>Imagem de capa</label>
+      {% if editar and editar.capa %}
+      <img class="pe-miniatura" src="{{ url_for('static', filename='uploads/' ~ editar.capa) }}" alt="">
+      <label class="check"><input type="checkbox" name="remover_capa"> Remover a capa</label>
+      {% endif %}
+      <input type="file" name="capa_arquivo" accept=".png,.jpg,.jpeg,.webp,.gif">
+      <select name="capa_biblioteca" aria-label="Escolher da biblioteca">
+        <option value="">… ou escolha uma imagem da biblioteca</option>
+        {% for m in biblioteca %}<option value="{{ m.arquivo }}">{{ m.nome }}</option>{% endfor %}
+      </select>
+      <label for="n-capa-alt">Texto alternativo da capa</label>
+      <input id="n-capa-alt" name="capa_alt" maxlength="300" value="{{ editar.capa_alt if editar else '' }}">
+      <label for="n-leg">Legenda da capa</label>
+      <input id="n-leg" name="legenda" maxlength="300" value="{{ editar.legenda if editar else '' }}">
+
+      <label for="n-dest">Ao clicar no cartão, abrir <small>(opcional; vazio = a própria notícia)</small></label>
+      <input id="n-dest" name="destino_url" list="destinos" maxlength="500" value="{{ editar.destino_url if editar else '' }}">
+      <datalist id="destinos">{% for n, e in destinos_links %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist>
+      <label for="n-meta">Descrição para buscadores</label>
+      <input id="n-meta" name="meta" maxlength="300" value="{{ editar.meta if editar else '' }}">
+      <label for="n-slug">Endereço <small>(gerado do título se vazio)</small></label>
+      <input id="n-slug" name="slug" maxlength="80" value="{{ editar.slug if editar else '' }}">
+      <label class="check"><input type="checkbox" name="destaque" {{ 'checked' if editar and editar.destaque }}> Destaque (fica fixada no topo da lista, como manchete)</label>
+
+      <div class="acoes">
+        <button class="btn btn-principal" type="submit" name="acao" value="salvar">Salvar</button>
+        <button class="btn" type="submit" name="acao" value="publicar" title="Publica agora, ou na data escolhida">Publicar</button>
+        {% if editar %}<a class="btn" target="_blank" rel="noopener" href="{{ url_for('noticia', slug=editar.slug) }}">Pré-visualizar</a>{% endif %}
+        <a class="btn" href="{{ url_for('admin_noticias') }}">Cancelar</a>
+      </div>
+    </form>
+    {% else %}
+    <h2>Notícias e publicações</h2>
+    <p class="dica">Escreva uma notícia, comunicado ou matéria. Guarde como rascunho, veja a pré-visualização e
+      publique agora ou numa data futura.</p>
+    <div class="acoes"><a class="btn btn-principal" href="{{ url_for('admin_noticias', nova=1) }}">+ Nova notícia</a></div>
+    {% endif %}
+  </section>
+
+  <section class="painel-caixa">
+    <h2>Todas ({{ itens|length }})</h2>
+    <form method="get" class="hist-busca">
+      <select name="estado" aria-label="Filtrar por situação">
+        <option value="">Todas as situações</option>
+        {% for k, v in estados.items() %}<option value="{{ k }}" {{ 'selected' if filtro == k }}>{{ v }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit">Filtrar</button>
+      {% if formulario %}<a class="btn btn-sm" href="{{ url_for('admin_noticias', nova=1) }}">+ Nova</a>{% endif %}
+    </form>
+    <table class="tabela">
+      <thead><tr><th>Título</th><th>Categoria</th><th>Situação</th><th>Data</th><th></th></tr></thead>
+      <tbody>
+        {% for n in itens %}
+        {% set s = situacao_noticia(n) %}
+        <tr>
+          <td><strong>{{ n.titulo }}</strong>{% if n.destaque %} <span class="tag tag-admin">destaque</span>{% endif %}</td>
+          <td>{{ n.categoria or '—' }}</td>
+          <td><span class="tag {{ 'tag-ok' if s == 'Publicada' else 'tag-off' }}">{{ s }}</span></td>
+          <td>{{ (n.publicar_em or n.atualizado_em)|data_br }}</td>
+          <td class="acoes-linha">
+            <a class="btn btn-sm" href="{{ url_for('admin_noticias', editar=n.id) }}">Editar</a>
+            <form method="post" onsubmit="return confirm('Excluir esta notícia?')">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <input type="hidden" name="acao" value="excluir">
+              <input type="hidden" name="id" value="{{ n.id }}">
+              <button class="btn btn-sm btn-perigo" type="submit">Excluir</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="vazio">Nenhuma notícia ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
+{% endblock %}

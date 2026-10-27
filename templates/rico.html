@@ -1,0 +1,46 @@
+{#  Editor de texto formatado reutilizável.
+    {{ r.editor('corpo', html_inicial, destinos, csrf_token) }}
+    O conteúdo sai no campo oculto `nome`; o servidor limpa o HTML. Precisa de
+    editor-rico.js (e midia-seletor.js, se quiser o botão de imagem). #}
+{% macro editor(nome, html, destinos, csrf, imagem=True) %}
+<div data-rico data-csrf="{{ csrf }}" data-lista="{{ url_for('admin_midia_lista') }}" data-enviar="{{ url_for('admin_midia_enviar') }}">
+  <div class="re-barra" role="toolbar" aria-label="Formatação do texto">
+    <button type="button" data-cmd="bold" title="Negrito"><b>N</b></button>
+    <button type="button" data-cmd="italic" title="Itálico"><i>I</i></button>
+    <button type="button" data-cmd="underline" title="Sublinhado"><u>S</u></button>
+    <span class="re-sep"></span>
+    <button type="button" data-cmd="formatBlock" data-val="h2" title="Título">Título</button>
+    <button type="button" data-cmd="formatBlock" data-val="h3" title="Subtítulo">Subt.</button>
+    <button type="button" data-cmd="formatBlock" data-val="p" title="Parágrafo normal">Normal</button>
+    <span class="re-sep"></span>
+    <button type="button" data-cmd="insertUnorderedList" title="Lista com marcadores">• Lista</button>
+    <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1. Lista</button>
+    <span class="re-sep"></span>
+    <span class="re-rot">Alinhar texto:</span>
+    <button type="button" data-cmd="justifyLeft" title="Alinhar o texto à esquerda">Esq.</button>
+    <button type="button" data-cmd="justifyCenter" title="Centralizar o texto">Centro</button>
+    <button type="button" data-cmd="justifyRight" title="Alinhar o texto à direita">Dir.</button>
+    <button type="button" data-cmd="justifyFull" title="Justificar o texto">Just.</button>
+    <span class="re-sep"></span>
+    <button type="button" data-cmd="createLink" title="Transformar a seleção em link">Link</button>
+    <select class="re-pag" title="Link para uma página do portal" aria-label="Link para página">
+      <option value="">Link p/ página…</option>
+      {% for n, e in destinos %}<option value="{{ e }}">{{ n }}</option>{% endfor %}
+    </select>
+    <button type="button" data-cmd="unlink" title="Remover o link">Sem link</button>
+    <span class="re-sep"></span>
+    {% if imagem %}<button type="button" data-img title="Inserir imagem da biblioteca ou do computador">+ Imagem</button><span class="re-sep"></span>{% endif %}
+    <label class="re-cor" title="Cor do texto">Cor <input type="color" class="re-cor-campo" value="#1e293b"></label>
+    <select class="re-tam" title="Tamanho do texto" aria-label="Tamanho do texto">
+      <option value="">Tamanho</option><option value="2">Pequeno</option><option value="3">Normal</option>
+      <option value="5">Grande</option><option value="6">Muito grande</option><option value="7">Enorme</option>
+    </select>
+    <span class="re-sep"></span>
+    <button type="button" data-cmd="removeFormat" title="Limpar a formatação">Limpar</button>
+    <button type="button" data-cmd="undo" title="Desfazer">↶</button>
+    <button type="button" data-cmd="redo" title="Refazer">↷</button>
+  </div>
+  <div class="re-area pagina-texto" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Texto">{{ html }}</div>
+  <input type="hidden" name="{{ nome }}">
+</div>
+{% endmacro %}

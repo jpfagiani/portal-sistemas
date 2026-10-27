@@ -1,4 +1,5 @@
 {% extends 'admin_base.html' %}
+{% import 'visivel.html' as v %}
 {% import 'campos.html' as campos %}
 {% set aba = 'links' %}
 {% block titulo %}Sistemas{% endblock %}
@@ -147,8 +148,7 @@
                     title="{{ i.simbolo or 'aplicativo' }}">{{ ic(i.simbolo) }}</span></td>
           <td><strong>{{ i.titulo }}</strong><br><small class="url">{{ i.url }}</small></td>
           <td data-coluna-ordem>{{ i.ordem }}</td>
-          <td>{% if i.ativo %}<span class="tag tag-ok">visível</span>
-              {% else %}<span class="tag">oculto</span>{% endif %}</td>
+          <td>{{ v.caixa('links', i.id, i.ativo, i.titulo) }}</td>
           <td class="acoes-linha">
             <a class="btn btn-sm" href="{{ url_for('admin_links', grupo=grupo, editar=i.id) }}">Editar</a>
             <form method="post" onsubmit="return confirm('Remover {{ i.titulo }}?')">
@@ -170,4 +170,5 @@
   </section>
 </div>
 <script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script src="{{ url_for('static', filename='visivel.js') }}"></script>
 {% endblock %}

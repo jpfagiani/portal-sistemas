@@ -676,6 +676,7 @@ mkdir -p "$DEST"
 if [ "$(realpath "$SRC")" != "$(realpath "$DEST")" ]; then
     cp -f  "$SRC/app.py" "$DEST/"
     cp -rf "$SRC/templates" "$DEST/"
+    rm -rf "$DEST/modulos"; cp -rf "$SRC/modulos" "$DEST/"
     mkdir -p "$DEST/static"
     # Todo o CSS/JS (nunca listar arquivo por arquivo: um script novo passaria
     # despercebido). As imagens ficam de fora e são tratadas logo abaixo.

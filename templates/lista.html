@@ -9,6 +9,20 @@
     <div class="cartao-cab">
       <h2>{{ titulo }} ({{ itens|length }})</h2>
     </div>
+    {% if eh_admin and editavel %}
+    <div class="lista-admin">
+      <a class="btn btn-principal btn-sm" href="{{ url_for('admin_lateral', cartao=chave) }}">Editar este cartão</a>
+      <a class="btn btn-sm" href="{{ url_for('admin_lateral', cartao=chave, novo=1) }}">+ Novo item</a>
+      <details>
+        <summary>Editar um item</summary>
+        <ul>
+        {% for i in itens %}
+          <li><a href="{{ url_for('admin_lateral', cartao=chave, editar=i.id) }}">✎ {{ (i['titulo'] or i['conteudo'] or 'Item ' ~ i['id'])|string|truncate(60) }}</a></li>
+        {% endfor %}
+        </ul>
+      </details>
+    </div>
+    {% endif %}
     {% set marca, marca_v = marca_bloco %}
     <div class="cartao-corpo {{ macro }} {{ 'com-marca' if marca }}"
          {% if marca %}style="--marca: url('{{ url_for('static', filename=marca) }}?v={{ marca_v }}')"{% endif %}>

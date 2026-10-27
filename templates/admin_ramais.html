@@ -1,4 +1,5 @@
 {% extends 'admin_base.html' %}
+{% import 'visivel.html' as v %}
 {% import 'campos.html' as campos %}
 {% set aba = 'ramais' %}
 {% block titulo %}Ramais{% endblock %}
@@ -54,15 +55,17 @@
 
   <section class="painel-caixa">
     <h2>Ramais cadastrados ({{ itens|length }})</h2>
+    <p class="dica" id="destaque-resumo">Marque a caixa para mostrar o ramal no cartão da página inicial; a mudança é salva na hora.</p>
     <table class="tabela">
-      <thead><tr><th>Setor</th><th>Ramal</th><th>Situação</th><th></th></tr></thead>
+      <thead><tr><th title="Marque para mostrar no cartão da página inicial">Destaque</th><th>Setor</th><th>Ramal</th><th>Situação</th><th></th></tr></thead>
       <tbody>
         {% for i in itens %}
         <tr>
+          <td class="col-destaque"><input type="checkbox" class="marca-destaque" data-id="{{ i.id }}"
+              {{ 'checked' if i.destaque }} aria-label="Destacar {{ i.setor }} na página inicial"></td>
           <td><strong>{{ i.setor }}</strong></td>
           <td>{{ i.numeros }}</td>
-          <td>{% if i.ativo %}<span class="tag tag-ok">visível</span>
-              {% else %}<span class="tag">oculto</span>{% endif %}
+          <td>{{ v.caixa('ramais', i.id, i.ativo, i.setor) }}
               {% if i.destaque %}<span class="tag tag-admin">destaque</span>{% endif %}</td>
           <td class="acoes-linha">
             <a class="btn btn-sm" href="{{ url_for('admin_ramais', editar=i.id) }}">Editar</a>
@@ -75,10 +78,35 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="vazio">Nenhum ramal cadastrado.</td></tr>
+        <tr><td colspan="5" class="vazio">Nenhum ramal cadastrado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
 </div>
+<script src="{{ url_for('static', filename='visivel.js') }}"></script>
+<script>
+(function () {
+  var tok = {{ csrf_token|tojson }};
+  var resumo = document.getElementById('destaque-resumo');
+  document.querySelectorAll('.marca-destaque').forEach(function (cx) {
+    cx.addEventListener('change', function () {
+      var f = new URLSearchParams({csrf: tok, acao: 'destaque', id: cx.dataset.id, valor: cx.checked ? '1' : '0'});
+      var tr = cx.closest('tr');
+      cx.disabled = true;
+      fetch(location.pathname, {method: 'POST', body: f, credentials: 'same-origin'})
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (!r.ok) throw 0;
+          var cel = tr.querySelectorAll('td')[3], tag = cel.querySelector('.tag-admin');
+          if (cx.checked && !tag) { tag = document.createElement('span'); tag.className = 'tag tag-admin'; tag.textContent = 'destaque'; cel.appendChild(document.createTextNode(' ')); cel.appendChild(tag); }
+          if (!cx.checked && tag) tag.remove();
+          if (resumo) resumo.textContent = r.total + ' ramal(is) em destaque na página inicial.';
+        })
+        .catch(function () { cx.checked = !cx.checked; alert('Não consegui salvar. Atualize a página e tente de novo.'); })
+        .then(function () { cx.disabled = false; });
+    });
+  });
+})();
+</script>
 {% endblock %}

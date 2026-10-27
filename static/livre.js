@@ -10,6 +10,7 @@
   var NCOL = 12, ALT_MIN = 4;
   var btn = document.querySelector('[data-livre-editar]');
   var ajuda = document.querySelector('[data-livre-ajuda]');
+  var btnCompactar = document.querySelector('[data-livre-compactar]');
   var btnAjustar = document.querySelector('[data-livre-ajustar]');
   var editando = false, malha = null, ocupado = false;
 
@@ -121,6 +122,7 @@
     var x0 = e.pageX, y0 = e.pageY, sy0 = scrollY;
     ultimoY = e.clientY; rolando = true; requestAnimationFrame(rola);
     if (modo === 'mover') c.classList.add('movendo');
+    var zAntes = c.style.zIndex; c.style.zIndex = 1000;      // enquanto arrasta, fica por cima de tudo
     try { c.setPointerCapture(e.pointerId); } catch (_) {}
 
     function mover(ev) {
@@ -140,7 +142,7 @@
           gh: Math.max(ALT_MIN, ini.gh + Math.round(dy / m.linha))
         };
       }
-      ocupado = bate(alvo, c);
+      ocupado = false;            // sobrepor é permitido; só as guias ajudam a alinhar
       mostraFantasma(alvo);
       guias(alvo, c);
     }
@@ -151,14 +153,15 @@
       c.removeEventListener('pointercancel', soltar);
       c.classList.remove('movendo');
       c.style.transform = '';
+      c.style.zIndex = zAntes;
       limpaGuias();
       var mudou = alvo.gx !== ini.gx || alvo.gy !== ini.gy ||
                   alvo.gw !== ini.gw || alvo.gh !== ini.gh;
       if (!mudou) return;
-      if (bate(alvo, c)) { aviso('Esse espaço já está ocupado por outro cartão.'); return; }
       aplica(c, alvo);
+      c.style.zIndex = 9999;      // vai para a frente, como o servidor também grava
       salva([item(c)]).then(function (r) {
-        if (!r.ok) { aplica(c, ini); aviso(r.erro || 'Não consegui salvar.'); }
+        if (!r.ok) { aplica(c, ini); c.style.zIndex = zAntes; aviso(r.erro || 'Não consegui salvar.'); }
       });
     }
     c.addEventListener('pointermove', mover);
@@ -180,7 +183,6 @@
   function ajustaUm(c) {
     var ini = pos(c), novo = { gx: ini.gx, gy: ini.gy, gw: ini.gw, gh: alturaIdeal(c) };
     if (novo.gh === ini.gh) return;
-    if (bate(novo, c)) { aviso('Não há espaço livre embaixo para ajustar este cartão.'); return; }
     aplica(c, novo);
     salva([item(c)]).then(function (r) {
       if (!r.ok) { aplica(c, ini); aviso(r.erro || 'Não consegui salvar.'); }
@@ -212,6 +214,35 @@
     });
   }
 
+  // Fecha os vazios: cada cartão sobe até encostar em outro (ou no topo),
+  // mantendo a coluna; o que estava sobreposto é empurrado para baixo.
+  function compacta() {
+    var lista = cartoes().sort(function (a, b) {
+      return (+a.dataset.gy - +b.dataset.gy) || (+a.dataset.gx - +b.dataset.gx);
+    });
+    var antes = lista.map(function (c) { return [c, pos(c)]; });
+    var colocados = [];
+    lista.forEach(function (c) {
+      var p = pos(c);
+      function colide() {
+        return colocados.some(function (q) {
+          return p.gx < q.gx + q.gw && q.gx < p.gx + p.gw &&
+                 p.gy < q.gy + q.gh && q.gy < p.gy + p.gh;
+        });
+      }
+      p.gy = 0;
+      while (colide()) p.gy++;
+      colocados.push(p);
+      aplica(c, p);
+    });
+    salva(lista.map(item)).then(function (r) {
+      if (!r.ok) {
+        antes.forEach(function (par) { aplica(par[0], par[1]); });
+        aviso(r.erro || 'Não consegui salvar.');
+      } else aviso('Espaços fechados.');
+    });
+  }
+
   /* ── ligar/desligar o modo de edição ── */
   function prepara(c) {
     ligaMover(c);
@@ -239,15 +270,160 @@
     c._livre = true;
     c.addEventListener('pointerdown', function (ev) {
       if (!editando || ev.button !== 0 || ev.target.closest('.livre-alca')) return;
+      seleciona(c);
       arrasta(ev, c, 'mover');
     });
   }
+  /* ── excluir, copiar, recortar, colar e menu do botão direito ── */
+  var FIXOS = ['sistemas', 'atalhos', 'ramais', 'noticias'];
+  function nomeDe(c) {
+    var h = c.querySelector('.cartao-cab h2'); return (h && h.textContent.trim()) || c.dataset.chave;
+  }
+  function acao(a, chave) {
+    var f = new FormData(); f.set('csrf', tela.dataset.csrf); f.set('acao', a); f.set('chave', chave);
+    return fetch(tela.dataset.acao, { method: 'POST', body: f, credentials: 'same-origin' })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, erro: 'Erro.' }; }); },
+            function () { return { ok: false, erro: 'Sem conexão com o servidor.' }; });
+  }
+  function recarrega() {
+    try { sessionStorage.setItem('livre-editando', '1'); } catch (_) {}
+    location.reload();
+  }
+  function exclui(c) {
+    var fixo = FIXOS.indexOf(c.dataset.chave) >= 0 || /^(paginas|destaque)$/.test(c.dataset.chave || '');
+    if (!c.dataset.chave || /^(paginas|destaque)$/.test(c.dataset.chave)) { aviso('Este cartão da barra lateral é ligado e desligado em Navegação.'); return; }
+    var msg = fixo ? 'Ocultar o cartão “' + nomeDe(c) + '”? Ele pode ser trazido de volta pelos botões da barra de edição.'
+                   : 'Excluir o cartão “' + nomeDe(c) + '” e o que há nele? Isso não pode ser desfeito.';
+    if (!confirm(msg)) return;
+    acao('excluir', c.dataset.chave).then(function (r) {
+      if (r.ok) recarrega(); else aviso(r.erro || 'Não consegui excluir.');
+    });
+  }
+  function copia(corte) {
+    if (!sel) return;
+    var ch = sel.dataset.chave;
+    if (FIXOS.indexOf(ch) >= 0 || /^(paginas|destaque)$/.test(ch)) { aviso('Este cartão é único: não dá para copiar ou recortar. Use Delete para ocultá-lo.'); return; }
+    try { sessionStorage.setItem('livre-clip', JSON.stringify({ chave: ch, corte: !!corte })); } catch (_) {}
+    sel.classList.toggle('recortado', !!corte);
+    aviso(corte ? 'Recortado — use Ctrl+V para colar.' : 'Copiado — use Ctrl+V para colar.');
+  }
+  function cola() {
+    var clip = null;
+    try { clip = JSON.parse(sessionStorage.getItem('livre-clip') || 'null'); } catch (_) {}
+    if (!clip) { aviso('Nada copiado ainda.'); return; }
+    acao('duplicar', clip.chave).then(function (r) {
+      if (!r.ok) { aviso(r.erro || 'Não consegui colar.'); return; }
+      if (!clip.corte) { recarrega(); return; }
+      acao('excluir', clip.chave).then(function () {
+        try { sessionStorage.removeItem('livre-clip'); } catch (_) {}
+        recarrega();
+      });
+    });
+  }
+  var menu = null;
+  function fechaMenu() { if (menu) { menu.remove(); menu = null; } }
+  function abreMenu(x, y, c) {
+    fechaMenu();
+    var temClip = false;
+    try { temClip = !!sessionStorage.getItem('livre-clip'); } catch (_) {}
+    var itens = [];
+    if (c) {
+      itens.push(['Copiar', 'Ctrl+C', function () { copia(false); }]);
+      itens.push(['Recortar', 'Ctrl+X', function () { copia(true); }]);
+    }
+    itens.push(['Colar', 'Ctrl+V', cola, !temClip]);
+    if (c) itens.push(['Excluir', 'Delete', function () { exclui(c); }, false, true]);
+    menu = document.createElement('div'); menu.className = 'livre-menu';
+    menu.style.left = Math.min(x, innerWidth - 190) + 'px'; menu.style.top = Math.min(y, innerHeight - 140) + 'px';
+    itens.forEach(function (i) {
+      var b = document.createElement('button'); b.type = 'button'; b.disabled = !!i[3];
+      if (i[4]) b.className = 'perigo';
+      b.innerHTML = '<span></span><kbd></kbd>'; b.firstChild.textContent = i[0]; b.lastChild.textContent = i[1];
+      b.addEventListener('click', function () { fechaMenu(); i[2](); });
+      menu.appendChild(b);
+    });
+    document.body.appendChild(menu);
+  }
+  tela.addEventListener('contextmenu', function (ev) {
+    if (!editando) return;
+    ev.preventDefault();
+    var c = ev.target.closest('.cartao');
+    if (c && c.parentNode !== tela) c = null;
+    if (c) seleciona(c);
+    abreMenu(ev.clientX, ev.clientY, c);
+  });
+  document.addEventListener('pointerdown', function (ev) { if (menu && !ev.target.closest('.livre-menu')) fechaMenu(); });
+  window.addEventListener('scroll', fechaMenu, true);
+  document.querySelectorAll('[data-livre-mostrar]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      acao('mostrar', b.dataset.livreMostrar).then(function (r) { if (r.ok) recarrega(); else aviso(r.erro || 'Não consegui.'); });
+    });
+  });
+
+  /* ── seleção e setas do teclado ──
+     Clique num cartão para selecioná-lo; setas movem 1 passo, Shift+setas
+     mudam o tamanho, Esc solta. Funciona junto com o mouse. */
+  var sel = null, timerSalva = null, pendentes = {};
+  function seleciona(c) {
+    if (sel === c) return;
+    if (sel) sel.classList.remove('selecionado');
+    sel = c;
+    if (sel) sel.classList.add('selecionado');
+  }
+  function salvaDepois(c) {
+    pendentes[c.dataset.chave] = c;
+    clearTimeout(timerSalva);
+    timerSalva = setTimeout(function () {
+      var cs = Object.keys(pendentes).map(function (k) { return pendentes[k]; });
+      pendentes = {};
+      cs.forEach(function (x) { x.style.zIndex = 9999; });
+      salva(cs.map(item)).then(function (r) {
+        if (!r.ok) aviso(r.erro || 'Não consegui salvar.');
+      });
+    }, 350);
+  }
+  document.addEventListener('keydown', function (ev) {
+    if (!editando) return;
+    var t = ev.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || (t && t.isContentEditable)) return;
+    if (document.querySelector('#conteudo-fundo') && document.querySelector('#conteudo-fundo').style.display === 'flex') return;
+    var ctrl = ev.ctrlKey || ev.metaKey, k = ev.key.toLowerCase();
+    if (ctrl && k === 'v') { ev.preventDefault(); cola(); return; }
+    if (!sel) return;
+    if (ctrl && k === 'c') { ev.preventDefault(); copia(false); return; }
+    if (ctrl && k === 'x') { ev.preventDefault(); copia(true); return; }
+    if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); exclui(sel); return; }
+    if (ev.key === 'Escape') { seleciona(null); fechaMenu(); return; }
+    var d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
+    if (!d) return;
+    ev.preventDefault();
+    var p = pos(sel);
+    if (ev.shiftKey) {
+      p.gw = Math.max(1, Math.min(NCOL - p.gx, p.gw + d[0]));
+      p.gh = Math.max(ALT_MIN, p.gh + d[1]);
+    } else {
+      p.gx = Math.max(0, Math.min(NCOL - p.gw, p.gx + d[0]));
+      p.gy = Math.max(0, p.gy + d[1]);
+    }
+    aplica(sel, p);
+    sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    salvaDepois(sel);
+  });
+  document.addEventListener('pointerdown', function (ev) {
+    if (!sel) return;
+    if (ev.target.closest('.cartao, button, a, input, textarea, select, dialog, [role=dialog], .modal')) return;
+    seleciona(null);
+  });
+
   function liga(sim) {
     editando = sim;
+    if (!sim) seleciona(null);
     tela.classList.toggle('editando', sim);
     btn.textContent = sim ? 'Concluir edição' : 'Editar layout';
     if (ajuda) ajuda.hidden = !sim;
     if (btnAjustar) btnAjustar.hidden = !sim;
+    if (btnCompactar) btnCompactar.hidden = !sim;
+    document.querySelectorAll('[data-livre-mostrar]').forEach(function (b) { b.hidden = !sim; });
     if (sim) {
       if (!malha) {
         malha = document.createElement('div'); malha.className = 'livre-malha';
@@ -280,7 +456,10 @@
   if (btn) btn.addEventListener('click', function () {
     if (editando) { location.href = btn.dataset.sair || '/'; } else liga(true);
   });
+  // Depois de excluir/colar a página recarrega; volta direto ao modo de edição.
+  try { if (sessionStorage.getItem('livre-editando')) { sessionStorage.removeItem('livre-editando'); liga(true); } } catch (_) {}
   if (btnAjustar) btnAjustar.addEventListener('click', ajustaTodos);
+  if (btnCompactar) btnCompactar.addEventListener('click', compacta);
   // Evita que um clique no fim do arrasto abra o link do cartão.
   tela.addEventListener('click', function (e) {
     if (editando) { e.preventDefault(); e.stopPropagation(); }

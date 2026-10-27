@@ -1,4 +1,5 @@
 {% extends 'admin_base.html' %}
+{% import 'visivel.html' as v %}
 {% import 'campos.html' as campos %}
 {#  Um bloco de outra seção (o menu lateral) é editado por esta mesma tela, mas
     tem de continuar parecendo que está na seção dele: aba do topo e barra de
@@ -130,11 +131,13 @@
         só aqui. Em <em>Situação</em>, textos que começam por “disponível” ou
         “livre” saem em verde; os demais, em âmbar.
       {% elif bloco == 'menu' %}
-        Estes são os itens da barra lateral. Desmarque <em>Exibir</em> para
-        esconder um item que ainda não tem conteúdo. Em <em>Endereço</em>, deixe
-        em branco para o item abrir a página de “módulo em preparação”, ou
-        informe um endereço (interno como <code>/ramais</code> ou externo) para
-        ele levar direto ao destino.
+        Estes são os itens da lista <strong>Páginas</strong>, ao lado dos
+        cartões da tela inicial. Desmarque <em>Exibir</em> para esconder um item
+        que ainda não tem conteúdo. Em <em>Endereço</em>, deixe em branco para o
+        item abrir uma página própria — o botão <strong>Conteúdo</strong>, na
+        lista ao lado, leva ao editor de textos e imagens dela. Ou informe um
+        endereço (interno como <code>/ramais</code> ou externo) para o item
+        levar direto ao destino.
       {% else %}
         Este bloco só aparece na página inicial quando tem ao menos um item visível.
       {% endif %}
@@ -160,9 +163,11 @@
               {% elif loop.first %}<strong>{{ i[campo] }}</strong>
               {% else %}{{ i[campo] }}{% endif %}</td>
           {% endfor %}
-          <td>{% if i.ativo %}<span class="tag tag-ok">visível</span>
-              {% else %}<span class="tag">oculto</span>{% endif %}</td>
+          <td>{{ v.caixa('menu' if bloco == 'menu' else ('links' if info.get('tabela') == 'links' else bloco), i.id, i.ativo, i.nome or i.titulo or i.turno or i.numero) }}</td>
           <td class="acoes-linha">
+            {% if bloco == 'menu' and not i.url %}
+            <a class="btn btn-sm btn-principal" href="{{ url_for('admin_pagina', chave=i.chave) }}">Conteúdo</a>
+            {% endif %}
             <a class="btn btn-sm" href="{{ url_for('admin_painel', bloco=bloco, editar=i.id) }}">Editar</a>
             <form method="post" onsubmit="return confirm('Remover este item?')">
               <input type="hidden" name="csrf" value="{{ csrf_token }}">
@@ -181,5 +186,6 @@
   </section>
 </div>
 <script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script src="{{ url_for('static', filename='visivel.js') }}"></script>
 <script src="{{ url_for('static', filename='mascaras.js') }}"></script>
 {% endblock %}

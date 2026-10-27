@@ -16,6 +16,12 @@
     <textarea name="faixa_links" rows="7" style="width:100%;max-width:640px"
               placeholder="Ramais | /ramais&#10;Legislação | https://...">{{ cfg.faixa_links }}</textarea>
 
+    <h2 style="margin-top:1.6rem">Lista de páginas na tela inicial</h2>
+    <label class="check"><input type="checkbox" name="lista_paginas_ativa"
+      {{ 'checked' if cfg.lista_paginas_ativa == '1' }}> Mostrar a lista “Páginas” (Link 1, Link 2…) na lateral</label>
+    <p class="dica">Desligada, o lugar dela é ocupado por “Últimas notícias”. As páginas continuam existindo:
+      aponte para elas por banners, atalhos, botões e notícias.</p>
+
     <h2 style="margin-top:1.6rem">Cartão “Em destaque”</h2>
     <p class="dica">O cartão colorido que fica abaixo da lista de páginas, na
       tela inicial. Sem título, ele não aparece.</p>
