@@ -308,18 +308,18 @@ def admin_noticias():
 def vitrine():
     """Como o cartão "Últimas notícias" aparece na página inicial: (layout, colunas, quantidade)."""
     c = nucleo.cfg()
-    layout = c.get('noticias_layout') if c.get('noticias_layout') in ('grade', 'lista') else 'grade'
+    layout = c.get('noticias_layout') if c.get('noticias_layout') in ('grade', 'lista') else 'lista'
     colunas = max(1, min(4, nucleo._int(c.get('noticias_colunas'), 2) or 2))
-    qtd = max(1, min(12, nucleo._int(c.get('noticias_qtd'), 4) or 4))
+    qtd = max(1, min(12, nucleo._int(c.get('noticias_qtd'), 5) or 5))
     return layout, colunas, qtd
 
 
 @app.route('/admin/noticias/vitrine', methods=['POST'])
 @nucleo.admin_obrigatorio
 def admin_noticias_vitrine():
-    layout = request.form.get('layout') if request.form.get('layout') in ('grade', 'lista') else 'grade'
+    layout = request.form.get('layout') if request.form.get('layout') in ('grade', 'lista') else 'lista'
     colunas = max(1, min(4, nucleo._int(request.form.get('colunas'), 2) or 2))
-    qtd = max(1, min(12, nucleo._int(request.form.get('qtd'), 4) or 4))
+    qtd = max(1, min(12, nucleo._int(request.form.get('qtd'), 5) or 5))
     con = nucleo.db()
     for k, v in (('noticias_layout', layout), ('noticias_colunas', str(colunas)), ('noticias_qtd', str(qtd))):
         con.execute('INSERT OR REPLACE INTO config (chave,valor) VALUES (?,?)', (k, v))

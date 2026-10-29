@@ -443,6 +443,8 @@ ok(h.count('href="/noticias/x"') == 2, 'link da imagem e do texto da figura cont
 with portal.app.app_context():
     ok(any(e.startswith('/noticias/') for _, e in portal.destinos_de_links()) or True, 'destinos de link incluem notícias')
 
+# vitrine de notícias: o padrão é a lista (data + título em azul), como sempre foi
+ok('not-vitrine' not in anon.get('/').get_data(as_text=True) and 'not-lista' in anon.get('/').get_data(as_text=True), 'notícias começam em lista por padrão')
 # vitrine de notícias (grade) na página inicial
 r = c.post('/admin/noticias/vitrine', data={'csrf': tok, 'layout': 'grade', 'colunas': '3', 'qtd': '6'})
 ok(r.status_code in (302, 303), 'salvar vitrine de notícias redireciona')
