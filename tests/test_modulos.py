@@ -245,7 +245,7 @@ ok('mat-leia' not in anon.get('/modulo/servidores').get_data(as_text=True), 'Lei
 # lista da seção Notícias: manchete, linhas com miniatura e destaque fixado no topo
 nova(titulo='Aviso fixado', estado='publicado', publicar_em='2020-01-04T08:00', destaque='on')
 h = anon.get('/noticias').get_data(as_text=True)
-m = re.search(r'class="not-manchete".*?<h2>(.*?)</h2>', h, re.S)
+m = re.search(r'class="not-manchete".*?<h2[^>]*>(.*?)</h2>', h, re.S)
 ok(m and m.group(1).strip() == 'Aviso fixado' and 'Fixada' in h, 'notícia em destaque vira manchete e leva a marca Fixada')
 ok('class="not-linha"' in h and 'class="not-linhas"' in h, 'as demais notícias saem em linhas')
 for i in range(8):
@@ -317,10 +317,231 @@ h = c.get('/admin/historico').get_data(as_text=True)
 ok('noticias' in h.lower() or 'Notícia' in h, 'histórico registra as ações do admin')
 ok('Teste1234' not in h and 'errada' not in h, 'histórico não guarda senhas')
 
+
+# ── ordem das notícias e aparência dos títulos ──────────────────────────────
+with portal.app.app_context():
+    ids_pub = [r[0] for r in portal.db().execute(
+        "SELECT id FROM noticias WHERE estado='publicado' ORDER BY ordem, destaque DESC, publicar_em DESC, id DESC")]
+def ordem_publica():
+    t = anon.get('/noticias').get_data(as_text=True)
+    return re.findall(r'<h[23][^>]*>(.*?)</h[23]>', t.split('not-manchete', 1)[1])
+def titulos_ids(ids):
+    with portal.app.app_context():
+        return [portal.db().execute('SELECT titulo FROM noticias WHERE id=?', (i,)).fetchone()[0] for i in ids]
+antes = [x.strip() for x in ordem_publica()]
+invertida = list(reversed(ids_pub[:3])) + ids_pub[3:]
+r = c.post('/admin/noticias', data={'csrf': tok, 'acao': 'ordenar', 'ids': ','.join(map(str, invertida))})
+ok(r.status_code == 204, 'rota de ordenar notícias responde 204')
+depois = [x.strip() for x in ordem_publica()]
+ok(depois[:3] == titulos_ids(invertida[:3]) and depois != antes, 'ordem escolhida vale na página pública')
+r = anon.post('/admin/noticias', data={'acao': 'ordenar', 'ids': '1,2'})
+ok(r.status_code in (302, 400, 401, 403), 'ordenar exige administrador')
+# subconjunto (filtro): as demais não se mexem
+sub = [invertida[1], invertida[0]]
+c.post('/admin/noticias', data={'csrf': tok, 'acao': 'ordenar', 'ids': ','.join(map(str, sub))})
+ok([x.strip() for x in ordem_publica()][2:] == depois[2:], 'ordenar um subconjunto não mexe nas outras')
+nova(titulo='Notícia mais nova', estado='publicado', publicar_em='2019-01-01T08:00')
+ok(ordem_publica()[0].strip() == 'Notícia mais nova', 'notícia nova entra na primeira posição')
+h = c.get('/admin/conteudos?tipo=noticia').get_data(as_text=True)
+ok('data-ordenavel' in h and 'class="pega"' in h and 'aparência' in h, 'lista de Conteúdos tem alça de ordenar e aparência')
+h = re.sub(r'\s+', ' ', anon.get('/').get_data(as_text=True))
+ok('--noticias-titulo-cor: #9f1239' in h and '--noticias-cab-cor' in h, 'título das notícias sai em vinho por padrão')
+c.post('/admin/noticias', data={'csrf': tok, 'acao': 'aparencia_cartao', 'noticias_fonte': 'serifa',
+        'noticias_cab_tam': '1.1', 'noticias_cab_cor': '#2563eb', 'noticias_titulo_tam': '1.2',
+        'noticias_titulo_cor': '#16a34a', 'noticias_texto_tam': '0.7', 'noticias_texto_cor': 'invalido;}'})
+h = re.sub(r'\s+', ' ', anon.get('/').get_data(as_text=True))
+ok('--noticias-cab-cor: #2563eb' in h and '--noticias-titulo-tam: 1.20rem' in h and 'Georgia' in h,
+   'fonte, tamanho e cor do título são gravados')
+ok('invalido' not in h and '--noticias-texto-cor: #7c8ba1' in h, 'cor inválida cai no padrão')
+h = c.get('/admin/links?grupo=sistema').get_data(as_text=True)
+ok('sistemas_cab_cor' in h and 'data-paleta' in h, 'os demais cartões também ganham nome e paleta editáveis')
+
+# a biblioteca de mídia aponta o cartão de texto e imagem que usa a imagem
+with portal.app.app_context():
+    con = portal.db()
+    con.execute("INSERT INTO cartoes_painel (chave,nome,icone,regiao,largura,coluna,ordem,tipo,ativo) VALUES ('cartaoX','Cartão com foto','megafone','topo',1,0,99,'conteudo',1)")
+    con.execute("INSERT INTO cartao_conteudo (chave,html,titulo_visivel) VALUES ('cartaoX',?,1)", (f'<p><img src="/static/uploads/{arq}"></p>',))
+    con.commit()
+ok('Cartão com foto' in c.get('/admin/midia').get_data(as_text=True), 'mídia mostra o cartão de texto e imagem que usa a imagem')
+
+# cartão de texto e imagem com endereço: o cartão inteiro vira link (só para o visitante)
+r = c.post('/admin/cartao-conteudo', data={'csrf': tok, 'nome': 'Curso EaD', 'titulo_visivel': 'on',
+           'corpo': '<p>Texto</p>', 'url': 'exemplo.gov.br/curso'})
+ok(r.get_json()['ok'], 'cartão de texto e imagem com endereço é salvo')
+h = anon.get('/').get_data(as_text=True)
+ok('class="cartao-overlay" href="http://exemplo.gov.br/curso"' in h and 'cartao-clicavel' in h, 'visitante vê o cartão inteiro como link')
+ok('cartao-overlay' not in c.get('/editor').get_data(as_text=True), 'no editor o cartão não vira link (clique abre a edição)')
+r = c.post('/admin/cartao-conteudo', data={'csrf': tok, 'nome': 'Sem link', 'corpo': '<p>x</p>', 'url': 'javascript:alert(1)'})
+ok('javascript:' not in anon.get('/').get_data(as_text=True), 'endereço javascript: é descartado no cartão')
+
+# aba única "Todos os cartões"
+h = c.get('/admin/cartoes').get_data(as_text=True)
+ok(c.get('/admin/cartoes').status_code == 200 and 'Todos os cartões' in h, 'aba Todos os cartões abre')
+ok(all(t in h for t in ('Últimas notícias', 'Acesso rápido aos sistemas', 'Atalhos úteis', 'Cartão com foto', 'Curso EaD')),
+   'a aba lista cartões de todos os tipos (fixos, genéricos, texto e imagem)')
+ok('noticias_cab_cor' in h and 'cartao1_titulo_cor' in h and 'data-paleta' in h, 'cada cartão tem fonte e paleta')
+r = c.post('/admin/cartoes', data={'csrf': tok, 'cartao': 'cartao1', 'acao': 'aparencia_cartao', 'cartao1_fonte': 'mono',
+           'cartao1_cab_tam': '1.2', 'cartao1_cab_cor': '#0e7490', 'cartao1_titulo_tam': '1.1', 'cartao1_titulo_cor': '#9f1239',
+           'cartao1_texto_tam': '0.8', 'cartao1_texto_cor': '#334155'})
+h = re.sub(r'\s+', ' ', anon.get('/').get_data(as_text=True))
+ok('--cartao1-cab-cor: #0e7490' in h and '--cartao1-titulo-cor: #9f1239' in h and
+   'data-cartao="cartao1"] .comunicados{ --com-titulo-tam:var(--cartao1-titulo-tam)' in h,
+   'aparência do cartão genérico agora chega ao CSS (nome, título e texto)')
+ok('html:not([data-tema="escuro"]) .cartao[data-cartao="cartao1"] .cartao-cab h2{ color:var(--cartao1-cab-cor)}' in h,
+   'cores só valem no tema claro')
+r = c.post('/admin/lateral', data={'csrf': tok, 'acao': 'novo_cartao'}, follow_redirects=True)
+ok('cartao6_cab_cor' in c.get('/admin/cartoes').get_data(as_text=True), 'cartão genérico novo também tem aparência editável')
+ok(c.post('/admin/cartoes', data={'csrf': tok, 'cartao': 'inexistente', 'acao': 'titulo_cartao'}).status_code == 400, 'cartão inexistente é recusado')
+r = c.post('/admin/cartoes', data={'csrf': tok, 'cartao': 'noticias', 'acao': 'titulo_cartao', 'titulo_cartao': 'Mural de notícias'}, follow_redirects=True)
+ok('Mural de notícias' in anon.get('/').get_data(as_text=True), 'renomear o cartão pela aba única')
+
+# estilo próprio do título de cada notícia (fonte, tamanho, cor)
+r = nova(titulo='Título estilizado', estado='publicado', publicar_em='2020-03-01T08:00',
+         titulo_fonte='serifa', titulo_tam='1.4', titulo_cor='#0e7490')
+with portal.app.app_context():
+    ne = portal.db().execute("SELECT id,slug,titulo_fonte,titulo_cor,titulo_tam FROM noticias WHERE titulo='Título estilizado'").fetchone()
+ok(ne and ne['titulo_fonte'] == 'serifa' and ne['titulo_cor'] == '#0e7490' and ne['titulo_tam'] == '1.40', 'estilo do título é gravado')
+h = anon.get('/').get_data(as_text=True)
+ok('--n-cor:#0e7490' in h and 'font-size:1.40rem' in h and 'Georgia' in h, 'cartão da página inicial usa o estilo do título')
+ok('--n-cor:#0e7490' in anon.get('/noticias/' + ne['slug']).get_data(as_text=True), 'página da notícia usa o estilo do título')
+ok('name="titulo_cor"' in c.get('/admin/conteudos/noticia/%d' % ne['id']).get_data(as_text=True)
+   and '/admin/conteudos/noticia/%d' % ne['id'] in c.get('/noticias/' + ne['slug']).get_data(as_text=True), 'campos de estilo existem no editor único, e a página da notícia leva a ele')
+nova(id=str(ne['id']), titulo='Título estilizado', estado='publicado', publicar_em='2020-03-01T08:00',
+     titulo_fonte='hack;}', titulo_tam='999', titulo_cor='red;}')
+with portal.app.app_context():
+    ne2 = portal.db().execute('SELECT titulo_fonte,titulo_cor,titulo_tam FROM noticias WHERE id=?', (ne['id'],)).fetchone()
+ok(ne2['titulo_fonte'] == '' and ne2['titulo_cor'] == '' and ne2['titulo_tam'] == '3.00', 'valores inválidos do título são descartados')
+c.post('/admin/noticia-rapida', data={'csrf': tok, 'id': ne['id'], 'titulo': 'Título estilizado', 'estado': 'publicado',
+       'titulo_cor': '#16a34a', 'titulo_fonte': 'mono'})
+ok('--n-cor:#16a34a' in anon.get('/').get_data(as_text=True), 'edição pela própria página da notícia também grava o estilo')
+
+# imagem dentro de link (botão "Link…" do editor) sobrevive à limpeza do HTML
+with portal.app.app_context():
+    h = portal.limpa_html('<p><a href="https://exemplo.gov.br/x" onclick="x()"><img class="im-m" src="/static/uploads/a.png" alt="A"></a></p>'
+                          '<a href="javascript:alert(1)"><img src="/static/uploads/b.png"></a>')
+ok('<a href="https://exemplo.gov.br/x" target="_blank" rel="noopener"><img src="/static/uploads/a.png"' in h and 'onclick' not in h,
+   'imagem com link continua com o link depois da limpeza')
+ok('javascript:' not in h and '<img src="/static/uploads/b.png"' in h, 'link perigoso na imagem é removido, a imagem fica')
+
 # páginas principais continuam abrindo
-for rota in ('/', '/ramais', '/sistemas', '/noticias', '/admin', '/admin/noticias', '/admin/midia',
-             '/admin/historico', '/admin/noticias?nova=1'):
+for rota in ('/', '/ramais', '/sistemas', '/noticias', '/admin', '/admin/conteudos', '/admin/midia',
+             '/admin/historico', '/admin/conteudos/noticia/novo', '/admin/conteudos/cartao/novo',
+             '/admin/cartoes', '/admin/lateral'):
     ok(c.get(rota).status_code == 200, f'GET {rota} abre')
+
+# ── Conteúdos: aba única e editor único ─────────────────────────────────────
+import json as _json
+def cont(dados, **kw):
+    d = {'csrf': tok}
+    d.update(dados)
+    return c.post('/admin/conteudos/salvar', data=d, content_type='multipart/form-data', **kw)
+
+h = c.get('/admin').get_data(as_text=True)
+ok('>Conteúdos<' in h and 'Todos os cartões' not in h and 'href="/admin/noticias"' not in h, 'menu tem uma aba Conteúdos no lugar de Todos os cartões e Notícias')
+ok(c.get('/admin/noticias').status_code == 302 and '/admin/conteudos' in c.get('/admin/noticias').headers['Location'], 'URL antiga de notícias redireciona')
+ok('/admin/conteudos/noticia/novo' in c.get('/admin/noticias?nova=1').headers['Location'], 'nova=1 antigo redireciona ao editor')
+ok(anon.get('/admin/conteudos').status_code in (302, 401, 403), 'visitante não abre Conteúdos')
+ok(anon.post('/admin/conteudos/salvar', data={'tipo': 'noticia', 'titulo': 'x'}).status_code in (302, 400, 401, 403), 'visitante não salva')
+ok(not _json.loads(c.post('/admin/conteudos/salvar', data={'tipo': 'noticia', 'titulo': 'sem csrf'}).get_data(as_text=True) or '{}').get('ok') if c.post('/admin/conteudos/salvar', data={'tipo': 'noticia', 'titulo': 'sem csrf'}).is_json else True, 'sem CSRF não salva')
+with portal.app.app_context():
+    antes_n = portal.db().execute('SELECT COUNT(*) FROM noticias').fetchone()[0]
+c.post('/admin/conteudos/salvar', data={'tipo': 'noticia', 'titulo': 'Sem csrf de verdade', 'corpo': 'x'})
+with portal.app.app_context():
+    ok(portal.db().execute('SELECT COUNT(*) FROM noticias').fetchone()[0] == antes_n, 'CSRF ausente não grava notícia')
+
+# notícia: salvar nunca publica; rascunho; publicar; agendar
+r = cont({'tipo': 'noticia', 'acao': 'salvar', 'titulo': 'Matéria ção única', 'corpo': '<p>Olá <b>mundo</b><script>x()</script></p>', 'categoria': 'Avisos'})
+j = r.get_json(); nid = j.get('id')
+ok(j.get('ok') and nid, 'cria notícia pelo editor único')
+with portal.app.app_context():
+    n = portal.db().execute('SELECT * FROM noticias WHERE id=?', (nid,)).fetchone()
+ok(n['estado'] == 'rascunho' and anon.get('/noticias/' + n['slug']).status_code == 404, 'Salvar não publica')
+ok('<script' not in n['corpo'] and '<strong>mundo</strong>' in n['corpo'] and 'ção' in n['titulo'], 'HTML é limpo e acentos são preservados')
+ok(c.get('/admin/conteudos/noticia/%d' % nid).status_code == 200 and 'id="form-conteudo-ed"' in c.get('/admin/conteudos/noticia/%d' % nid).get_data(as_text=True), 'notícia abre no editor único')
+r = cont({'tipo': 'noticia', 'id': nid, 'acao': 'publicar', 'titulo': 'Matéria ção única', 'corpo': '<p>ok</p>'})
+ok(r.get_json().get('ok') and anon.get('/noticias/' + n['slug']).status_code == 200, 'Publicar publica agora')
+cont({'tipo': 'noticia', 'id': nid, 'acao': 'rascunho', 'titulo': 'Matéria ção única', 'corpo': '<p>ok</p>', 'estado': 'publicado'})
+ok(anon.get('/noticias/' + n['slug']).status_code == 404, 'Salvar como rascunho despublica e não publica')
+cont({'tipo': 'noticia', 'id': nid, 'acao': 'publicar', 'titulo': 'Matéria ção única', 'corpo': '<p>ok</p>', 'publicar_em': '2099-01-01T08:00'})
+ok(anon.get('/noticias/' + n['slug']).status_code == 404 and 'Agendada' in c.get('/admin/conteudos?situacao=agendado').get_data(as_text=True), 'data futura fica agendada')
+ok(not cont({'tipo': 'noticia', 'titulo': '', 'corpo': 'x'}).get_json().get('ok'), 'notícia sem título é recusada')
+r = cont({'tipo': 'noticia', 'titulo': 'Com link ruim', 'corpo': '<p>x</p>', 'url': 'javascript:alert(1)'})
+with portal.app.app_context():
+    ln = portal.db().execute("SELECT destino_url FROM noticias WHERE titulo='Com link ruim'").fetchone()
+ok(ln and 'javascript' not in ln['destino_url'], 'endereço perigoso é descartado')
+# capa: envio e biblioteca
+r = cont({'tipo': 'noticia', 'titulo': 'Com capa enviada', 'corpo': '<p>x</p>', 'imagem': (io.BytesIO(png()), 'capa.png')})
+with portal.app.app_context():
+    cn = portal.db().execute("SELECT capa FROM noticias WHERE titulo='Com capa enviada'").fetchone()
+ok(r.get_json().get('ok') and cn and cn['capa'], 'capa enviada pelo editor único')
+r = cont({'tipo': 'noticia', 'titulo': 'Com capa da biblioteca', 'corpo': '<p>x</p>', 'imagem_biblioteca': cn['capa']})
+with portal.app.app_context():
+    cb = portal.db().execute("SELECT capa FROM noticias WHERE titulo='Com capa da biblioteca'").fetchone()
+ok(cb and cb['capa'] == cn['capa'], 'capa escolhida da biblioteca')
+ok(cont({'tipo': 'noticia', 'titulo': 'Capa maliciosa', 'corpo': 'x', 'imagem_biblioteca': '../../etc/passwd'}).get_json().get('ok')
+   and not portal.db is None, 'nome malicioso de biblioteca não derruba o salvamento')
+
+# cartão de texto e imagem
+r = cont({'tipo': 'cartao', 'titulo': 'Horário único', 'titulo_visivel': 'on', 'corpo': '<p>Das 8h às 17h</p><script>x()</script>', 'url': '/noticias'})
+j = r.get_json(); ck = j.get('id')
+ok(j.get('ok') and str(ck).startswith('conteudo-'), 'cria cartão pelo editor único')
+h = anon.get('/').get_data(as_text=True)
+ok('Das 8h às 17h' in h and 'x()' not in h and 'Horário único' in h, 'cartão aparece ao público, limpo')
+ok('id="form-conteudo-ed"' in c.get('/admin/conteudos/cartao/' + ck).get_data(as_text=True), 'cartão abre no mesmo editor')
+ok(cont({'tipo': 'cartao', 'id': ck, 'titulo': 'Horário 3', 'titulo_visivel': 'on', 'corpo': '<p>Novo</p>'}).get_json().get('ok') and 'Horário 3' in anon.get('/').get_data(as_text=True), 'edita o cartão')
+ok(not cont({'tipo': 'cartao', 'id': 'conteudo-naoexiste', 'titulo': 'x', 'corpo': '<p>y</p>'}).get_json().get('ok'), 'não edita cartão de outro tipo/inexistente')
+ok(not cont({'tipo': 'cartao', 'id': 'ramais', 'titulo': 'x', 'corpo': '<p>y</p>'}).get_json().get('ok'), 'não edita cartão fixo pelo editor de texto')
+
+# comunicado
+with portal.app.app_context():
+    chave_itens = portal.db().execute("SELECT chave FROM cartoes_painel WHERE tipo='itens' ORDER BY ordem LIMIT 1").fetchone()['chave']
+r = cont({'tipo': 'comunicado', 'cartao': chave_itens, 'titulo': 'Decreto de teste', 'texto': 'Linha 1\nLinha 2', 'ativo': 'on', 'urgencia': 'comunicado'})
+j = r.get_json(); lid = j.get('id')
+ok(j.get('ok') and lid, 'cria comunicado pelo editor único')
+h = anon.get('/').get_data(as_text=True)
+ok('Decreto de teste' in h and 'comunicado-clicavel' in h and 'com-overlay' in h, 'comunicado aparece com o item inteiro clicável')
+ok('id="form-conteudo-ed"' in c.get('/admin/conteudos/comunicado/%s' % lid).get_data(as_text=True), 'comunicado abre no mesmo editor')
+cont({'tipo': 'comunicado', 'id': lid, 'titulo': 'Decreto de teste', 'texto': 'x', 'url': 'https://exemplo.gov.br/d', 'ativo': 'on'})
+h = anon.get('/').get_data(as_text=True)
+ok('href="https://exemplo.gov.br/d"' in h, 'comunicado com endereço vira link')
+ok(not cont({'tipo': 'comunicado', 'cartao': chave_itens, 'titulo': '', 'texto': ''}).get_json().get('ok'), 'comunicado vazio é recusado')
+ok(not cont({'tipo': 'comunicado', 'cartao': 'ramais', 'titulo': 'x'}).get_json().get('ok'), 'comunicado não entra em cartão de outro tipo')
+
+# lista, filtros e pesquisa
+h = c.get('/admin/conteudos').get_data(as_text=True)
+ok('Horário 3' in h and 'Decreto de teste' in h and 'Com capa enviada' in h, 'lista única mostra cartões, comunicados e notícias')
+h = c.get('/admin/conteudos?tipo=cartao').get_data(as_text=True)
+ok('Horário 3' in h and 'Decreto de teste' not in h and 'Com capa enviada' not in h, 'filtro por tipo')
+h = c.get('/admin/conteudos?q=decreto').get_data(as_text=True)
+ok('Decreto de teste' in h and 'Horário 3' not in h, 'pesquisa por título')
+ok('Matéria ção única' in c.get('/admin/conteudos?situacao=agendado').get_data(as_text=True), 'filtro por situação')
+
+# pré-visualização não grava
+with portal.app.app_context():
+    antes = portal.db().execute('SELECT (SELECT COUNT(*) FROM noticias)+(SELECT COUNT(*) FROM lateral)+(SELECT COUNT(*) FROM cartoes_painel)').fetchone()[0]
+for t, extra in (('noticia', {'subtitulo': 'Sub'}), ('cartao', {'titulo_visivel': 'on'}), ('comunicado', {'texto': 'abc'})):
+    r = c.post('/admin/conteudos/previa', data=dict({'csrf': tok, 'tipo': t, 'titulo': 'Prévia ' + t, 'corpo': '<p>corpo<script>x()</script></p>'}, **extra))
+    ok(r.get_json().get('ok') and 'Prévia ' + t in r.get_json()['html'] and '<script' not in r.get_json()['html'], 'prévia de %s' % t)
+with portal.app.app_context():
+    depois = portal.db().execute('SELECT (SELECT COUNT(*) FROM noticias)+(SELECT COUNT(*) FROM lateral)+(SELECT COUNT(*) FROM cartoes_painel)').fetchone()[0]
+ok(antes == depois, 'pré-visualizar não grava nada')
+
+# duplicar e excluir
+for t, i in (('noticia', nid), ('cartao', ck), ('comunicado', lid)):
+    r = c.post('/admin/conteudos/duplicar', data={'csrf': tok, 'tipo': t, 'id': i})
+    ok(r.get_json().get('ok'), 'duplica %s' % t)
+    novo_id = r.get_json()['id']
+    ok(c.post('/admin/conteudos/excluir', data={'csrf': tok, 'tipo': t, 'id': novo_id}).get_json().get('ok'), 'exclui a cópia de %s' % t)
+ok(not c.post('/admin/conteudos/excluir', data={'csrf': tok, 'tipo': 'cartao', 'id': 'ramais'}).get_json().get('ok'), 'não exclui cartão fixo')
+for t, i in (('cartao', ck), ('comunicado', lid)):
+    ok(c.post('/admin/conteudos/excluir', data={'csrf': tok, 'tipo': t, 'id': i}).get_json().get('ok'), 'exclui %s' % t)
+ok(c.get('/admin/conteudos/comunicado/%s' % lid).status_code == 404, 'editor de conteúdo excluído dá 404')
+ok(c.get('/admin/conteudos/xyz/1').status_code == 404, 'tipo desconhecido dá 404')
+ok('/admin/conteudos/comunicado/' in c.get('/admin/lateral?editar=1').headers.get('Location', ''), 'edição antiga de itens redireciona ao editor')
+# pontos de entrada antigos usam o editor único
+with portal.app.app_context():
+    sl = portal.db().execute('SELECT slug FROM noticias WHERE id=?', (nid,)).fetchone()['slug']
+ok('/admin/conteudos/noticia/%d' % nid in c.get('/noticias/' + sl).get_data(as_text=True), 'página da notícia leva ao editor único')
 
 shutil.rmtree(TMP, ignore_errors=True)
 print('\nFALHAS: %d' % len(falhas) if falhas else '\nTodos os testes passaram.')

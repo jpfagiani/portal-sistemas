@@ -134,6 +134,29 @@
     barra.appendChild(document.createElement('span')).className = 're-sep';
     botao('↑ Subir', function () { mover(-1); });
     botao('↓ Descer', function () { mover(1); });
+    /* Link na imagem: ao clicar nela, o visitante vai para o endereço escolhido.
+       A imagem fica dentro de um <a>; endereço vazio remove o link. */
+    botao('Link…', function () {
+      if (!atual) return;
+      var a = atual.parentNode && atual.parentNode.tagName === 'A' ? atual.parentNode : null;
+      var u = window.prompt('Endereço ao clicar na imagem (https://... ou /pagina).\nDeixe vazio para tirar o link:',
+                            a ? a.getAttribute('href') : 'https://');
+      if (u === null) return;
+      u = u.trim();
+      if (!u || u === 'https://') {
+        if (a) { a.parentNode.insertBefore(atual, a); a.remove(); }
+      } else if (a) {
+        a.setAttribute('href', u);
+      } else {
+        a = document.createElement('a'); a.setAttribute('href', u);
+        atual.parentNode.insertBefore(a, atual); a.appendChild(atual);
+      }
+      atualizaLink(); posicionaAlca();
+    }).dataset.link = '1';
+    function atualizaLink() {
+      var b = barra.querySelector('button[data-link]');
+      if (b) b.classList.toggle('on', !!atual && !!atual.closest('a'));
+    }
     botao('Descrição…', function () {
       if (!atual) return;
       var v = window.prompt('Texto alternativo (descreve a imagem para quem não a enxerga):', atual.getAttribute('alt') || '');
@@ -148,14 +171,15 @@
     /* Sobe ou desce a imagem um bloco do texto. */
     function mover(d) {
       if (!atual) return;
-      var bloco = atual; while (bloco.parentNode !== area) bloco = bloco.parentNode;
-      var so = bloco === atual || (bloco.children.length === 1 && !bloco.textContent.trim());
+      var unidade = atual.parentNode.tagName === 'A' ? atual.parentNode : atual;
+      var bloco = unidade; while (bloco.parentNode !== area) bloco = bloco.parentNode;
+      var so = bloco === unidade || (bloco.children.length === 1 && !bloco.textContent.trim());
       var vizinho = d < 0 ? bloco.previousElementSibling : bloco.nextElementSibling;
       if (so) {
         if (!vizinho) return;
         if (d < 0) area.insertBefore(bloco, vizinho); else area.insertBefore(bloco, vizinho.nextSibling);
       } else {
-        var p = document.createElement('p'); p.appendChild(atual);
+        var p = document.createElement('p'); p.appendChild(unidade);
         if (d < 0) area.insertBefore(p, bloco); else area.insertBefore(p, bloco.nextSibling);
       }
       posicionaAlca(); atual.scrollIntoView({block: 'nearest'});
@@ -189,7 +213,7 @@
     });
     function seleciona(img) {
       if (atual && atual !== img) atual.removeAttribute('data-sel');
-      atual = img; atual.setAttribute('data-sel', '1'); barra.hidden = false; marca(); posicionaAlca();
+      atual = img; atual.setAttribute('data-sel', '1'); barra.hidden = false; marca(); atualizaLink(); posicionaAlca();
     }
     // Imagem nova entra em tamanho médio e já selecionada, com a barra à vista.
     window.__reSelecionaNova = null;
@@ -198,7 +222,7 @@
       if (todas.length) seleciona(todas[todas.length - 1]);
     }
     area.addEventListener('click', function (e) {
-      if (e.target.tagName === 'IMG') seleciona(e.target); else desmarca();
+      if (e.target.tagName === 'IMG') { e.preventDefault(); seleciona(e.target); } else desmarca();
     });
     document.addEventListener('mousedown', function (e) { if (atual && !raiz.contains(e.target)) desmarca(); });
 

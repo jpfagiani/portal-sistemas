@@ -10,10 +10,11 @@ rotas e regras — nada de depender de um arquivo único cada vez maior:
   midia      biblioteca de imagens
   noticias   notícias e publicações, com rascunho e agendamento
   cartoes    cartões livres de texto e imagem, criados na própria página
+  conteudos  aba única e editor único para cartões, notícias e comunicados
 
 Cada módulo importa o núcleo (`import app as nucleo`) e se registra nele. O
 núcleo carrega este pacote depois de definir tudo o que os módulos usam.
 """
-from . import seguranca, auditoria, midia, noticias, cartoes   # noqa: F401  (registram rotas)
+from . import seguranca, auditoria, midia, noticias, cartoes, conteudos   # noqa: F401  (registram rotas)
 
 SCHEMA = seguranca.SCHEMA + auditoria.SCHEMA + midia.SCHEMA + noticias.SCHEMA + cartoes.SCHEMA

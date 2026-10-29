@@ -41,6 +41,8 @@
         resolvida — o template não escolhe família. #}
     {% for pref, fonte in aparencia_cartoes %}
     --{{ pref }}-fonte:      {{ fonte }};
+    --{{ pref }}-cab-tam:    {{ cfg[pref ~ '_cab_tam'] }}rem;
+    --{{ pref }}-cab-cor:    {{ cfg[pref ~ '_cab_cor'] }};
     --{{ pref }}-titulo-tam: {{ cfg[pref ~ '_titulo_tam'] }}rem;
     --{{ pref }}-titulo-cor: {{ cfg[pref ~ '_titulo_cor'] }};
     --{{ pref }}-texto-tam:  {{ cfg[pref ~ '_texto_tam'] }}rem;
@@ -54,6 +56,25 @@
     --capa-veu-cheio: {{ rgba(cfg.capa_cor, '0.94') }};
     --capa-veu-zero:  {{ rgba(cfg.capa_cor, '0') }};
   }
+  {#  Nome de cada cartão (o cabeçalho): fonte, tamanho e cor escolhidos na tela
+      do cartão. O cartão se identifica por data-cartao (ver `pos` em
+      blocos.html); só entram prefixos de CARTAO_APARENCIA, e os valores já
+      foram validados na gravação. #}
+  {% for pref, fonte in aparencia_cartoes %}
+  .cartao[data-cartao="{{ pref }}"] .cartao-cab h2{
+    font-family:var(--{{ pref }}-fonte);
+    font-size:var(--{{ pref }}-cab-tam)}
+  .cartao[data-cartao="{{ pref }}"] .comunicados{
+    --com-titulo-tam:var(--{{ pref }}-titulo-tam);
+    --com-texto-tam:var(--{{ pref }}-texto-tam)}
+  {#  As cores só valem no tema claro: uma cor escolhida para cartão branco fica
+      ilegível sobre cartão escuro, e quem lê não teria como corrigir. #}
+  html:not([data-tema="escuro"]) .cartao[data-cartao="{{ pref }}"] .cartao-cab h2{
+    color:var(--{{ pref }}-cab-cor)}
+  html:not([data-tema="escuro"]) .cartao[data-cartao="{{ pref }}"] .comunicados{
+    --com-titulo-cor:var(--{{ pref }}-titulo-cor);
+    --com-texto-cor:var(--{{ pref }}-texto-cor)}
+  {% endfor %}
   {% if cfg.fundo_modo == 'imagem' and fundo_nome %}
   /* Foto da unidade atrás de tudo, clareada pelo véu para o texto dos cartões
      continuar legível. O arquivo é fixo em static/ — trocá-lo troca o fundo, e

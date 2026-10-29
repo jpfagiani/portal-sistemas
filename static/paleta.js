@@ -6,6 +6,8 @@
     consegue representar ausência de cor: ele sempre devolve alguma. */
 (function () {
   document.querySelectorAll('[data-paleta]').forEach(function (paleta) {
+    if (paleta.dataset.pronta) return;   // a tela pode carregar o script duas vezes
+    paleta.dataset.pronta = '1';
     var campo = paleta.querySelector('[data-paleta-valor]');
     var livre = paleta.querySelector('[data-paleta-livre]');
     var amostras = paleta.querySelectorAll('.paleta-amostra');

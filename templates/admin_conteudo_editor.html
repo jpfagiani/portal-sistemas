@@ -1,0 +1,161 @@
+{% extends 'admin_base.html' %}
+{% import 'rico.html' as r with context %}
+{% import 'campos.html' as campos %}
+{% set aba = 'conteudos' %}
+{% block titulo %}{{ 'Novo' if novo else 'Editar' }} · {{ rotulo }}{% endblock %}
+
+{#  Editor único de Conteúdos. Os blocos marcados com data-so="tipo ..." só existem
+    para aqueles tipos; o servidor ignora o que não é do tipo (e não apaga o que
+    já estava guardado). #}
+{% block admin %}
+{% set rico = tipo in ('cartao', 'noticia') %}
+<div class="cont-editor">
+<form id="form-conteudo-ed" method="post" enctype="multipart/form-data" class="painel-caixa"
+      data-salvar="{{ url_for('conteudos_salvar') }}" data-previa="{{ url_for('conteudos_previa') }}"
+      data-lista="{{ volta }}" data-biblioteca="{{ url_for('admin_midia_lista') }}"
+      data-enviar="{{ url_for('admin_midia_enviar') }}" data-csrf="{{ csrf_token }}" novalidate>
+  <h2>{{ ('Nova' if tipo == 'noticia' else 'Novo') if novo else 'Editar' }} {{ rotulo|lower }}
+    {% if tipo == 'noticia' and not novo %}<span class="tag {{ 'tag-ok' if d.situacao == 'Publicada' else 'tag-off' }}">{{ d.situacao }}</span>{% endif %}</h2>
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <input type="hidden" name="tipo" value="{{ tipo }}">
+  <input type="hidden" name="id" value="{{ d.id }}">
+  <input type="hidden" name="volta" value="{{ volta }}">
+  <input type="hidden" name="cartao" value="{{ cartao_chave }}">
+  <input type="hidden" name="imagem_biblioteca" value="">
+  <input type="hidden" name="imagem_nova" value="">
+
+  <fieldset class="cont-bloco">
+    <legend>Conteúdo</legend>
+    <label for="c-titulo">{{ 'Nome do cartão' if tipo == 'cartao' else 'Título' }}{{ ' *' if tipo == 'noticia' }}</label>
+    <input id="c-titulo" name="titulo" maxlength="{{ 80 if tipo == 'cartao' else 200 }}" value="{{ d.titulo }}"
+           {{ 'required' if tipo == 'noticia' }}>
+    {% if tipo == 'noticia' %}
+    {{ campos.titulo_noticia(d, fontes) }}
+    <label for="c-sub">Subtítulo</label>
+    <input id="c-sub" name="subtitulo" maxlength="300" value="{{ d.subtitulo }}">
+    <label for="c-resumo">Resumo <small>(aparece nas listas e nos cartões)</small></label>
+    <textarea id="c-resumo" name="resumo" rows="2" maxlength="600">{{ d.resumo }}</textarea>
+    {% endif %}
+    {% if rico %}
+    <label>Texto e imagens <small>(arraste ou cole imagens no texto; clique numa imagem para tamanho, posição e link)</small></label>
+    {{ r.editor('corpo', d.corpo|safe, destinos_links, csrf_token) }}
+    {% else %}
+    <label for="c-texto">Texto</label>
+    <textarea id="c-texto" name="texto" rows="8">{{ d.conteudo }}</textarea>
+    <p class="dica">Sai no painel exatamente como digitado: quebras de linha e espaços são preservados.</p>
+    {% endif %}
+  </fieldset>
+
+  {% if tipo != 'cartao' %}
+  <fieldset class="cont-bloco">
+    <legend>Mídia</legend>
+    {% set atual = d.capa if tipo == 'noticia' else d.imagem %}
+    <label>{{ 'Imagem de capa' if tipo == 'noticia' else 'Imagem' }}</label>
+    <div class="ne-capa">
+      <img id="c-img-prev" alt="" {% if atual %}src="{{ url_for('static', filename='uploads/' ~ atual) }}"{% else %}hidden{% endif %}>
+      <div class="ne-capa-acoes">
+        <button type="button" class="btn btn-sm" id="c-img-biblioteca">Escolher da biblioteca</button>
+        <label class="btn btn-sm" for="c-img-arquivo">Enviar do computador</label>
+        <input type="file" id="c-img-arquivo" name="imagem" data-bib="1" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+        <label class="check"><input type="checkbox" name="remover_imagem" id="c-img-remover"> Remover a imagem</label>
+      </div>
+    </div>
+    {% if tipo == 'noticia' %}
+    <div class="pe-duas">
+      <div><label for="c-leg">Legenda da capa</label><input id="c-leg" name="legenda" maxlength="300" value="{{ d.legenda }}"></div>
+      <div><label for="c-alt">Texto alternativo da capa</label><input id="c-alt" name="capa_alt" maxlength="300" value="{{ d.capa_alt }}"></div>
+    </div>
+    {% else %}
+    <label for="c-imgpos">Posição da imagem</label>
+    <select id="c-imgpos" name="img_pos">{% for k, v in img_pos.items() %}<option value="{{ k }}" {{ 'selected' if d.img_pos == k }}>{{ v }}</option>{% endfor %}</select>
+    <label>Vídeo <small>(MP4, WEBM ou OGG)</small></label>
+    <input type="file" name="video" accept=".mp4,.webm,.ogg,.ogv,video/*">
+    {% if d.video %}<label class="check"><input type="checkbox" name="remover_video"> Remover o vídeo atual ({{ d.video }})</label>{% endif %}
+    {% endif %}
+  </fieldset>
+  {% endif %}
+
+  <fieldset class="cont-bloco">
+    <legend>Link e destino</legend>
+    <label for="c-url">{{ {'noticia': 'Ao clicar, abrir', 'cartao': 'Endereço do cartão inteiro', 'comunicado': 'Endereço (o item inteiro vira link)'}[tipo] }}
+      <small>({{ 'opcional; vazio = a própria notícia' if tipo == 'noticia' else 'opcional' }})</small></label>
+    <input id="c-url" name="url" list="c-destinos" maxlength="500" placeholder="https://... ou /pagina" value="{{ d.url }}">
+    <datalist id="c-destinos">{% for n, e in destinos_links %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist>
+    {% if tipo == 'comunicado' %}
+    <label for="c-urlrot">Texto do link <small>(padrão: “Abrir”)</small></label>
+    <input id="c-urlrot" name="url_rot" maxlength="60" value="{{ d.url_rot }}">
+    {% endif %}
+  </fieldset>
+
+  <fieldset class="cont-bloco">
+    <legend>Publicação e opções</legend>
+    {% if tipo == 'noticia' %}
+    <div class="pe-duas">
+      <div><label for="c-cat">Categoria</label>
+        <input id="c-cat" name="categoria" list="c-cats" maxlength="60" value="{{ d.categoria }}">
+        <datalist id="c-cats">{% for c in categorias %}<option value="{{ c }}">{% endfor %}</datalist></div>
+      <div><label for="c-estado">Situação</label>
+        <select id="c-estado" name="estado">{% for k, v in estados.items() %}<option value="{{ k }}" {{ 'selected' if d.estado == k }}>{{ v }}</option>{% endfor %}</select></div>
+    </div>
+    <label for="c-data">Publicar em <small>(vazio = agora, ao publicar; data futura = agendada)</small></label>
+    <input id="c-data" name="publicar_em" type="datetime-local" value="{{ d.publicar_em_campo }}">
+    <label for="c-slug">Endereço da página <small>(gerado do título se vazio)</small></label>
+    <input id="c-slug" name="slug" maxlength="80" value="{{ d.slug }}">
+    <label for="c-meta">Descrição para buscadores</label>
+    <input id="c-meta" name="meta" maxlength="300" value="{{ d.meta }}">
+    <label class="check"><input type="checkbox" name="em_destaque" {{ 'checked' if d.destaque }}> Destaque (fixada no topo da lista, como manchete)</label>
+    {% elif tipo == 'cartao' %}
+    <label class="check"><input type="checkbox" name="titulo_visivel" {{ 'checked' if d.titulo_visivel }}> Mostrar o nome do cartão no portal</label>
+    <p class="dica">Posição e tamanho do cartão: arraste-o em <a href="{{ url_for('editor') }}">Editar portal</a> ou no
+      <a href="{{ url_for('admin_mapa') }}">Mapa do painel</a>.</p>
+    {% else %}
+    <label class="check"><input type="checkbox" name="ativo" {{ 'checked' if novo or d.ativo }}> Visível no portal</label>
+    <div class="pe-duas">
+      <div><label for="c-urg">Urgência <small>(define o selo; Informação não mostra selo)</small></label>
+        <select id="c-urg" name="urgencia">
+          {% for k, v in {'informacao': 'Informação', 'comunicado': 'Comunicado', 'urgente': 'Urgente'}.items() %}
+          <option value="{{ k }}" {{ 'selected' if d.urgencia == k }}>{{ v }}</option>{% endfor %}</select></div>
+      <div><label for="c-dest">Destaque</label>
+        <select id="c-dest" name="destaque">{% for k, v in destaques.items() %}<option value="{{ k }}" {{ 'selected' if d.destaque == k }}>{{ v }}</option>{% endfor %}</select></div>
+    </div>
+    <label for="c-datae">Data exibida <small>(livre, ex.: 15/07/2026)</small></label>
+    <input id="c-datae" name="data" value="{{ d.data }}">
+    <label>Cor do título</label>{{ campos.paleta('titulo_cor', d.titulo_cor, paleta) }}
+    <label>Cor do texto</label>{{ campos.paleta('texto_cor', d.texto_cor, paleta) }}
+    {% endif %}
+  </fieldset>
+
+  <p class="pe-erro" id="c-erro" role="alert"></p>
+  <p class="dica" id="c-ok" role="status" hidden></p>
+  <div class="acoes cont-acoes">
+    {% if tipo == 'noticia' %}
+    <button class="btn btn-principal" type="submit" data-acao="salvar">Salvar alterações</button>
+    <button class="btn" type="submit" data-acao="rascunho" title="Guarda como rascunho: não publica">Salvar como rascunho</button>
+    <button class="btn" type="submit" data-acao="publicar" title="Publica agora, ou na data escolhida">Publicar</button>
+    {% else %}
+    <button class="btn btn-principal" type="submit" data-acao="salvar">Salvar</button>
+    {% endif %}
+    <button class="btn" type="button" id="c-previa-btn">Pré-visualizar</button>
+    <a class="btn" href="{{ volta }}" id="c-cancelar">Cancelar</a>
+    {% if not novo %}<button class="btn btn-perigo" type="button" id="c-excluir"
+      data-url="{{ url_for('conteudos_excluir') }}">Excluir</button>{% endif %}
+  </div>
+</form>
+
+<aside class="painel-caixa cont-previa" id="c-previa" aria-live="polite" hidden>
+  <h2>Pré-visualização</h2>
+  {% if tipo == 'noticia' %}
+  <div class="acoes">
+    <button type="button" class="btn btn-sm btn-principal" data-visao="cartao">Cartão</button>
+    <button type="button" class="btn btn-sm" data-visao="pagina">Página completa</button>
+  </div>
+  {% endif %}
+  <p class="dica">Só uma prévia: nada foi salvo nem publicado.</p>
+  <div id="c-previa-corpo"></div>
+</aside>
+</div>
+<script src="{{ url_for('static', filename='paleta.js') }}"></script>
+<script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
+<script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
+<script src="{{ url_for('static', filename='conteudo-editor.js') }}"></script>
+{% endblock %}

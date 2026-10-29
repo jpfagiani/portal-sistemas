@@ -297,6 +297,29 @@ sudo ./desinstalar.sh    # remove o serviço; PRESERVA dados e imagens
   cartão "Últimas notícias" na página inicial (pode ser movido/ocultado como os
   demais cartões).
 
+### Aba "Todos os cartões"
+
+*Administração → Todos os cartões* reúne **todos** os cartões da página inicial (sistemas, atalhos,
+ramais, notícias, cartões de itens e de texto e imagem). Cada um abre para mudar o nome, a **fonte e
+as cores** (nome do cartão, título e texto dos itens, com paleta) e leva direto à tela do conteúdo.
+A posição continua no *Mapa do painel*.
+
+### Título de cada notícia
+
+No formulário de edição da notícia (em *Administração → Notícias* e na própria página da notícia),
+logo abaixo do título: **fonte, tamanho e cor** só daquele título, que valem no cartão da página
+inicial, na lista `/noticias` e na página da notícia. Vazio = o que estiver definido para o cartão em
+*Todos os cartões*. A cor vale no tema claro.
+
+### Posição das notícias e aparência dos títulos
+
+- **Posição**: em *Administração → Notícias*, arraste as linhas pela alça ⠿ ou use ▲ ▼. A ordem
+  vale para o cartão "Últimas notícias" e para `/noticias`, e é salva na hora. Notícia nova, ou
+  marcada como destaque, entra na primeira posição.
+- **Aparência**: no fim da mesma tela, fonte, tamanho e cor (paleta ou cor livre) do nome do cartão
+  e do título de cada notícia — por padrão, vermelho. Todos os demais cartões ganharam os mesmos
+  controles para o **nome do cartão**, na tela de edição de cada um.
+
 ## Cartões de texto e imagem
 
 Em **Editar portal**, o botão **+ Texto ou imagem** cria um cartão com texto
@@ -323,3 +346,18 @@ python3 tests/test_modulos.py   # trabalha numa cópia temporária; não toca no
 | `static/banner.js` | Rotação automática do banner |
 | `instalar.sh` / `desinstalar.sh` | Instalação e remoção no Debian |
 | `dados.db` | Banco SQLite (criado na primeira execução, fora do Git) |
+
+## Administração: aba "Conteúdos"
+
+Cartões de texto e imagem, notícias e comunicados (itens dos cartões de comunicados) são criados,
+pesquisados, filtrados, pré-visualizados, duplicados e excluídos em **Administração → Conteúdos**
+(`/admin/conteudos`), e todos abrem no mesmo editor (`/admin/conteudos/<cartao|noticia|comunicado>/<id|novo>`).
+
+- Notícia: **Salvar alterações** mantém a situação escolhida, **Salvar como rascunho** nunca publica e
+  **Publicar** publica agora (ou na data escolhida, se for futura).
+- A ordem das notícias é alterada arrastando na lista, com o filtro "Notícias".
+- Os botões de edição da página inicial e da página da notícia abrem este mesmo editor.
+- Endereços antigos (`/admin/noticias`, `/admin/lateral?editar=…`) redirecionam. Os dados continuam nas
+  mesmas tabelas (`cartao_conteudo`, `noticias`, `lateral`); nada foi migrado.
+- Implementação: `modulos/conteudos.py`, `templates/admin_conteudos.html`,
+  `templates/admin_conteudo_editor.html`, `static/conteudo-editor.js`. Testes: `python3 tests/test_modulos.py`.

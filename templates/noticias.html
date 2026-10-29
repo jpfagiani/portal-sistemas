@@ -32,7 +32,7 @@
       {{ foto(m) }}
       <div class="not-texto">
         <small>{{ marca(m) }}</small>
-        <h2>{{ m.titulo }}</h2>
+        <h2 class="ntit" style="{{ estilo_titulo(m) }}">{{ m.titulo }}</h2>
         {% if m.resumo or m.subtitulo %}<p>{{ m.resumo or m.subtitulo }}</p>{% endif %}
         <time class="not-data">{{ m.publicar_em|data_br }}</time>
       </div>
@@ -48,7 +48,7 @@
         {{ foto(n) }}
         <div class="not-texto">
           <small>{{ marca(n) }}</small>
-          <h3>{{ n.titulo }}</h3>
+          <h3 class="ntit" style="{{ estilo_titulo(n) }}">{{ n.titulo }}</h3>
           {% if n.resumo or n.subtitulo %}<p>{{ n.resumo or n.subtitulo }}</p>{% endif %}
           <time class="not-data">{{ n.publicar_em|data_br }}</time>
         </div>

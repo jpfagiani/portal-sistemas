@@ -71,7 +71,7 @@
     {% for nome, v in extra.items() %}
     <input type="hidden" name="{{ nome }}" value="{{ v }}">
     {% endfor %}
-    <label>Fonte</label>
+    <label>Fonte <small>(vale para o nome do cartão e para o conteúdo)</small></label>
     <select name="{{ pref }}_fonte">
       {% for chave, (rotulo, _) in fontes.items() %}
       <option value="{{ chave }}"
@@ -81,30 +81,47 @@
     <p class="dica">A lista é fechada de propósito: o servidor é de rede
       interna, sem fonte baixada da internet, então só valem famílias que já
       existem na máquina de quem lê.</p>
+
+    <h3 class="aparencia-sub">Nome do cartão</h3>
     <div class="linha">
       <div>
-        <label>Título — tamanho <small>(rem)</small></label>
+        <label>Tamanho <small>(rem)</small></label>
+        <input name="{{ pref }}_cab_tam" type="number" step="0.01" min="0.6" max="1.8"
+               value="{{ cfg[pref ~ '_cab_tam'] }}">
+      </div>
+      <div>
+        <label>Cor</label>
+        {{ paleta(pref ~ '_cab_cor', cfg[pref ~ '_cab_cor'], PALETA) }}
+      </div>
+    </div>
+
+    <h3 class="aparencia-sub">Título dos itens</h3>
+    <div class="linha">
+      <div>
+        <label>Tamanho <small>(rem)</small></label>
         <input name="{{ pref }}_titulo_tam" type="number" step="0.01" min="0.6" max="2"
                value="{{ cfg[pref ~ '_titulo_tam'] }}">
       </div>
       <div>
-        <label>Título — cor</label>
-        <input name="{{ pref }}_titulo_cor" type="color"
-               value="{{ cfg[pref ~ '_titulo_cor'] }}">
+        <label>Cor</label>
+        {{ paleta(pref ~ '_titulo_cor', cfg[pref ~ '_titulo_cor'], PALETA) }}
       </div>
+    </div>
+
+    <h3 class="aparencia-sub">Texto dos itens</h3>
+    <div class="linha">
       <div>
-        <label>Texto — tamanho <small>(rem)</small></label>
+        <label>Tamanho <small>(rem)</small></label>
         <input name="{{ pref }}_texto_tam" type="number" step="0.01" min="0.5" max="2"
                value="{{ cfg[pref ~ '_texto_tam'] }}">
       </div>
       <div>
-        <label>Texto — cor</label>
-        <input name="{{ pref }}_texto_cor" type="color"
-               value="{{ cfg[pref ~ '_texto_cor'] }}">
+        <label>Cor</label>
+        {{ paleta(pref ~ '_texto_cor', cfg[pref ~ '_texto_cor'], PALETA) }}
       </div>
     </div>
-    <p class="dica">Neste cartão, <strong>título</strong> é {{ titulo_e }} e
-      <strong>texto</strong> é {{ texto_e }}.
+    <p class="dica">Neste cartão, <strong>título dos itens</strong> é {{ titulo_e }} e
+      <strong>texto</strong> é {{ texto_e }}. “Padrão” volta à cor original.
       {%- if pref == 'com' %} Isto é o padrão de todos os comunicados; um que
       precise ser diferente tem os mesmos campos no próprio cadastro, ao lado.
       {%- endif %}</p>
@@ -113,7 +130,34 @@
       escuro, e quem está lendo não teria como corrigir. Tamanho e fonte valem
       nos dois temas.</p>
     <div class="acoes"><button class="btn" type="submit">Salvar aparência</button></div>
+    <script src="{{ url_for('static', filename='paleta.js') }}"></script>
   </form>
+{% endmacro %}
+
+{#  Aparência do título de UMA notícia: fonte, tamanho e cor. Vazio = o que está
+    definido no cartão "Últimas notícias" (Administração → Todos os cartões). #}
+{% macro titulo_noticia(n, fontes) %}
+  <div class="titulo-estilo">
+    <div class="linha">
+      <div>
+        <label>Fonte do título</label>
+        <select name="titulo_fonte">
+          <option value="">Padrão (a do cartão)</option>
+          {% for chave, (rotulo, _) in fontes.items() if chave != 'padrao' %}
+          <option value="{{ chave }}" {{ 'selected' if n and n.titulo_fonte == chave }}>{{ rotulo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Tamanho <small>(rem; vazio = padrão)</small></label>
+        <input name="titulo_tam" type="number" step="0.05" min="0.6" max="3" placeholder="padrão"
+               value="{{ n.titulo_tam if n else '' }}">
+      </div>
+    </div>
+    <label>Cor do título</label>
+    {{ paleta('titulo_cor', n.titulo_cor if n else '', PALETA) }}
+    <p class="dica">A cor vale no tema claro; no escuro o portal usa a própria, para continuar legível.</p>
+  </div>
 {% endmacro %}
 
 {#  Paleta de cores: amostras clicáveis + seletor livre ao lado.

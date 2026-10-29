@@ -1,0 +1,79 @@
+{% extends 'admin_base.html' %}
+{% import 'campos.html' as campos %}
+{% set aba = 'conteudos' %}
+{% block titulo %}Conteúdos{% endblock %}
+
+{% block admin %}
+<section class="painel-caixa">
+  <h2>Conteúdos do portal</h2>
+  <p class="dica">Cartões de texto e imagem, notícias e comunicados num só lugar. Todos abrem no mesmo editor.</p>
+  <div class="acoes cont-novo">
+    <a class="btn btn-principal" href="{{ url_for('conteudos_editor', tipo='noticia', ident='novo') }}">+ Nova notícia</a>
+    <a class="btn" href="{{ url_for('conteudos_editor', tipo='cartao', ident='novo') }}">+ Novo cartão de texto e imagem</a>
+    {% if cartoes_itens %}
+    <form method="get" action="{{ url_for('conteudos_editor', tipo='comunicado', ident='novo') }}" class="cont-inline">
+      <select name="cartao" aria-label="Cartão do novo comunicado">
+        {% for c in cartoes_itens %}<option value="{{ c.chave }}">{{ c.nome }}</option>{% endfor %}
+      </select>
+      <button class="btn" type="submit">+ Novo comunicado</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="painel-caixa" style="margin-top:.8rem">
+  <form method="get" class="hist-busca cont-filtros">
+    <input type="search" name="q" value="{{ q }}" placeholder="Pesquisar por título…" aria-label="Pesquisar por título">
+    <select name="tipo" aria-label="Tipo">
+      <option value="">Todos os tipos</option>
+      {% for k, v in tipos.items() %}<option value="{{ k }}" {{ 'selected' if filtro_tipo == k }}>{{ v }}s</option>{% endfor %}
+    </select>
+    <select name="situacao" aria-label="Situação">
+      <option value="">Todas as situações</option>
+      {% for k, v in situacoes.items() %}<option value="{{ k }}" {{ 'selected' if filtro_sit == k }}>{{ v }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">Filtrar</button>
+    {% if q or filtro_tipo or filtro_sit %}<a class="btn btn-sm" href="{{ url_for('conteudos') }}">Limpar</a>{% endif %}
+  </form>
+  <p id="cont-aviso" class="pe-erro" role="alert"></p>
+  <table class="tabela" id="cont-tabela">
+    <thead><tr>{% if ordenavel %}<th></th>{% endif %}<th>Título</th><th>Tipo</th><th>Onde aparece</th><th>Situação</th><th>Atualizado</th><th></th></tr></thead>
+    <tbody{% if ordenavel %} data-ordenavel="{{ url_for('admin_noticias') }}" data-csrf="{{ csrf_token }}"{% endif %}>
+      {% for l in linhas %}
+      <tr data-id="{{ l.id }}" data-tipo="{{ l.tipo }}">
+        {% if ordenavel %}<td class="pega" title="Arraste para mudar a posição">⠿</td>{% endif %}
+        <td><a href="{{ url_for('conteudos_editor', tipo=l.tipo, ident=l.id) }}"><strong>{{ l.titulo }}</strong></a>
+          {% if l.destaque %}<span class="tag tag-admin">destaque</span>{% endif %}
+          {% if l.extra %}<br><small class="dica">{{ l.extra }}</small>{% endif %}</td>
+        <td>{{ l.rotulo_tipo }}</td>
+        <td>{{ l.onde }}</td>
+        <td><span class="tag {{ 'tag-ok' if l.situacao in ('visivel', 'publicado') else 'tag-off' }}">{{ l.rotulo_situacao }}</span></td>
+        <td>{{ l.atualizado or '—' }}</td>
+        <td class="acoes-linha">
+          <a class="btn btn-sm" href="{{ url_for('conteudos_editor', tipo=l.tipo, ident=l.id) }}">Editar</a>
+          {% if l.tipo == 'noticia' %}<a class="btn btn-sm" target="_blank" rel="noopener" href="{{ url_for('noticia', slug=l.slug) }}">Pré-visualizar</a>{% endif %}
+          <button type="button" class="btn btn-sm" data-duplicar>Duplicar</button>
+          <button type="button" class="btn btn-sm btn-perigo" data-excluir data-titulo="{{ l.titulo }}">Excluir</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="vazio">Nenhum conteúdo encontrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="dica">{% if ordenavel %}Arraste pela alça <span class="pega">⠿</span> para mudar a posição das notícias; vale para o cartão “Últimas notícias” e para a página de Notícias.
+    {% else %}Para ordenar as notícias, filtre por <a href="{{ url_for('conteudos', tipo='noticia') }}">Notícias</a>. Comunicados se ordenam em
+    <a href="{{ url_for('admin_lateral') }}">Cartões do painel</a>.{% endif %}</p>
+  <script type="application/json" id="cont-urls">{{ {'excluir': url_for('conteudos_excluir'), 'duplicar': url_for('conteudos_duplicar'), 'csrf': csrf_token}|tojson }}</script>
+</section>
+
+<details class="painel-caixa" style="margin-top:.8rem">
+  <summary><strong>Cartão “Últimas notícias”: aparência</strong></summary>
+  <p class="dica">Fonte, tamanho e cor do nome do cartão e do título de cada notícia. Nomes e aparência dos demais cartões:
+    <a href="{{ url_for('admin_cartoes') }}">Aparência dos cartões</a>.</p>
+  {% if aparencia %}{{ campos.aparencia_cartao(aparencia[1], cfg, fontes, csrf_token, aparencia[2], aparencia[3]) }}{% endif %}
+</details>
+<script src="{{ url_for('static', filename='paleta.js') }}"></script>
+<script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script src="{{ url_for('static', filename='conteudos-lista.js') }}"></script>
+{% endblock %}

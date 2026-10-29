@@ -17,6 +17,7 @@
     form.elements.chave.value = chave || '';
     form.elements.nome.value = d.nome;
     form.elements.titulo_visivel.checked = d.titulo_visivel;
+    form.elements.url.value = d.url || '';
     area.innerHTML = d.html;
     excluir.hidden = !chave;
     erro.textContent = '';

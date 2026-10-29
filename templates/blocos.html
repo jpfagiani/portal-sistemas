@@ -7,7 +7,10 @@
 
 {#  Comunicado: quadrado colorido com o símbolo, título com o selo do tipo ao
     lado e a data à direita. #}
-{% macro comunicados(itens) %}
+{#  `destino` é o endereço de reserva: item sem link próprio leva a ele (no painel,
+    a lista completa do cartão). Assim todo item abre algo ao passar o mouse
+    e clicar, no texto ou na imagem. #}
+{% macro comunicados(itens, destino='') %}
   {% for c in itens %}
   {% set u = c.urgencia|default('informacao') %}
   {% set d = c.destaque|default('nenhum') %}
@@ -110,7 +113,14 @@
   {% if c.tipo == 'link' and c.url %}
     <a class="comunicado destaque-{{ d }} tom-{{ u }}" style="{{ estilo }}" href="{{ c.url }}" target="_blank" rel="noopener">{{ interno }}</a>
   {% else %}
+    {% set alvo = c.url or destino %}
+    {% if alvo and not modo_edicao %}
+    <div class="comunicado comunicado-clicavel destaque-{{ d }} tom-{{ u }}" style="{{ estilo }}">
+      <a class="com-overlay" href="{{ alvo }}" target="{{ '_blank' if c.url or destino.startswith('http') else '_self' }}" rel="noopener"
+         aria-label="Abrir{{ ': ' ~ c.titulo if c.titulo }}"></a>{{ interno }}</div>
+    {% else %}
     <div class="comunicado destaque-{{ d }} tom-{{ u }}" style="{{ estilo }}">{{ interno }}</div>
+    {% endif %}
   {% endif %}
   {% else %}
   {{ vazio('Nenhum comunicado publicado.', 'megafone') }}
@@ -282,7 +292,7 @@
     iguais — o que muda e o nome, a posicao e o que a unidade escreve. #}
 {#  Onde o cartão fica. No layout livre vem do quadro de 12 colunas (gx, gy, gw,
     gh); no de colunas, dos atributos que o CSS traduz para a grade. #}
-{% macro pos(c) %}{% if livre %}data-chave="{{ c.chave }}" data-gx="{{ c.gx }}" data-gy="{{ c.gy }}" data-gw="{{ c.gw }}" data-gh="{{ c.gh }}" style="grid-column:{{ c.gx + 1 }} / span {{ c.gw }};grid-row:{{ c.gy + 1 }} / span {{ c.gh }}{% if c.z %};z-index:{{ c.z }}{% endif %}"{% else %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}{% endif %}{% endmacro %}
+{% macro pos(c) %}data-cartao="{{ c.chave }}" {% if livre %}data-chave="{{ c.chave }}" data-gx="{{ c.gx }}" data-gy="{{ c.gy }}" data-gw="{{ c.gw }}" data-gh="{{ c.gh }}" style="grid-column:{{ c.gx + 1 }} / span {{ c.gw }};grid-row:{{ c.gy + 1 }} / span {{ c.gh }}{% if c.z %};z-index:{{ c.z }}{% endif %}"{% else %}{% if c.largura > 1 %}data-larg="{{ c.largura }}"{% endif %}{% if c.coluna %} data-col="{{ c.coluna }}"{% endif %}{% if c.altura %} data-alt="{{ c.altura }}"{% endif %}{% endif %}{% endmacro %}
 
 {% macro cartao_painel(c, itens) %}
   {#  Cartão sem nenhum item some para quem só visita; o administrador continua
@@ -304,7 +314,7 @@
       {% endif %}
     </div>
     <div class="cartao-corpo comunicados" style="--liv-fonte:var(--{{ c.chave }}-fonte)">
-      {{ comunicados(itens) }}
+      {{ comunicados(itens, url_for('lista', chave=c.chave)) }}
     </div>
   </section>
   {% endif %}

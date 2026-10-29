@@ -1,5 +1,6 @@
 {% extends 'admin_base.html' %}
 {% import 'rico.html' as r with context %}
+{% import 'campos.html' as campos %}
 {% set aba = 'noticias' %}
 {% block titulo %}Notícias{% endblock %}
 
@@ -16,6 +17,7 @@
 
       <label for="n-titulo">Título *</label>
       <input id="n-titulo" name="titulo" required maxlength="200" value="{{ editar.titulo if editar else '' }}">
+      {{ campos.titulo_noticia(editar, fontes) }}
       <label for="n-sub">Subtítulo</label>
       <input id="n-sub" name="subtitulo" maxlength="300" value="{{ editar.subtitulo if editar else '' }}">
       <label for="n-resumo">Resumo <small>(aparece nas listas e nos cartões)</small></label>
@@ -90,11 +92,17 @@
       {% if formulario %}<a class="btn btn-sm" href="{{ url_for('admin_noticias', nova=1) }}">+ Nova</a>{% endif %}
     </form>
     <table class="tabela">
-      <thead><tr><th>Título</th><th>Categoria</th><th>Situação</th><th>Data</th><th></th></tr></thead>
-      <tbody>
+      <thead><tr><th></th><th>Pos.</th><th>Título</th><th>Categoria</th><th>Situação</th><th>Data</th><th></th></tr></thead>
+      <tbody data-ordenavel="{{ url_for('admin_noticias') }}" data-csrf="{{ csrf_token }}">
         {% for n in itens %}
         {% set s = situacao_noticia(n) %}
-        <tr>
+        <tr data-id="{{ n.id }}">
+          <td class="pega" title="Arraste para mudar a posição">⠿</td>
+          <td class="pos-noticia"><span data-coluna-ordem>{{ loop.index }}</span>
+            <span class="mover-noticia">
+              <button type="button" class="btn btn-sm" data-mover="-1" title="Subir uma posição" aria-label="Subir">▲</button>
+              <button type="button" class="btn btn-sm" data-mover="1" title="Descer uma posição" aria-label="Descer">▼</button>
+            </span></td>
           <td><strong>{{ n.titulo }}</strong>{% if n.destaque %} <span class="tag tag-admin">destaque</span>{% endif %}</td>
           <td>{{ n.categoria or '—' }}</td>
           <td><span class="tag {{ 'tag-ok' if s == 'Publicada' else 'tag-off' }}">{{ s }}</span></td>
@@ -110,11 +118,25 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="vazio">Nenhuma notícia ainda.</td></tr>
+        <tr><td colspan="7" class="vazio">Nenhuma notícia ainda.</td></tr>
         {% endfor %}
       </tbody>
     </table>
+    <p class="dica">Escolha a posição das notícias: arraste pela alça <span class="pega">⠿</span> ou use
+      ▲ ▼. A ordem vale para o cartão “Últimas notícias” e para a página de Notícias, e é salva na hora.
+      Notícia nova (ou marcada como destaque) entra na primeira posição.</p>
   </section>
 </div>
+
+{% if aparencia and not formulario %}
+<section class="painel-caixa" style="margin-top:1rem">
+  <h2>Aparência do cartão “Últimas notícias”</h2>
+  <p class="dica">Fonte, tamanho e cor do nome do cartão e do título de cada notícia. Por padrão o título é vermelho.</p>
+  {{ campos.aparencia_cartao(aparencia[1], cfg, fontes, csrf_token, aparencia[2], aparencia[3]) }}
+</section>
+{% endif %}
+<script src="{{ url_for('static', filename='paleta.js') }}"></script>
+<script src="{{ url_for('static', filename='ordenar.js') }}"></script>
+<script src="{{ url_for('static', filename='noticia-ordem.js') }}"></script>
 <script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
 {% endblock %}

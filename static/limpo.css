@@ -330,8 +330,8 @@ a.lp-destaque:hover{background:var(--azul-forte)}
 .not-item{display:flex;gap:.6rem;align-items:center;text-decoration:none;color:inherit;padding:.35rem;border-radius:10px;background:var(--cartao-suave)}
 .not-item:hover,.not-item:focus-visible{outline:0;box-shadow:inset 0 0 0 1px var(--azul)}
 .not-item img{width:3.4rem;height:3.4rem;object-fit:cover;border-radius:8px;flex-shrink:0}
-.not-item small{display:block;color:var(--texto-fraco);font-size:.68rem}
-.not-item strong{font-size:.85rem;line-height:1.25}
+.not-item small{display:block;color:var(--noticias-texto-cor,var(--texto-fraco));font-size:var(--noticias-texto-tam,.68rem);font-family:var(--noticias-fonte,inherit)}
+.not-item strong{font-size:var(--noticias-titulo-tam,.95rem);color:var(--noticias-titulo-cor,#9f1239);font-family:var(--noticias-fonte,inherit);line-height:1.25}
 .not-todas{font-size:.8rem;color:var(--azul);text-decoration:none;font-weight:600;align-self:flex-end}
 .pagina-noticia{max-width:none}
 .noticia-cat{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--azul)}
@@ -353,7 +353,7 @@ a.lp-destaque:hover{background:var(--azul-forte)}
 .lateral-paginas .not-lista{gap:.45rem}
 .lateral-paginas .not-item{align-items:flex-start;padding:.4rem}
 .lateral-paginas .not-item img{width:2.6rem;height:2.6rem}
-.lateral-paginas .not-item strong{font-size:.8rem;line-height:1.3}
+.lateral-paginas .not-item strong{line-height:1.3}
 .lateral-paginas .not-todas{font-size:.74rem}
 .regiao-topo .cartao[data-larg="3"] .ladrilhos{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 .lateral-paginas>.cartao:first-child{padding-top:0}
@@ -587,3 +587,42 @@ a.lp-destaque:hover{background:var(--azul-forte)}
 .com-img-alca,.com-img-etiqueta{display:none!important}
 .com-img-caixa[data-editavel].livre .com-imagem{cursor:auto}
 .cartao-cab h2::before,.tela-livre>.cartao .cartao-cab h2::before{content:none!important;display:none!important}
+
+/* Imagem com link (texto formatado): sem sublinhado, e o hover mostra que clica */
+.pagina-texto a:has(>img){text-decoration:none;display:contents}   /* contents: não altera float nem largura da imagem */
+.pagina-texto a:has(>img)>img{cursor:pointer;border-radius:10px;transition:filter .15s,box-shadow .15s}
+.pagina-texto a:has(>img):hover>img,.pagina-texto a:has(>img):focus-visible>img{filter:brightness(1.06);box-shadow:0 0 0 2px var(--azul)}
+.re-area a:has(>img){text-decoration:none}
+
+/* Cartão de texto e imagem com endereço: o cartão inteiro é clicável */
+.cartao-clicavel{position:relative;cursor:pointer}
+.cartao-overlay{position:absolute;inset:0;z-index:1;border-radius:10px}
+.cartao-clicavel .cartao-corpo a{position:relative;z-index:2}
+.cartao-clicavel:hover .cartao-cab h2,.cartao-overlay:focus-visible~.cartao-cab h2{color:var(--azul)}
+.cartao-overlay:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+
+/* Título de notícia com cor própria (campo "Cor do título"): só no tema claro */
+html:not([data-tema="escuro"]) .ntit[style*="--n-cor"]{color:var(--n-cor)}
+.titulo-estilo{margin:.2rem 0 .4rem}
+
+/* Item de comunicado inteiro clicável: um link transparente cobre o item; links
+   e imagens com endereço próprio ficam por cima dele. */
+.comunicado-clicavel{position:relative;cursor:pointer}
+.com-overlay{position:absolute;inset:0;z-index:1}
+.comunicado-clicavel .conteudo a,.comunicado-clicavel .com-img-link{position:relative;z-index:2}
+.comunicado-clicavel:hover .titulo,.com-overlay:focus-visible~.conteudo .titulo{color:var(--azul)}
+.com-overlay:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+
+/* Conteúdos: lista e editor único */
+.cont-novo{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+.cont-inline{display:inline-flex;gap:.4rem;align-items:center}
+.cont-filtros{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:.7rem}
+.cont-editor{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:start}
+.cont-editor form input:not([type=checkbox]):not([type=hidden]):not([type=file]),.cont-editor form textarea,.cont-editor form select{width:100%;box-sizing:border-box}
+.cont-bloco{border:1px solid var(--borda);border-radius:10px;padding:.6rem .9rem .9rem;margin:.9rem 0}
+.cont-bloco legend{font-weight:700;padding:0 .4rem}
+.cont-editor label{display:block;font-weight:600;font-size:.85rem;margin:.7rem 0 .25rem}
+.cont-editor label.check,.cont-editor label.btn{font-weight:500}
+.cont-acoes{display:flex;flex-wrap:wrap;gap:.5rem;position:sticky;bottom:0;background:var(--cartao);padding:.6rem 0}
+.cont-previa{min-width:0}
+@media (min-width:1100px){.cont-editor{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}.cont-previa{position:sticky;top:.8rem}}

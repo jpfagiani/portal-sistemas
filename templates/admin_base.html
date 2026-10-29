@@ -4,7 +4,7 @@
 <main class="pagina pagina-admin">
   <nav class="abas">
     <a href="{{ url_for('admin') }}" class="{{ 'ativa' if aba=='inicio' }}">Visão geral</a>
-    <a href="{{ url_for('admin_noticias') }}" class="{{ 'ativa' if aba=='noticias' }}">Notícias</a>
+    <a href="{{ url_for('conteudos') }}" class="{{ 'ativa' if aba in ('conteudos', 'cartoes', 'noticias') }}">Conteúdos</a>
     <a href="{{ url_for('admin_midia') }}" class="{{ 'ativa' if aba=='midia' }}">Mídia</a>
     <a href="{{ url_for('admin_links') }}" class="{{ 'ativa' if aba=='links' }}">Sistemas e atalhos</a>
     <a href="{{ url_for('admin_banners') }}" class="{{ 'ativa' if aba=='banners' }}">Banner</a>

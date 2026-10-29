@@ -1,0 +1,39 @@
+{% import 'blocos.html' as b with context %}
+{#  Prévia do editor de Conteúdos. Só desenha o que veio do formulário: nada é
+    gravado. A imagem escolhida e ainda não salva é trocada pelo JS (data-previa-imagem). #}
+{% if tipo == 'cartao' %}
+<section class="cartao cartao-conteudo">
+  {% if titulo_visivel %}<div class="cartao-cab"><h2>{{ titulo or 'Novo cartão' }}</h2></div>{% endif %}
+  <div class="cartao-corpo pagina-texto cartao-texto">{{ corpo }}</div>
+</section>
+{% elif tipo == 'noticia' %}
+<div class="previa-visao" data-visao="cartao">
+  <p class="dica">Como aparece no cartão “Últimas notícias”:</p>
+  <div class="cartao"><div class="cartao-corpo not-lista">
+    <span class="not-item">
+      {% if capa %}<img data-previa-imagem src="{{ url_for('static', filename='uploads/' ~ capa) }}" alt="">{% endif %}
+      <span><small>{% if categoria %}{{ categoria }} · {% endif %}hoje</small>
+        <strong class="ntit" style="{{ estilo }}">{{ titulo or '(sem título)' }}</strong></span>
+    </span>
+  </div></div>
+</div>
+<div class="previa-visao" data-visao="pagina" hidden>
+  <article class="noticia">
+    <header>
+      {% if categoria %}<span class="noticia-cat">{{ categoria }}</span>{% endif %}
+      <h1 class="pagina-titulo ntit" style="{{ estilo }}">{{ titulo or '(sem título)' }}</h1>
+      {% if subtitulo %}<p class="noticia-sub">{{ subtitulo }}</p>{% endif %}
+    </header>
+    {% if capa %}
+    <figure class="noticia-capa">
+      <img data-previa-imagem src="{{ url_for('static', filename='uploads/' ~ capa) }}" alt="{{ capa_alt }}">
+      {% if legenda %}<figcaption>{{ legenda }}</figcaption>{% endif %}
+    </figure>
+    {% endif %}
+    {% if resumo %}<p class="noticia-sub">{{ resumo }}</p>{% endif %}
+    <div class="pagina-texto noticia-corpo">{{ corpo }}</div>
+  </article>
+</div>
+{% else %}
+<section class="cartao"><div class="cartao-corpo comunicados">{{ b.comunicados([item]) }}</div></section>
+{% endif %}

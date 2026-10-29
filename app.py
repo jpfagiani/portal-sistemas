@@ -410,6 +410,8 @@ PALETA = [
     ('#1d4ed8', 'Azul forte'),('#16a34a', 'Verde'),     ('#0f766e', 'Verde-água'),
     ('#e08a2a', 'Âmbar'),     ('#c2410c', 'Laranja'),   ('#e0503c', 'Vermelho'),
     ('#b91c1c', 'Vermelho forte'), ('#6d5ae0', 'Roxo'), ('#a21caf', 'Magenta'),
+    ('#dc2626', 'Vermelho vivo'), ('#9f1239', 'Vinho'), ('#0e7490', 'Petróleo'),
+    ('#334155', 'Ardósia'), ('#000000', 'Preto'),
 ]
 # Fundos: mesmas famílias, em tom claro — texto escuro por cima continua legível.
 PALETA_FUNDO = [
@@ -486,11 +488,19 @@ CARTAO_APARENCIA = {
     # Medidas do cartão do painel, que é do que a tela de Ramais fala. A página
     # "ver todos" é outra coisa — três colunas de lista — e tem medida própria.
     'ramais':        ('ramais',   '0.74', '#1e293b', '0.78', '#1e293b'),
+    # Últimas notícias: título de cada notícia em vinho e um pouco maior que
+    # os demais cartões (era .80–.85rem e cor do texto); o texto é a data.
+    'noticias':      ('noticias', '0.95', '#9f1239', '0.68', '#7c8ba1'),
 }
+# Nome do cartão (o cabeçalho "ÚLTIMAS NOTÍCIAS", "ATALHOS ÚTEIS"...): tamanho e
+# cor próprios, iguais em todos os cartões. Os padrões são o que a folha já
+# desenhava (.82rem, cor do texto), então nada muda de lugar até alguém mexer.
+CAB_TAM_PADRAO, CAB_COR_PADRAO = '0.82', '#1e293b'
 PADROES.update({
     chave: valor
     for pref, t_tam, t_cor, x_tam, x_cor in CARTAO_APARENCIA.values()
     for chave, valor in ((f'{pref}_fonte', 'padrao'),
+                         (f'{pref}_cab_tam', CAB_TAM_PADRAO), (f'{pref}_cab_cor', CAB_COR_PADRAO),
                          (f'{pref}_titulo_tam', t_tam), (f'{pref}_titulo_cor', t_cor),
                          (f'{pref}_texto_tam', x_tam),  (f'{pref}_texto_cor', x_cor))
     if chave not in PADROES})
@@ -519,23 +529,56 @@ CARTAO_PARTES = {
     'sistemas': ('a sigla do botão', 'o nome embaixo dela'),
     'atalhos':  ('o nome do atalho', 'a descrição embaixo dele'),
     'ramais':   ('o nome do setor',  'o número do ramal'),
+    'noticias': ('o título de cada notícia', 'a data e a categoria acima dele'),
 }
 
 
 def campos_aparencia(chave):
     """(campo, faixa) de cada ajuste do cartão. Faixa só para tamanho."""
-    pref = CARTAO_APARENCIA[chave][0]
+    pref = prefixo_aparencia(chave)
     return ((f'{pref}_fonte', None),
+            (f'{pref}_cab_tam', (0.6, 1.8)), (f'{pref}_cab_cor', None),
             (f'{pref}_titulo_tam', (0.6, 2.0)), (f'{pref}_titulo_cor', None),
             (f'{pref}_texto_tam', (0.5, 2.0)),  (f'{pref}_texto_cor', None))
 
 
+# Cartões genéricos criados depois (cartao6, cartao7...) não estão em
+# CARTAO_APARENCIA, mas têm a mesma aparência de fábrica e as mesmas telas.
+APARENCIA_PADRAO = {'fonte': 'padrao', 'cab_tam': CAB_TAM_PADRAO, 'cab_cor': CAB_COR_PADRAO,
+                    'titulo_tam': '0.83', 'titulo_cor': '#1e293b',
+                    'texto_tam': '0.74', 'texto_cor': '#7c8ba1'}
+PARTES_PADRAO = ('o título de cada item', 'o texto embaixo dele')
+
+
+def prefixo_aparencia(chave):
+    """Prefixo dos campos de aparência do cartão, ou None se ele não tem."""
+    if chave in CARTAO_APARENCIA:
+        return CARTAO_APARENCIA[chave][0]
+    c = cartao_por_chave(chave)
+    return chave if c and c['tipo'] == 'itens' else None
+
+
+def padrao_aparencia(pref, campo):
+    """Valor de fábrica de um campo de aparência (`campo` já com o prefixo)."""
+    return PADROES.get(campo) or APARENCIA_PADRAO[campo[len(pref) + 1:]]
+
+
+def prefixos_aparencia():
+    """Todos os cartões com aparência: os de fábrica e os genéricos criados depois."""
+    prefs = [p for p, *_ in CARTAO_APARENCIA.values()]
+    for r in db().execute("SELECT chave FROM cartoes_painel WHERE tipo='itens' ORDER BY ordem, id"):
+        if r['chave'] not in prefs:
+            prefs.append(r['chave'])
+    return prefs
+
+
 def dados_aparencia_cartao(chave):
     """(chave, prefixo, o que é título, o que é texto) para a tela desenhar o
-    formulário. Cartão inexistente — o menu lateral — devolve None."""
-    if chave not in CARTAO_APARENCIA:
+    formulário. Cartão sem aparência — o menu lateral — devolve None."""
+    pref = prefixo_aparencia(chave)
+    if not pref:
         return None
-    return (chave, CARTAO_APARENCIA[chave][0]) + CARTAO_PARTES[chave]
+    return (chave, pref) + CARTAO_PARTES.get(chave, PARTES_PADRAO)
 
 # Cartões livres: a unidade cria os seus, com título, foto e texto próprios.
 # A posição é por encaixe na grade que já existe, não solta em pixels — o
@@ -629,6 +672,11 @@ def posicao_capa(valor):
 def cor_hexa(valor, padrao):
     valor = (valor or '').strip()
     return valor if _HEX.match(valor) else padrao
+
+
+# A paleta de amostras fica disponível a qualquer template, inclusive os macros
+# importados sem contexto (campos.html), que desenham a aparência dos cartões.
+app.jinja_env.globals['PALETA'] = PALETA
 
 
 @app.template_global()
@@ -956,7 +1004,8 @@ def _semear_aparencia(con, chave):
     Escrita no banco, e não deixada para um valor implícito: assim o resto do
     sistema continua achando a chave onde sempre achou, sem caso especial para
     cartão criado depois."""
-    for sufixo, valor in (('fonte', 'padrao'), ('titulo_tam', '0.83'),
+    for sufixo, valor in (('fonte', 'padrao'), ('cab_tam', CAB_TAM_PADRAO),
+                          ('cab_cor', CAB_COR_PADRAO), ('titulo_tam', '0.83'),
                           ('titulo_cor', '#1e293b'), ('texto_tam', '0.74'),
                           ('texto_cor', '#7c8ba1')):
         con.execute('INSERT OR IGNORE INTO config (chave,valor) VALUES (?,?)',
@@ -1122,6 +1171,11 @@ def init_db():
             # "Leia também" começa desligado: ligá-lo é escolha de cada página,
             # e as já existentes não ganham um bloco novo por conta da atualização.
             ('paginas_lateral', 'mostrar_leia',   'INTEGER NOT NULL DEFAULT 0'),
+            ('noticias', 'ordem',    'INTEGER NOT NULL DEFAULT 0'),
+            ('noticias', 'titulo_fonte', "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'titulo_cor',   "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'titulo_tam',   "TEXT NOT NULL DEFAULT ''"),
+            ('cartao_conteudo', 'url', "TEXT NOT NULL DEFAULT ''"),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
             ('usuarios', 'ultimo_acesso', "TEXT DEFAULT ''")):
         existentes = {c[1] for c in con.execute(f'PRAGMA table_info({tabela})')}
@@ -1129,6 +1183,9 @@ def init_db():
             con.execute(f'ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}')
 
     _semear_cartoes(con)
+    # Cartões genéricos já existentes ganham os campos de aparência novos (nome do cartão).
+    for r in con.execute("SELECT chave FROM cartoes_painel WHERE tipo='itens'").fetchall():
+        _semear_aparencia(con, r[0])
 
     # O texto dos botões era um ajuste só, valendo para sistemas e atalhos ao
     # mesmo tempo. Agora cada cartão tem o seu. Quem tinha personalizado herda o
@@ -1988,7 +2045,7 @@ def _injeta():
             'aparencia_cartoes': [
                 (pref, FONTES_TEXTO.get(cfg(f'{pref}_fonte'),
                                         FONTES_TEXTO['padrao'])[1])
-                for pref, *_ in CARTAO_APARENCIA.values()],
+                for pref in prefixos_aparencia()],
             'icones_proprios': icones_enviados(), 'prefixo_icone': ICONE_ARQ,
             'aviso_chamados': aviso_chamados,
             'aviso_comunicados': aviso_comunicados,
@@ -2633,6 +2690,56 @@ def admin_banners():
         itens=con.execute('SELECT * FROM banners ORDER BY ordem, id').fetchall())
 
 
+TIPOS_CARTAO = {
+    'sistemas': 'Acesso rápido aos sistemas', 'atalhos': 'Atalhos úteis',
+    'ramais': 'Ramais', 'noticias': 'Últimas notícias',
+    'itens': 'Cartão de itens (comunicados)', 'conteudo': 'Cartão de texto e imagem',
+}
+
+
+def _editar_conteudo_cartao(c):
+    """(rótulo, endereço) da tela que edita o que há DENTRO do cartão."""
+    t, k = c['tipo'], c['chave']
+    if t == 'sistemas':
+        return 'Editar sistemas', url_for('admin_links', grupo='sistema')
+    if t == 'atalhos':
+        return 'Editar atalhos', url_for('admin_links', grupo='atalho')
+    if t == 'ramais':
+        return 'Editar ramais', url_for('admin_ramais')
+    if t == 'noticias':
+        return 'Editar notícias', url_for('conteudos', tipo='noticia')
+    if t == 'conteudo':
+        return 'Editar conteúdo', url_for('conteudos_editor', tipo='cartao', ident=k)
+    return 'Editar itens', url_for('admin_lateral', cartao=k)
+
+
+@app.route('/admin/cartoes', methods=['GET', 'POST'])
+@admin_obrigatorio
+def admin_cartoes():
+    """Todos os cartões do portal numa tela só: nome, conteúdo e aparência."""
+    if request.method == 'POST':
+        chave = request.form.get('cartao', '')
+        if not cartao_por_chave(chave):
+            abort(400)
+        acao = request.form.get('acao')
+        if acao == 'aparencia_cartao':
+            salvar_aparencia_cartao(chave)
+        elif acao == 'titulo_cartao':
+            if (request.form.get('titulo_cartao') or '').strip():
+                salvar_nome_cartao_painel(chave)
+            else:
+                flash('O nome do cartão não pode ficar em branco.', 'erro')
+        return redirect(url_for('admin_cartoes') + '#c-' + chave)
+    cartoes = []
+    for c in cartoes_do_painel():
+        rotulo, destino = _editar_conteudo_cartao(c)
+        cartoes.append({'c': c, 'tipo': TIPOS_CARTAO.get(c['tipo'], c['tipo']),
+                        'rotulo': rotulo, 'destino': destino,
+                        'aparencia': dados_aparencia_cartao(c['chave'])})
+    return render_template('admin_cartoes.html', cartoes=cartoes, fontes=FONTES_TEXTO,
+                           regioes=CARTAO_REGIOES)
+
+
 @app.route('/admin/lateral', methods=['GET', 'POST'])
 @admin_obrigatorio
 def admin_lateral():
@@ -2771,15 +2878,13 @@ def admin_lateral():
     chave = request.args.get('cartao') or ''
     if not cartao_por_chave(chave):
         chave = CARTOES_SEMENTE[0][0]
-    editar = None
+    # Itens (comunicados) são editados no editor único de Conteúdos.
     if request.args.get('editar'):
-        editar = con.execute('SELECT * FROM lateral WHERE id=? AND cartao=?',
-                             (_int(request.args['editar']), chave)).fetchone()
-    elif not request.args.get('novo'):
-        # Clicar no cartão já abre o primeiro item para edição, sem passar pelo
-        # botão "Editar". Para cadastrar outro: "+ Novo item" (?novo=1).
-        editar = con.execute('SELECT * FROM lateral WHERE cartao=?'
-                             ' ORDER BY ordem, id LIMIT 1', (chave,)).fetchone()
+        return redirect(url_for('conteudos_editor', tipo='comunicado',
+                                ident=_int(request.args['editar'])))
+    if request.args.get('novo'):
+        return redirect(url_for('conteudos_editor', tipo='comunicado', ident='novo', cartao=chave))
+    editar = None
     return render_template(
         'admin_lateral.html', editar=editar, destaques=DESTAQUES_COMUNICADO,
         paleta=PALETA, paleta_fundo=PALETA_FUNDO,
@@ -3329,14 +3434,18 @@ def salvar_aparencia_cartao(chave_cartao):
     o lugar onde se edita, não o que é aceito.
     """
     con = db()
+    pref = prefixo_aparencia(chave_cartao)
+    if not pref:
+        return
     for campo, faixa in campos_aparencia(chave_cartao):
         bruto = request.form.get(campo)
+        padrao = padrao_aparencia(pref, campo)
         if campo.endswith('_tam'):
-            valor = medida(bruto, PADROES[campo], *faixa)
+            valor = medida(bruto, padrao, *faixa)
         elif campo.endswith('_cor'):
-            valor = cor_hexa(bruto, PADROES[campo])
+            valor = cor_hexa(bruto, padrao)
         else:
-            valor = bruto if bruto in FONTES_TEXTO else PADROES[campo]
+            valor = bruto if bruto in FONTES_TEXTO else padrao
         con.execute('INSERT INTO config (chave,valor) VALUES (?,?) '
                     'ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor',
                     (campo, valor))

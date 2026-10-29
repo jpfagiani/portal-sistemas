@@ -74,6 +74,10 @@ html[data-tema="escuro"]{
   --chamados-titulo-cor:#e4eaf6; --chamados-texto-cor:#8a99b5;
   --reservas-titulo-cor:#e4eaf6; --reservas-texto-cor:#8a99b5;
   --ramais-titulo-cor:#e4eaf6;   --ramais-texto-cor:#e4eaf6;
+  --noticias-titulo-cor:#fb7185; --noticias-texto-cor:#8a99b5;
+  --cartao1-cab-cor:#e4eaf6; --cartao2-cab-cor:#e4eaf6; --cartao3-cab-cor:#e4eaf6;
+  --cartao4-cab-cor:#e4eaf6; --cartao5-cab-cor:#e4eaf6; --sistemas-cab-cor:#e4eaf6;
+  --atalhos-cab-cor:#e4eaf6; --ramais-cab-cor:#e4eaf6;   --noticias-cab-cor:#e4eaf6;
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1116,6 +1120,7 @@ html[data-tema="escuro"] .img-fundo .livre-corpo::before{opacity:.12}
    moldura: é a mesma caixa, outro assunto. */
 .aparencia-cartao{margin-top:.2rem}
 .aparencia-cartao .acoes{margin-top:.6rem}
+.aparencia-sub{font-size:.78rem;margin:1rem 0 .2rem;color:var(--texto-fraco);text-transform:uppercase;letter-spacing:.5px}
 
 /* ── conteúdo dos itens do cartão ──────────────────────────────────────────
    Imagem e vídeo são conteúdo, não decoração: ocupam a largura do texto e
@@ -1401,3 +1406,18 @@ html[data-tema="escuro"] .com-img-link-fundo:hover .com-img-fundo{opacity:.2}
 .livre-menu button:disabled{opacity:.4;cursor:default}
 .livre-menu button.perigo{color:#dc2626}
 .livre-menu kbd{font:inherit;font-size:.72rem;color:var(--texto-fraco,#7c8ba1)}
+
+/* posição das notícias no admin */
+.pos-noticia{white-space:nowrap}
+.mover-noticia{display:inline-flex;gap:2px;margin-left:.4rem}
+.mover-noticia .btn{padding:0 .35rem;min-width:0;line-height:1.4}
+
+/* aba "Todos os cartões" */
+.cartao-adm-sum{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;cursor:pointer;list-style:none}
+.cartao-adm-sum::-webkit-details-marker{display:none}
+.cartao-adm-sum::before{content:"▸";color:var(--texto-fraco);transition:transform .12s}
+.cartao-adm[open]>.cartao-adm-sum::before{transform:rotate(90deg)}
+.cartao-adm-acoes{margin-left:auto}
+.cartao-adm-nome{margin-top:1rem}
+.cartao-adm-linha{display:flex;gap:.5rem;align-items:center}
+.cartao-adm-linha input{flex:1}

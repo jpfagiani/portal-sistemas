@@ -1,0 +1,52 @@
+{% extends 'admin_base.html' %}
+{% import 'campos.html' as campos %}
+{% set aba = 'cartoes' %}
+{% block titulo %}Todos os cartões{% endblock %}
+
+{% block admin %}
+<section class="painel-caixa">
+  <h2>Todos os cartões do portal</h2>
+  <p class="dica">Cada cartão da página inicial está aqui, de qualquer tipo. Abra um para mudar o
+    <strong>nome</strong>, a <strong>fonte e as cores</strong> (nome do cartão, título e texto dos itens)
+    ou ir direto à tela do <strong>conteúdo</strong> dele. Para mudar a posição, use o
+    <a href="{{ url_for('admin_mapa') }}">Mapa do painel</a>.</p>
+</section>
+
+{% for x in cartoes %}
+{% set c = x.c %}
+<details class="painel-caixa cartao-adm" id="c-{{ c.chave }}" style="margin-top:.8rem"
+         {{ 'open' if request.args.get('abrir') == c.chave }}>
+  <summary class="cartao-adm-sum">
+    <span class="cab-ic" style="display:inline-block;vertical-align:middle">{{ ic(c.icone) }}</span>
+    <strong>{{ c.nome }}</strong>
+    <span class="tag tag-admin">{{ x.tipo }}</span>
+    {% if not c.ativo %}<span class="tag tag-off">oculto</span>{% endif %}
+    <span class="cartao-adm-acoes">
+      <a class="btn btn-sm" href="{{ x.destino }}">{{ x.rotulo }}</a>
+    </span>
+  </summary>
+
+  <form method="post" class="cartao-adm-nome">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="cartao" value="{{ c.chave }}">
+    <input type="hidden" name="acao" value="titulo_cartao">
+    <label for="nome-{{ c.chave }}">Nome do cartão</label>
+    <div class="cartao-adm-linha">
+      <input id="nome-{{ c.chave }}" name="titulo_cartao" maxlength="80" value="{{ c.nome }}">
+      <button class="btn" type="submit">Salvar nome</button>
+    </div>
+  </form>
+
+  {% if x.aparencia %}
+  <h3 class="aparencia-sub" style="margin-top:1.2rem">Fonte e cores</h3>
+  {{ campos.aparencia_cartao(x.aparencia[1], cfg, fontes, csrf_token, x.aparencia[2], x.aparencia[3],
+                             {'cartao': c.chave}) }}
+  {% else %}
+  <p class="dica" style="margin-top:1rem">Este cartão é de texto e imagem: a fonte, o tamanho e as cores do
+    texto são escolhidos no próprio editor dele (<a href="{{ url_for('editor') }}">Editar portal</a> →
+    clique no nome do cartão).</p>
+  {% endif %}
+</details>
+{% endfor %}
+<script src="{{ url_for('static', filename='paleta.js') }}"></script>
+{% endblock %}
