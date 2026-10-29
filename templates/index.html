@@ -68,6 +68,21 @@
         <h2>{% if modo_edicao %}<a class="cab-link cab-editar" href="{{ url_for('admin_noticias') }}" title="Gerenciar notícias">{{ c.nome }}</a>
             {% else %}<a class="cab-link" href="{{ url_for('noticias') }}">{{ c.nome }}</a>{% endif %}</h2>
       </div>
+      {% if noticias_vitrine[0] == 'grade' %}
+      {#  Vitrine: imagem em cima e título logo abaixo, os dois com a mesma largura; o item todo é um link
+          (para a própria notícia, para uma página do portal ou para um site, conforme "Ao clicar, abrir"). #}
+      <div class="cartao-corpo not-vitrine" style="--col:{{ noticias_vitrine[1] }}">
+        {% for n in noticias_recentes %}
+        {% set destino = n.destino_url or url_for('noticia', slug=n.slug) %}
+        <a class="not-chamada" href="{{ destino }}"{% if destino.startswith('http') %} target="_blank" rel="noopener"{% endif %}>
+          {% if n.capa %}<img src="{{ url_for('static', filename='uploads/' ~ n.capa) }}" alt="" loading="lazy">{% endif %}
+          <strong class="ntit" style="{{ estilo_titulo(n) }}">{{ n.titulo }}</strong>
+        </a>
+        {% else %}
+        <p class="vazio">Nenhuma notícia publicada ainda.</p>
+        {% endfor %}
+      </div>
+      {% else %}
       <div class="cartao-corpo not-lista">
         {% for n in noticias_recentes %}
         {% set destino = n.destino_url or url_for('noticia', slug=n.slug) %}
@@ -80,6 +95,7 @@
         <p class="vazio">Nenhuma notícia publicada ainda.</p>
         {% endfor %}
       </div>
+      {% endif %}
     </section>
     {% endif %}
   {% elif c.tipo == 'ramais' %}

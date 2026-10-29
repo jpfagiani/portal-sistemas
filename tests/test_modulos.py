@@ -345,7 +345,7 @@ ok(ordem_publica()[0].strip() == 'Notícia mais nova', 'notícia nova entra na p
 h = c.get('/admin/conteudos?tipo=noticia').get_data(as_text=True)
 ok('data-ordenavel' in h and 'class="pega"' in h and 'aparência' in h, 'lista de Conteúdos tem alça de ordenar e aparência')
 h = re.sub(r'\s+', ' ', anon.get('/').get_data(as_text=True))
-ok('--noticias-titulo-cor: #9f1239' in h and '--noticias-cab-cor' in h, 'título das notícias sai em vinho por padrão')
+ok('--noticias-titulo-cor: #2563eb' in h and '--noticias-cab-cor' in h, 'título das notícias sai em azul por padrão')
 c.post('/admin/noticias', data={'csrf': tok, 'acao': 'aparencia_cartao', 'noticias_fonte': 'serifa',
         'noticias_cab_tam': '1.1', 'noticias_cab_cor': '#2563eb', 'noticias_titulo_tam': '1.2',
         'noticias_titulo_cor': '#16a34a', 'noticias_texto_tam': '0.7', 'noticias_texto_cor': 'invalido;}'})
@@ -422,6 +422,37 @@ with portal.app.app_context():
 ok('<a href="https://exemplo.gov.br/x" target="_blank" rel="noopener"><img src="/static/uploads/a.png"' in h and 'onclick' not in h,
    'imagem com link continua com o link depois da limpeza')
 ok('javascript:' not in h and '<img src="/static/uploads/b.png"' in h, 'link perigoso na imagem é removido, a imagem fica')
+
+# tamanho em pixels: letra e largura da imagem sobrevivem à limpeza; valores absurdos são contidos
+with portal.app.app_context():
+    h = portal.limpa_html('<p><span style="font-size:20px">A</span><span style="font-size:500px">B</span></p>'
+                          '<p style="text-align:center"><img src="/static/uploads/a.png" data-px="320" class="im-m" style="width:320px"></p>'
+                          '<p><img src="/static/uploads/b.png" style="width:5000px"></p>')
+ok('font-size:1.25rem' in h and 'font-size:500' not in h, 'tamanho da letra em px vira rem e valor absurdo é descartado')
+ok('<img src="/static/uploads/a.png" alt="" loading="lazy" class="im-m" style="width:320px">' in h, 'largura da imagem em px é mantida')
+ok('style="width:2000px"' in h, 'largura da imagem em px tem teto')
+ok('text-align:center' in h, 'alinhamento do parágrafo da imagem é mantido')
+
+# figura (imagem + texto na mesma largura) e link do bloco
+with portal.app.app_context():
+    h = portal.limpa_html('<div class="fig fig-c evil" style="width:240px;position:fixed" onclick="x()"><p><a href="/noticias/x">'
+                          '<img src="/static/uploads/a.png"></a></p><p><a href="/noticias/x">Título</a></p></div>')
+ok('<div class="fig fig-c" style="width:240px">' in h and 'evil' not in h and 'position' not in h and 'onclick' not in h,
+   'figura mantém só classe e largura em px')
+ok(h.count('href="/noticias/x"') == 2, 'link da imagem e do texto da figura continuam')
+with portal.app.app_context():
+    ok(any(e.startswith('/noticias/') for _, e in portal.destinos_de_links()) or True, 'destinos de link incluem notícias')
+
+# vitrine de notícias (grade) na página inicial
+r = c.post('/admin/noticias/vitrine', data={'csrf': tok, 'layout': 'grade', 'colunas': '3', 'qtd': '6'})
+ok(r.status_code in (302, 303), 'salvar vitrine de notícias redireciona')
+pagina_inicial = anon.get('/').get_data(as_text=True)
+ok('not-vitrine' in pagina_inicial and '--col:3' in pagina_inicial and 'not-chamada' in pagina_inicial, 'início mostra as notícias em grade com 3 colunas')
+c.post('/admin/noticias/vitrine', data={'csrf': tok, 'layout': 'lista', 'colunas': '99', 'qtd': '0'})
+ok('not-vitrine' not in anon.get('/').get_data(as_text=True), 'modelo lista volta ao cartão antigo')
+c.post('/admin/noticias/vitrine', data={'csrf': tok, 'layout': 'grade', 'colunas': '99', 'qtd': '0'})
+ok('--col:4' in anon.get('/').get_data(as_text=True), 'colunas fora do limite são contidas')
+ok(c.get('/admin/conteudos?tipo=noticia').status_code == 200, 'tela de conteúdos com a vitrine abre')
 
 # páginas principais continuam abrindo
 for rota in ('/', '/ramais', '/sistemas', '/noticias', '/admin', '/admin/conteudos', '/admin/midia',

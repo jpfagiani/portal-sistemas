@@ -67,6 +67,26 @@
   <script type="application/json" id="cont-urls">{{ {'excluir': url_for('conteudos_excluir'), 'duplicar': url_for('conteudos_duplicar'), 'csrf': csrf_token}|tojson }}</script>
 </section>
 
+<details class="painel-caixa" style="margin-top:.8rem" open>
+  <summary><strong>Cartão “Últimas notícias”: vitrine na página inicial</strong></summary>
+  <p class="dica">Em <strong>grade</strong>, cada notícia aparece como no UOL: imagem em cima, título logo abaixo (mesma largura),
+    e o clique leva à página da notícia — ou ao endereço escolhido em “Ao clicar, abrir”, que pode ser outra página do portal ou um site.</p>
+  {% set vit = noticias_vitrine %}
+  <form method="post" action="{{ url_for('admin_noticias_vitrine') }}" class="pe-duas">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div><label for="v-layout">Modelo</label>
+      <select id="v-layout" name="layout">
+        <option value="grade" {{ 'selected' if vit[0] == 'grade' }}>Grade (imagem em cima, título embaixo)</option>
+        <option value="lista" {{ 'selected' if vit[0] == 'lista' }}>Lista (miniatura ao lado)</option>
+      </select></div>
+    <div><label for="v-col">Colunas na grade</label>
+      <select id="v-col" name="colunas">{% for k in (1, 2, 3, 4) %}<option value="{{ k }}" {{ 'selected' if vit[1] == k }}>{{ k }}</option>{% endfor %}</select></div>
+    <div><label for="v-qtd">Quantas notícias mostrar</label>
+      <input id="v-qtd" name="qtd" type="number" min="1" max="12" value="{{ vit[2] }}"></div>
+    <div><button class="btn btn-principal" type="submit">Salvar</button></div>
+  </form>
+</details>
+
 <details class="painel-caixa" style="margin-top:.8rem">
   <summary><strong>Cartão “Últimas notícias”: aparência</strong></summary>
   <p class="dica">Fonte, tamanho e cor do nome do cartão e do título de cada notícia. Nomes e aparência dos demais cartões:

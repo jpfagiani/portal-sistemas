@@ -488,9 +488,9 @@ CARTAO_APARENCIA = {
     # Medidas do cartão do painel, que é do que a tela de Ramais fala. A página
     # "ver todos" é outra coisa — três colunas de lista — e tem medida própria.
     'ramais':        ('ramais',   '0.74', '#1e293b', '0.78', '#1e293b'),
-    # Últimas notícias: título de cada notícia em vinho e um pouco maior que
+    # Últimas notícias: título de cada notícia em azul e um pouco maior que
     # os demais cartões (era .80–.85rem e cor do texto); o texto é a data.
-    'noticias':      ('noticias', '0.95', '#9f1239', '0.68', '#7c8ba1'),
+    'noticias':      ('noticias', '0.95', '#2563eb', '0.68', '#7c8ba1'),
 }
 # Nome do cartão (o cabeçalho "ÚLTIMAS NOTÍCIAS", "ATALHOS ÚTEIS"...): tamanho e
 # cor próprios, iguais em todos os cartões. Os padrões são o que a folha já
@@ -1218,6 +1218,12 @@ def init_db():
         con.execute('INSERT OR IGNORE INTO config (chave, valor) VALUES (?,?)',
                     (chave, valor))
 
+    # Título das notícias: o padrão passou de vinho para azul. Uma vez só, troca quem ainda
+    # estava no vinho antigo; depois disso, a cor escolhida no painel é respeitada.
+    if not con.execute("SELECT 1 FROM config WHERE chave='noticias_azul_v1'").fetchone():
+        con.execute("UPDATE config SET valor='#2563eb' WHERE chave='noticias_titulo_cor' AND valor='#9f1239'")
+        con.execute("INSERT INTO config (chave,valor) VALUES ('noticias_azul_v1','1')")
+
     if not con.execute('SELECT 1 FROM links LIMIT 1').fetchone():
         for i, (t, u, d, sigla, cor) in enumerate(SEED_LINKS):
             con.execute('INSERT INTO links (titulo,url,descricao,icone,simbolo,cor,ordem)'
@@ -1692,7 +1698,7 @@ def _estilo_limpo(css):
             if m:
                 n, un = float(m.group(1)), m.group(2)
                 rem = {'rem': n, 'em': n, 'px': n / 16, '%': n / 100}[un]
-            if rem is not None and .6 <= rem <= 4:
+            if rem is not None and .5 <= rem <= 6:        # 8 a 96 px
                 saida.append(f'font-size:{round(rem, 3)}rem')
         elif prop == 'text-align' and valor in ('left', 'center', 'right', 'justify'):
             saida.append(f'text-align:{valor}')
@@ -1732,9 +1738,15 @@ class _LimpaHTML(HTMLParser):
                 cls = ' '.join(c for c in attrs.get('class', '').split() if c in _CLASSES_IMG)
                 cls = f' class="{cls}"' if cls else ''
                 # Largura arrastada no editor, em % (5 a 100); nada de outro CSS.
-                w = re.search(r'(\d{1,3})(?:\.\d+)?\s*%?', attrs.get('data-w', '')) or \
-                    re.search(r'width\s*:\s*(\d{1,3})(?:\.\d+)?%', attrs.get('style', ''))
-                estilo_w = f' style="width:{max(5, min(100, int(w.group(1))))}%"' if w else ''
+                # Largura em pixels (campo "Largura" do editor); vale mais que a em %.
+                px = re.fullmatch(r'\s*(\d{1,4})(?:\.\d+)?\s*(?:px)?\s*', attrs.get('data-px', '')) or \
+                    re.search(r'(?<![-\w])width\s*:\s*(\d{1,4})(?:\.\d+)?px', attrs.get('style', ''))
+                w = None if px else (re.search(r'(\d{1,3})(?:\.\d+)?\s*%?', attrs.get('data-w', '')) or
+                                     re.search(r'width\s*:\s*(\d{1,3})(?:\.\d+)?%', attrs.get('style', '')))
+                if px:
+                    estilo_w = f' style="width:{max(20, min(2000, int(px.group(1))))}px"'
+                else:
+                    estilo_w = f' style="width:{max(5, min(100, int(w.group(1))))}%"' if w else ''
                 self.saida.append(f'<img src="/static/uploads/{m.group(1)}" alt="{alt}" loading="lazy"{cls}{estilo_w}>')
             return
         if tag in _TAGS_OK:
@@ -1759,6 +1771,14 @@ class _LimpaHTML(HTMLParser):
                     emitida = tag
             else:
                 emitida = tag
+            if emitida == 'div':
+                # Figura (imagem + texto na mesma largura): só estas classes e a largura em px.
+                cls = [c for c in attrs.get('class', '').split() if c in ('fig', 'fig-e', 'fig-c', 'fig-d')]
+                if 'fig' in cls:
+                    marcas += f' class="{" ".join(cls)}"'
+                    mw = re.search(r'(?<![-\w])width\s*:\s*(\d{1,4})(?:\.\d+)?px', attrs.get('style', ''))
+                    if mw:
+                        estilo = ';'.join(filter(None, [estilo, f'width:{max(20, min(2000, int(mw.group(1))))}px']))
             if emitida:
                 if estilo and tag in _TAGS_COM_ESTILO:
                     marcas += f' style="{escape(estilo)}"'
@@ -2362,7 +2382,8 @@ def index():
 
     return render_template(
         'index.html', numeros=numeros, saudacao=saudacao(),
-        noticias_recentes=modulos.noticias.recentes(5),
+        noticias_recentes=modulos.noticias.recentes(modulos.noticias.vitrine()[2]),
+        noticias_vitrine=modulos.noticias.vitrine(),
         cartoes_painel=cartoes_painel, livre=livre, cartoes_livre=cartoes_livre,
         lateral_livre=lateral_livre,
         destinos_links=destinos_de_links() if session.get('admin') else [],
@@ -4040,7 +4061,9 @@ def destinos_de_links():
     """Páginas do portal para onde um link pode apontar: (nome, endereço)."""
     return [('Início', '/'), ('Ramais', '/ramais'), ('Sistemas', '/sistemas')] + \
         [(r['nome'], r['url'] if (r['url'] or '').startswith('/') else f"/modulo/{r['chave']}") for r in db().execute(
-            'SELECT nome,chave,url FROM paginas_lateral ORDER BY ordem, id')]
+            'SELECT nome,chave,url FROM paginas_lateral ORDER BY ordem, id')] + \
+        [('Notícia: ' + r['titulo'], f"/noticias/{r['slug']}") for r in db().execute(
+            "SELECT titulo,slug FROM noticias WHERE estado='publicado' ORDER BY id DESC LIMIT 60")]
 
 
 @app.route('/admin/pagina/<chave>', methods=['GET', 'POST'])

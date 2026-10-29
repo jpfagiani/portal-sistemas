@@ -101,7 +101,8 @@ def conteudos():
     return render_template('admin_conteudos.html', linhas=linhas, tipos=TIPOS, situacoes=SITUACOES,
                            filtro_tipo=tipo, filtro_sit=sit, q=q, cartoes_itens=cartoes_itens,
                            ordenavel=(tipo == 'noticia' and not sit and not q),
-                           aparencia=nucleo.dados_aparencia_cartao('noticias'), fontes=nucleo.FONTES_TEXTO)
+                           aparencia=nucleo.dados_aparencia_cartao('noticias'), fontes=nucleo.FONTES_TEXTO,
+                           noticias_vitrine=mn.vitrine())
 
 
 # ── leitura de um conteúdo para o editor ──────────────────────────────────────

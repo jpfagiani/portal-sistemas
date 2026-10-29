@@ -103,8 +103,10 @@
 
     /* ── imagem no texto: clique para mudar tamanho, posição, descrição ── */
     var TAM = [['im-p', 'Pequena'], ['im-m', 'Média'], ['im-g', 'Grande'], ['im-c', 'Largura total']];
-    var POS = [['im-esq', 'À esquerda, texto ao lado'], ['im-dir', 'À direita, texto ao lado'],
-               ['im-bloco', 'Sozinha à esquerda'], ['im-centro', 'Sozinha no centro'], ['im-bloco-dir', 'Sozinha à direita']];
+    var LADO = [['im-esq', 'Esquerda'], ['im-dir', 'Direita']];          /* texto ao lado (a imagem flutua) */
+    var EMBAIXO = [['esq', 'Esquerda'], ['centro', 'Centro'], ['dir', 'Direita']];   /* texto sempre abaixo */
+    var ALINHA = {esq: 'left', centro: 'center', dir: 'right'};
+    var FLUTUA = ['im-esq', 'im-dir', 'im-bloco', 'im-bloco-dir', 'im-centro'];
     var barra = document.createElement('div'); barra.className = 're-img-barra'; barra.hidden = true;
     var atual = null;
     function botao(txt, fn, cls) {
@@ -112,32 +114,176 @@
       b.addEventListener('mousedown', function (e) { e.preventDefault(); });
       b.addEventListener('click', fn); barra.appendChild(b); return b;
     }
-    function troca(grupo, cls) {
+    function semTamanhoPorClasse() {
+      TAM.forEach(function (g) { atual.classList.remove(g[0]); });
+      atual.removeAttribute('data-w');
+    }
+    function limpaStyle() { if (!atual.getAttribute('style')) atual.removeAttribute('style'); }
+    /* Bloco "figura": imagem + texto logo abaixo, os dois com a mesma largura (como nos portais de notícia).
+       A largura fica na caixa (.fig); a imagem sempre ocupa 100% dela, então o texto acompanha qualquer tamanho. */
+    function figDe(img) { var f = img && img.closest ? img.closest('.fig') : null; return f && area.contains(f) ? f : null; }
+    /* Largura em pixels (valor exato, sem Pequena/Média/Grande). */
+    function larguraPx(px) {
       if (!atual) return;
-      grupo.forEach(function (g) { atual.classList.remove(g[0]); });
-      if (cls) atual.classList.add(cls);
-      if (grupo === TAM) { atual.style.removeProperty('width'); atual.removeAttribute('data-w'); if (!atual.getAttribute('style')) atual.removeAttribute('style'); }
+      var area_px = Math.round(area.clientWidth - (parseFloat(getComputedStyle(area).paddingLeft) || 0) - (parseFloat(getComputedStyle(area).paddingRight) || 0));
+      px = Math.max(20, Math.min(2000, Math.round(px)));
+      var fig = figDe(atual);
+      semTamanhoPorClasse();
+      if (fig) { fig.style.width = px + 'px'; atual.style.removeProperty('width'); atual.removeAttribute('data-px'); limpaStyle(); }
+      else { atual.style.width = px + 'px'; atual.setAttribute('data-px', px); }
+      campoPx.value = px; campoPx.title = 'Largura em pixels (a área do texto tem ' + area_px + ' px; passando disso a imagem se ajusta)';
       marca(); posicionaAlca();
     }
+    function troca(grupo, cls) {
+      if (!atual) return;
+      var fig = figDe(atual);
+      if (fig && grupo === FLUTUA) soltaFig(atual);
+      grupo.forEach(function (g) { atual.classList.remove(g[0]); });
+      if (cls) atual.classList.add(cls);
+      if (grupo === TAM) {
+        if (fig) fig.style.removeProperty('width');
+        atual.style.removeProperty('width'); atual.removeAttribute('data-w'); atual.removeAttribute('data-px'); limpaStyle();
+      }
+      marca(); posicionaAlca();
+    }
+    /* Desfaz a figura (imagem volta a ser um parágrafo comum, com a largura em px). */
+    function soltaFig(img) {
+      var fig = figDe(img); if (!fig) return;
+      var w = Math.round(img.getBoundingClientRect().width);
+      while (fig.firstChild) fig.parentNode.insertBefore(fig.firstChild, fig);
+      fig.remove();
+      img.style.width = w + 'px'; img.setAttribute('data-px', w);
+    }
+    /* O bloco do texto (filho direto da área) onde a imagem está. */
+    function blocoDe(unidade) { var b = unidade; while (b.parentNode && b.parentNode !== area) b = b.parentNode; return b; }
+    /* Texto embaixo: a imagem ganha um parágrafo só dela, com o alinhamento escolhido; o que estava
+       antes e depois dela no mesmo parágrafo vira parágrafos próprios, e o texto fica logo abaixo. */
+    function textoEmbaixo(img, alinh) {
+      var CL = {esq: 'fig-e', centro: 'fig-c', dir: 'fig-d'};
+      var fig = figDe(img);
+      if (!fig) {
+        var w = Math.round(img.getBoundingClientRect().width);
+        var unidade = img.parentNode && img.parentNode.tagName === 'A' ? img.parentNode : img;
+        var bloco = blocoDe(unidade);
+        if (!bloco || bloco.parentNode !== area || /^(UL|OL)$/.test(bloco.tagName)) return;
+        FLUTUA.forEach(function (c) { img.classList.remove(c); });
+        var alvo = document.createElement('p');
+        if (bloco === unidade) {
+          area.insertBefore(alvo, bloco); alvo.appendChild(unidade);
+        } else {
+          var rA = document.createRange(); rA.setStart(bloco, 0); rA.setEndBefore(unidade);
+          var rD = document.createRange(); rD.setStartAfter(unidade); rD.setEnd(bloco, bloco.childNodes.length);
+          var antes = rA.extractContents(), depois = rD.extractContents();
+          var resto = function (frag, antesDe) {
+            var t = document.createElement('div'); t.appendChild(frag);
+            if (!t.textContent.replace(/ /g, ' ').trim() && !t.querySelector('img')) return;
+            var n = bloco.cloneNode(false);
+            while (t.firstChild) n.appendChild(t.firstChild);
+            area.insertBefore(n, antesDe);
+          };
+          resto(antes, bloco);
+          area.insertBefore(alvo, bloco); alvo.appendChild(unidade);
+          resto(depois, bloco);
+          area.removeChild(bloco);
+        }
+        alvo.style.removeProperty('text-align'); if (!alvo.getAttribute('style')) alvo.removeAttribute('style');
+        fig = document.createElement('div'); fig.className = 'fig';
+        area.insertBefore(fig, alvo); fig.appendChild(alvo);
+        /* o texto que vem depois (até a próxima imagem) entra na figura */
+        var nx = fig.nextElementSibling;
+        while (nx && /^(P|H2|H3|H4|UL|OL|BLOCKQUOTE)$/.test(nx.tagName) && !nx.querySelector('img') && !nx.classList.contains('fig')) {
+          var prox = nx.nextElementSibling; fig.appendChild(nx); nx = prox;
+        }
+        if (!alvo.nextElementSibling) { var p = document.createElement('p'); p.innerHTML = '<br>'; fig.appendChild(p); }
+        semTamanhoPorClasse(); img.style.removeProperty('width'); img.removeAttribute('data-px');
+        if (!img.getAttribute('style')) img.removeAttribute('style');
+        fig.style.width = Math.max(20, w) + 'px';
+      }
+      fig.classList.remove('fig-e', 'fig-c', 'fig-d'); fig.classList.add(CL[alinh]);
+      atual = img; marca(); posicionaAlca();
+    }
+    function estado(cls) {
+      if (!atual) return false;
+      if (atual.classList.contains(cls)) return true;
+      if (cls.indexOf('emb-') === 0) {
+        var f = figDe(atual);
+        return !!f && f.classList.contains({esq: 'fig-e', centro: 'fig-c', dir: 'fig-d'}[cls.slice(4)]);
+      }
+      return false;
+    }
+    /* Link do bloco: imagem e texto da figura levam ao mesmo lugar (outra página do portal ou site). */
+    function desfazLinks(fig) {
+      fig.querySelectorAll('a').forEach(function (a) { while (a.firstChild) a.parentNode.insertBefore(a.firstChild, a); a.remove(); });
+    }
+    function envolve(no, url) {
+      var a = document.createElement('a'); a.setAttribute('href', url);
+      while (no.firstChild) a.appendChild(no.firstChild);
+      no.appendChild(a);
+    }
+    function linkDoBloco(url) {
+      if (!atual) return;
+      if (!figDe(atual)) textoEmbaixo(atual, 'centro');
+      var fig = figDe(atual); if (!fig) return;
+      desfazLinks(fig);
+      url = (url || '').trim();
+      if (url && url !== 'https://') {
+        fig.querySelectorAll(':scope > p, :scope > h2, :scope > h3, :scope > h4, :scope > blockquote, :scope > ul > li, :scope > ol > li').forEach(function (b) {
+          if (b.textContent.replace(/ /g, ' ').trim() || b.querySelector('img')) envolve(b, url);
+        });
+      }
+      atualizaLink(); posicionaAlca();
+    }
     function marca() {
-      barra.querySelectorAll('button[data-c]').forEach(function (b) {
-        b.classList.toggle('on', !!atual && atual.classList.contains(b.dataset.c));
-      });
+      barra.querySelectorAll('button[data-c]').forEach(function (b) { b.classList.toggle('on', estado(b.dataset.c)); });
+      if (atual && document.activeElement !== campoPx) campoPx.value = Math.round(atual.getBoundingClientRect().width) || '';
     }
     function rotulo(t) { var r = document.createElement('span'); r.className = 're-rot'; r.textContent = t; barra.appendChild(r); }
-    rotulo('Imagem — tamanho:');
-    TAM.forEach(function (t) { botao(t[1], function () { troca(TAM, atual && atual.classList.contains(t[0]) ? '' : t[0]); }).dataset.c = t[0]; });
+    rotulo('Imagem — largura:');
+    var campoPx = document.createElement('input'); campoPx.type = 'text'; campoPx.inputMode = 'numeric'; campoPx.size = 4; campoPx.maxLength = 4;
+    campoPx.className = 're-px'; campoPx.placeholder = 'px'; campoPx.setAttribute('aria-label', 'Largura da imagem em pixels');
+    campoPx.title = 'Largura da imagem em pixels';
+    campoPx.addEventListener('change', function () { var v = parseInt(campoPx.value, 10); if (!isNaN(v)) larguraPx(v); });
+    campoPx.addEventListener('keydown', function (e) {
+      var v = parseInt(campoPx.value, 10) || 0;
+      if (e.key === 'Enter') { e.preventDefault(); if (v) larguraPx(v); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); larguraPx((v || 200) + 10); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); larguraPx((v || 200) - 10); }
+    });
+    barra.appendChild(campoPx); rotulo('px');
+    botao('Largura total', function () { troca(TAM, atual && atual.classList.contains('im-c') ? '' : 'im-c'); }).dataset.c = 'im-c';
     barra.appendChild(document.createElement('span')).className = 're-sep';
-    rotulo('posição (texto ao lado, ou em cima e embaixo):');
-    POS.forEach(function (t) { botao(t[1], function () { troca(POS, atual && atual.classList.contains(t[0]) ? '' : t[0]); }).dataset.c = t[0]; });
+    rotulo('Texto embaixo da imagem:');
+    EMBAIXO.forEach(function (t) {
+      botao(t[1], function () { if (atual) textoEmbaixo(atual, t[0]); }).dataset.c = 'emb-' + t[0];
+    });
+    barra.appendChild(document.createElement('span')).className = 're-sep';
+    rotulo('Texto ao lado:');
+    LADO.forEach(function (t) { botao(t[1], function () { troca(FLUTUA, atual && atual.classList.contains(t[0]) ? '' : t[0]); }).dataset.c = t[0]; });
     barra.appendChild(document.createElement('span')).className = 're-sep';
     barra.appendChild(document.createElement('span')).className = 're-sep';
     botao('↑ Subir', function () { mover(-1); });
     botao('↓ Descer', function () { mover(1); });
     /* Link na imagem: ao clicar nela, o visitante vai para o endereço escolhido.
        A imagem fica dentro de um <a>; endereço vazio remove o link. */
+    var seletorPag = null;
+    var origemPag = raiz.querySelector('.re-pag');
+    if (origemPag) {
+      seletorPag = origemPag.cloneNode(true); seletorPag.className = 're-pag-img'; seletorPag.value = '';
+      seletorPag.title = 'Imagem e texto abaixo dela levam a uma página do portal'; seletorPag.setAttribute('aria-label', 'Link do bloco para página');
+      seletorPag.options[0].textContent = 'Link do bloco p/ página…';
+      seletorPag.addEventListener('change', function () { if (seletorPag.value) linkDoBloco(seletorPag.value); seletorPag.value = ''; });
+      barra.appendChild(seletorPag);
+    }
     botao('Link…', function () {
       if (!atual) return;
+      var fig0 = figDe(atual);
+      if (fig0) {
+        var a0 = fig0.querySelector('a');
+        var u0 = window.prompt('Endereço ao clicar na imagem OU no texto abaixo dela (/pagina do portal ou https://...).\nDeixe vazio para tirar o link:',
+                               a0 ? a0.getAttribute('href') : 'https://');
+        if (u0 !== null) linkDoBloco(u0);
+        return;
+      }
       var a = atual.parentNode && atual.parentNode.tagName === 'A' ? atual.parentNode : null;
       var u = window.prompt('Endereço ao clicar na imagem (https://... ou /pagina).\nDeixe vazio para tirar o link:',
                             a ? a.getAttribute('href') : 'https://');
@@ -172,6 +318,7 @@
     function mover(d) {
       if (!atual) return;
       var unidade = atual.parentNode.tagName === 'A' ? atual.parentNode : atual;
+      if (figDe(atual)) unidade = figDe(atual);              /* a figura inteira sobe e desce */
       var bloco = unidade; while (bloco.parentNode !== area) bloco = bloco.parentNode;
       var so = bloco === unidade || (bloco.children.length === 1 && !bloco.textContent.trim());
       var vizinho = d < 0 ? bloco.previousElementSibling : bloco.nextElementSibling;
@@ -203,10 +350,11 @@
       var x0 = e.clientX, w0 = atual.getBoundingClientRect().width;
       var cs = getComputedStyle(area), larg = area.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       function move(ev) {
-        var pct = Math.max(10, Math.min(100, Math.round((w0 + ev.clientX - x0) / larg * 100)));
+        var px = Math.max(20, Math.min(Math.round(larg), Math.round(w0 + ev.clientX - x0)));
         ['im-p', 'im-m', 'im-g', 'im-c'].forEach(function (c) { atual.classList.remove(c); });
-        atual.style.width = pct + '%'; atual.setAttribute('data-w', pct);
-        dica.textContent = pct + '%'; posicionaAlca(); marca();
+        atual.removeAttribute('data-w');
+        atual.style.width = px + 'px'; atual.setAttribute('data-px', px);
+        dica.textContent = px + ' px'; posicionaAlca(); marca();
       }
       function fim() { alca.removeEventListener('pointermove', move); alca.removeEventListener('pointerup', fim); alca.removeEventListener('pointercancel', fim); dica.textContent = ''; }
       alca.addEventListener('pointermove', move); alca.addEventListener('pointerup', fim); alca.addEventListener('pointercancel', fim);
@@ -219,7 +367,10 @@
     window.__reSelecionaNova = null;
     function depoisDeInserir(url) {
       var todas = area.querySelectorAll('img[src="' + url + '"]');
-      if (todas.length) seleciona(todas[todas.length - 1]);
+      if (!todas.length) return;
+      var nova = todas[todas.length - 1];
+      textoEmbaixo(nova, 'centro');     /* imagem nova já fica sozinha, com o texto logo abaixo */
+      seleciona(nova);
     }
     area.addEventListener('click', function (e) {
       if (e.target.tagName === 'IMG') { e.preventDefault(); seleciona(e.target); } else desmarca();

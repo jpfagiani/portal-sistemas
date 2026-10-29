@@ -305,6 +305,29 @@ def admin_noticias():
                            campo_data=_para_campo, aparencia=nucleo.dados_aparencia_cartao('noticias'), fontes=nucleo.FONTES_TEXTO, corpo_editar=Markup(nucleo.limpa_html(editar['corpo'])) if editar else '')
 
 
+def vitrine():
+    """Como o cartão "Últimas notícias" aparece na página inicial: (layout, colunas, quantidade)."""
+    c = nucleo.cfg()
+    layout = c.get('noticias_layout') if c.get('noticias_layout') in ('grade', 'lista') else 'grade'
+    colunas = max(1, min(4, nucleo._int(c.get('noticias_colunas'), 2) or 2))
+    qtd = max(1, min(12, nucleo._int(c.get('noticias_qtd'), 4) or 4))
+    return layout, colunas, qtd
+
+
+@app.route('/admin/noticias/vitrine', methods=['POST'])
+@nucleo.admin_obrigatorio
+def admin_noticias_vitrine():
+    layout = request.form.get('layout') if request.form.get('layout') in ('grade', 'lista') else 'grade'
+    colunas = max(1, min(4, nucleo._int(request.form.get('colunas'), 2) or 2))
+    qtd = max(1, min(12, nucleo._int(request.form.get('qtd'), 4) or 4))
+    con = nucleo.db()
+    for k, v in (('noticias_layout', layout), ('noticias_colunas', str(colunas)), ('noticias_qtd', str(qtd))):
+        con.execute('INSERT OR REPLACE INTO config (chave,valor) VALUES (?,?)', (k, v))
+    con.commit()
+    flash('Aparência do cartão de notícias salva.', 'ok')
+    return redirect(url_for('conteudos', tipo='noticia'))
+
+
 @app.route('/admin/noticia-rapida', methods=['POST'])
 @nucleo.admin_obrigatorio
 def admin_noticia_rapida():
