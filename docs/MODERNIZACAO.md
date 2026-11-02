@@ -187,7 +187,13 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 
 ## 1.9.34 — Padrão visual da página principal
 - Imagens das chamadas em 4:3 (grade, cartão, manchete, faixa); imagens de cartões e comunicados em quadro 4:3 sem cortar.
+- 1.9.34b: padrão também nas imagens de tamanho livre, ao lado do texto e dentro do texto de cartões e comunicados; título e texto de comunicados seguem o padrão (só o tamanho escolhido no próprio item prevalece, não o de Aparência).
 - Títulos 19px negrito, entrelinha 27px; texto de apoio 14px/20px; 12px entre imagem e título.
 - Variáveis `--pad-*` no fim de `static/limpo.css`: para mudar o padrão, altere só ali. Tamanho de título escolhido por notícia continua valendo.
 - Vitrine: no máximo `--col` colunas, nunca com menos de 150px. "Últimas notícias" em lista não mudou.
 - Reversão: apagar o bloco "Padrão visual" no fim de `limpo.css`.
+
+## 1.9.35 — Tudo igual na página principal
+- Todas as imagens (chamadas, cartões, comunicados, ao lado ou dentro do texto) em 225×168 px; todo texto em 14px negrito, entrelinha 20px. Valores em `--pad-*` no fim de `static/limpo.css`.
+- Só o tamanho escolhido dentro de um comunicado específico prevalece. Miniaturas da lista "Últimas notícias" mantidas pequenas.
+- Reversão: apagar o bloco "1.9.35" do fim de `limpo.css`.
