@@ -1370,7 +1370,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.9.36'
+VERSAO = '1.9.37'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1761,6 +1761,14 @@ def _estilo_limpo(css):
                 rem = {'rem': n, 'em': n, 'px': n / 16, '%': n / 100}[un]
             if rem is not None and .5 <= rem <= 6:        # 8 a 96 px
                 saida.append(f'font-size:{round(rem, 3)}rem')
+        elif prop in ('margin-top', 'margin-bottom'):        # espaço escolhido no editor (px, pode ser negativo para juntar)
+            m = re.fullmatch(r'(-?\d{1,3})(?:\.\d+)?px', valor) or re.fullmatch(r'(0)', valor)
+            if m and -24 <= int(m.group(1)) <= 80:
+                saida.append(f'{prop}:{int(m.group(1))}px')
+        elif prop == 'line-height':
+            m = re.fullmatch(r'(\d{1,2})(?:\.\d+)?px', valor)
+            if m and 10 <= int(m.group(1)) <= 80:
+                saida.append(f'line-height:{int(m.group(1))}px')
         elif prop == 'text-align' and valor in ('left', 'center', 'right', 'justify'):
             saida.append(f'text-align:{valor}')
         elif prop == 'font-weight' and valor in ('bold', '700', '600', '800'):
