@@ -843,3 +843,14 @@ img[style*="height"].redim-img,.redim-caixa>img[style*="height"]{object-fit:cove
 .fig>p:has(>img),.fig>p:has(>a>img){margin-bottom:6px}
 .cartao-texto p{margin:0 0 6px}
 .re-esp-grupo{display:inline-flex;align-items:center;gap:.2rem;flex-wrap:wrap}
+
+/* ── 1.9.38: imagens e textos abaixo delas, sempre iguais ──────────────────
+   Imagem 225×168 preenchendo o quadro (sem faixa vazia embaixo, então o texto
+   fica sempre a mesma distância); texto à esquerda, mesma cor e mesmo tamanho. */
+.cartao-texto img:not([style*="height"]),.comunicado .com-imagem:not(.com-img-fundo):not([style*="height"]){object-fit:cover!important;object-position:center!important;background:none!important}
+.cartao-texto .fig,.cartao-texto .fig>*{text-align:left!important}
+.cartao-texto .fig{margin-left:0!important;margin-right:auto!important}
+.cartao-texto,.cartao-texto p,.cartao-texto li,.cartao-texto h2,.cartao-texto h3,.comunicado p,.comunicado .titulo{color:var(--com-texto-cor,var(--texto))}
+.cartao-texto p:not([style*="text-align"]),.cartao-texto li{text-align:left}
+.cartao-texto .fig>p:has(>img){margin:0 0 6px}
+.cartao-texto .fig>p:not(:has(img)){margin:0}

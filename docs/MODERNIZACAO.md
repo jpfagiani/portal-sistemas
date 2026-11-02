@@ -211,3 +211,9 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 - Barra do editor: grupo "Espaço" (acima − +, abaixo − +, linhas − +, Juntar, Normal) em `static/espacamento.js`; vale para os parágrafos selecionados e, com imagem selecionada, para a imagem e o texto logo abaixo.
 - `limpa_html` aceita `margin-top`/`margin-bottom` (−24 a 80 px) e `line-height` (10 a 80 px).
 - Reversão: remover `espacamento.js` e as linhas que o carregam; o HTML salvo continua válido.
+
+## 1.9.38 — Imagens e textos abaixo delas iguais
+- Imagem 225×168 preenche o quadro (cover): sem faixa vazia embaixo, a distância ao texto é sempre a mesma (6 px).
+- Texto abaixo da imagem sempre à esquerda (mesmo em conteúdos antigos centralizados), 14px negrito, cor padrão do texto (cor escolhida no editor continua valendo).
+- Nova imagem entra alinhada à esquerda (antes centralizada).
+- Botão "Proporção original" na barra da imagem: mostra a imagem inteira, sem recorte.

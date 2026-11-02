@@ -250,6 +250,11 @@
       else if (e.key === 'ArrowDown') { e.preventDefault(); larguraPx((v || 200) - 10); }
     });
     barra.appendChild(campoPx); rotulo('px');
+    botao('Proporção original', function () {
+      if (!atual || !atual.naturalWidth) return;
+      var w = Math.round(atual.getBoundingClientRect().width), h = Math.round(w * atual.naturalHeight / atual.naturalWidth);
+      atual.style.height = h + 'px'; atual.setAttribute('data-py', h); marca(); posicionaAlca();
+    }).title = 'Mostra a imagem inteira, sem recorte, mantendo a largura';
     botao('Largura total', function () { troca(TAM, atual && atual.classList.contains('im-c') ? '' : 'im-c'); }).dataset.c = 'im-c';
     barra.appendChild(document.createElement('span')).className = 're-sep';
     rotulo('Texto embaixo da imagem:');
@@ -393,7 +398,7 @@
       var todas = area.querySelectorAll('img[src="' + url + '"]');
       if (!todas.length) return;
       var nova = todas[todas.length - 1];
-      textoEmbaixo(nova, 'centro');     /* imagem nova já fica sozinha, com o texto logo abaixo */
+      textoEmbaixo(nova, 'esq');     /* imagem nova já fica sozinha, com o texto logo abaixo */
       seleciona(nova);
     }
     area.addEventListener('click', function (e) {
