@@ -217,3 +217,6 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 - Texto abaixo da imagem sempre à esquerda (mesmo em conteúdos antigos centralizados), 14px negrito, cor padrão do texto (cor escolhida no editor continua valendo).
 - Nova imagem entra alinhada à esquerda (antes centralizada).
 - Botão "Proporção original" na barra da imagem: mostra a imagem inteira, sem recorte.
+
+## 1.9.39 — Alinhamento do editor vale na prévia e na página
+- Corrigido: a 1.9.38 forçava imagem e texto à esquerda. Agora esquerda, centro e direita escolhidos no editor valem na prévia da chamada, na prévia da página e no portal (imagem e texto abaixo dela).

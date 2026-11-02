@@ -848,9 +848,14 @@ img[style*="height"].redim-img,.redim-caixa>img[style*="height"]{object-fit:cove
    Imagem 225×168 preenchendo o quadro (sem faixa vazia embaixo, então o texto
    fica sempre a mesma distância); texto à esquerda, mesma cor e mesmo tamanho. */
 .cartao-texto img:not([style*="height"]),.comunicado .com-imagem:not(.com-img-fundo):not([style*="height"]){object-fit:cover!important;object-position:center!important;background:none!important}
-.cartao-texto .fig,.cartao-texto .fig>*{text-align:left!important}
-.cartao-texto .fig{margin-left:0!important;margin-right:auto!important}
 .cartao-texto,.cartao-texto p,.cartao-texto li,.cartao-texto h2,.cartao-texto h3,.comunicado p,.comunicado .titulo{color:var(--com-texto-cor,var(--texto))}
 .cartao-texto p:not([style*="text-align"]),.cartao-texto li{text-align:left}
 .cartao-texto .fig>p:has(>img){margin:0 0 6px}
 .cartao-texto .fig>p:not(:has(img)){margin:0}
+
+/* 1.9.39: o alinhamento escolhido no editor (esquerda, centro, direita) vale na prévia e na página, para imagem e texto */
+.cartao-texto .fig-c{margin-left:auto;margin-right:auto}
+.cartao-texto .fig-d{margin-left:auto;margin-right:0}
+.cartao-texto .fig-c,.cartao-texto .fig-c>*{text-align:center}
+.cartao-texto .fig-d,.cartao-texto .fig-d>*{text-align:right}
+.cartao-texto p[style*="text-align:center"]>img{margin-left:auto;margin-right:auto}
