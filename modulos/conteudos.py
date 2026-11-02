@@ -222,7 +222,7 @@ def _valores_novos(tipo):
                     categoria='', so_pagina=0, estado='rascunho', publicar_em_campo='', destaque=0, url='', meta='',
                     slug='', titulo_fonte='', titulo_cor='', titulo_tam='', situacao='Rascunho',
                     chamada_titulo='', chamada_resumo='', chamada_imagem='', chamada_legenda='', chamada_alt='',
-                    chamada_formato='', chamada_visivel=1, chamada_credito='', chamada_posicao='', capa_credito='', ordem_pos=1)
+                    chamada_formato='', chamada_visivel=1, chamada_credito='', chamada_posicao='', capa_credito='', chamada_pw=0, chamada_ph=0, capa_pw=0, capa_ph=0, ordem_pos=1)
     return dict(id='', titulo='', conteudo='', corpo='', corpo_html='', materia_titulo='', materia='', url='', url_rot='', imagem='', video='', img_pos='topo',
                 urgencia='informacao', destaque='nenhum', data='', titulo_cor='', texto_cor='', fundo_cor='',
                 titulo_tam='', texto_tam='', tipo='aviso', ativo=1)
@@ -370,6 +370,12 @@ def _salva_noticia(f, ident):
         chamada_legenda=texto('chamada_legenda', 300), chamada_alt=texto('chamada_alt', 300),
         chamada_credito=texto('chamada_credito', 200), capa_credito=texto('capa_credito', 200),
         chamada_imagem=_imagem_chamada(f, old.get('chamada_imagem', '')))
+    for col in ('chamada_pw', 'chamada_ph', 'capa_pw', 'capa_ph'):    # tamanho arrastado (px); 0 = padrão
+        if col in f:
+            v = nucleo._int(f.get(col))
+            d[col] = 0 if v <= 0 else max(20, min(2000, v))
+    if f.get('remover_chamada_imagem'):
+        d['chamada_pw'] = d['chamada_ph'] = 0
     fmt = f.get('chamada_formato') if 'chamada_formato' in f else old.get('chamada_formato', '')
     d['chamada_formato'] = fmt if fmt in mn.FORMATOS else ''
     pos = f.get('chamada_posicao') if 'chamada_posicao' in f else old.get('chamada_posicao', '')
@@ -507,6 +513,7 @@ def conteudos_previa():
         fmt = f.get('chamada_formato') if f.get('chamada_formato') in mn.FORMATOS else ''
         contexto['n'] = dict(
             titulo=f.get('titulo', '').strip(), resumo=f.get('resumo', ''), capa=capa or '', categoria=f.get('categoria', ''),
+            chamada_pw=nucleo._int(f.get('chamada_pw')), chamada_ph=nucleo._int(f.get('chamada_ph')),
             chamada_titulo=f.get('chamada_titulo', '').strip(), chamada_resumo=f.get('chamada_resumo', '').strip(),
             chamada_imagem=cham or '', chamada_legenda=f.get('chamada_legenda', '').strip(),
             chamada_alt=f.get('chamada_alt', '').strip(), chamada_formato=fmt, slug='previa', destino_url='',
