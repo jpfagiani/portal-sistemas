@@ -576,6 +576,12 @@ def conteudos_ordenar():
 
 # ── matéria completa de um cartão ou comunicado (página pública) ─────────────
 
+def _titulo_da_materia(html):
+    """Sem título digitado: usa o primeiro título ou negrito do texto da matéria (nunca o nome administrativo)."""
+    m = re.search(r'<(?:h2|h3|strong)[^>]*>(.*?)</(?:h2|h3|strong)>', html or '', re.S)
+    return nucleo.so_texto(m.group(1))[:140] if m else ''
+
+
 @app.route('/materia/<tipo>/<ident>')
 def materia(tipo, ident):
     """Página aberta pelo clique num cartão ou comunicado que tem matéria completa."""
@@ -594,7 +600,7 @@ def materia(tipo, ident):
     html = nucleo.limpa_html(r['mh'] or '')
     if not (nucleo.so_texto(html) or '<img' in html) or (not r['ativo'] and not session.get('admin')):
         abort(404)
-    return render_template('materia.html', titulo=r['mt'] or r['nome'] or 'Matéria',
+    return render_template('materia.html', titulo=r['mt'] or _titulo_da_materia(html) or 'Matéria',
                            corpo=Markup(nucleo.agrupa_figuras(html)),
                            editar=url_for('conteudos_editor', tipo=tipo, ident=ident))
 
@@ -707,3 +713,120 @@ def conteudos_duplicar():
         con.commit()
         return jsonify(ok=True, id=novo)
     return _erro('Tipo de conteúdo desconhecido.')
+
+
+# ── conferência de destinos: a mesma matéria não pode ter duas páginas ──────────
+
+def _norm(txt):
+    """Texto comparável: sem acento, caixa, pontuação nem espaços repetidos."""
+    import unicodedata
+    t = unicodedata.normalize('NFKD', txt or '').encode('ascii', 'ignore').decode().lower()
+    return re.sub(r'[^a-z0-9]+', ' ', t).strip()
+
+
+def _imagens_de(html, *extras):
+    arqs = set(re.findall(r'/static/uploads/([A-Za-z0-9._\-]+)', html or ''))
+    arqs.update(e for e in extras if e)
+    return arqs
+
+
+def _titulos_de(html, *extras):
+    """Títulos candidatos: os informados e o primeiro texto em negrito/título do HTML."""
+    out = [e for e in extras if e]
+    m = re.search(r'<(?:strong|h2|h3)[^>]*>(.*?)</(?:strong|h2|h3)>', html or '', re.S)
+    if m:
+        out.append(nucleo.so_texto(m.group(1)))
+    return [t for t in (_norm(x) for x in out) if len(t) >= 10]
+
+
+def _situacao_destino(url, tem_materia):
+    """(rótulo, estado) do clique de um cartão/comunicado: ok, aviso ou erro."""
+    from . import exibicao
+    url = (url or '').strip()
+    if url:
+        if url.startswith('/'):
+            if exibicao.interno_existe(url):
+                return ('Página do portal: ' + url, 'ok')
+            return ('Destino que não existe mais: ' + url, 'erro')
+        if exibicao.externo_valido(url):
+            return ('Site externo: ' + url, 'ok')
+        return ('Endereço inválido: ' + url, 'erro')
+    if tem_materia:
+        return ('Matéria própria (página separada)', 'aviso')
+    return ('Sem link', 'aviso')
+
+
+def _itens_para_conferir():
+    con = nucleo.db()
+    noticias = [dict(r) for r in con.execute(
+        f'SELECT id,titulo,chamada_titulo,slug,capa,chamada_imagem,destino_url FROM noticias WHERE {mn.VISIVEL}')]
+    for n in noticias:
+        n['titulos'] = set(_titulos_de('', n['titulo'], n['chamada_titulo']))
+        n['imagens'] = _imagens_de('', n['capa'], n['chamada_imagem'])
+    itens = []
+    for r in con.execute("SELECT p.chave,p.nome,k.html,k.url,k.materia_titulo,k.materia_html FROM cartoes_painel p"
+                         " JOIN cartao_conteudo k ON k.chave=p.chave WHERE p.tipo='conteudo' AND p.ativo=1"):
+        itens.append(dict(tipo='cartao', ident=r['chave'], nome=r['nome'], chamada=nucleo.so_texto(r['html'])[:110],
+                          url=r['url'], tem_materia=bool(nucleo.so_texto(r['materia_html']) or '<img' in (r['materia_html'] or '')),
+                          titulos=set(_titulos_de(r['materia_html'], r['materia_titulo'])) | set(_titulos_de(r['html'])),
+                          imagens=_imagens_de((r['html'] or '') + (r['materia_html'] or ''))))
+    for r in con.execute('SELECT * FROM lateral WHERE ativo=1 ORDER BY ordem,id'):
+        r = dict(r)
+        corpo = r.get('corpo_html') or ''
+        itens.append(dict(tipo='comunicado', ident=str(r['id']), nome=r['titulo'],
+                          chamada=nucleo.so_texto(corpo or r.get('conteudo') or '')[:110], url=r.get('url') or '',
+                          tem_materia=bool(nucleo.so_texto(r.get('materia_html')) or '<img' in (r.get('materia_html') or '')),
+                          titulos=set(_titulos_de(r.get('materia_html'), r.get('materia_titulo'))) | set(_titulos_de(corpo, r.get('titulo'))),
+                          imagens=_imagens_de((corpo or '') + (r.get('materia_html') or ''), r.get('imagem'))))
+    for it in itens:
+        it['estado_txt'], it['estado'] = _situacao_destino(it['url'], it['tem_materia'])
+        it['parecidas'] = []
+        for n in noticias:
+            motivo = ''
+            if it['titulos'] & n['titulos']:
+                motivo = 'mesmo título'
+            elif any(a in b or b in a for a in it['titulos'] for b in n['titulos']):
+                motivo = 'título parecido'
+            elif it['imagens'] & n['imagens']:
+                motivo = 'mesma imagem'
+            if motivo:
+                it['parecidas'].append(dict(titulo=n['titulo'], slug=n['slug'], motivo=motivo,
+                                            ja=(it['url'] == '/noticias/' + n['slug'])))
+        it['unificada'] = any(p['ja'] for p in it['parecidas'])
+        it['duplicada'] = bool(it['parecidas']) and it['tem_materia'] and not it['unificada']
+        # Ordem: o que precisa de atenção primeiro.
+    itens.sort(key=lambda i: (0 if i['estado'] == 'erro' else 1 if i['duplicada'] else 2 if i['estado'] == 'aviso' else 3))
+    return itens, noticias
+
+
+@app.route('/admin/conteudos/destinos')
+@nucleo.admin_obrigatorio
+def conteudos_destinos():
+    itens, noticias = _itens_para_conferir()
+    return render_template('admin_conteudo_destinos.html', itens=itens, noticias=noticias,
+                           resumo=dict(total=len(itens), erros=sum(i['estado'] == 'erro' for i in itens),
+                                       duplicadas=sum(i['duplicada'] for i in itens)))
+
+
+@app.route('/admin/conteudos/unificar', methods=['POST'])
+@nucleo.admin_obrigatorio
+def conteudos_unificar():
+    """Faz o clique de um cartão ou comunicado levar à página de uma notícia (ou volta à matéria própria).
+    O texto da matéria própria NÃO é apagado: fica guardado, só deixa de ser usado enquanto houver destino."""
+    from . import exibicao
+    tipo, ident, slug = request.form.get('tipo', ''), request.form.get('id', ''), request.form.get('slug', '').strip()
+    url = '/noticias/' + slug if slug else ''
+    if url and not exibicao.interno_existe(url):
+        flash('Essa notícia não existe ou não está publicada.', 'erro')
+        return redirect(url_for('conteudos_destinos'))
+    con = nucleo.db()
+    if tipo == 'cartao':
+        cur = con.execute('UPDATE cartao_conteudo SET url=? WHERE chave=?', (url, ident))
+    elif tipo == 'comunicado':
+        cur = con.execute('UPDATE lateral SET url=? WHERE id=?', (url, nucleo._int(ident)))
+    else:
+        abort(400)
+    con.commit()
+    flash('Pronto: o clique agora leva à notícia.' if url else 'Pronto: o clique volta a abrir a matéria própria.',
+          'ok' if cur.rowcount else 'erro')
+    return redirect(url_for('conteudos_destinos'))
