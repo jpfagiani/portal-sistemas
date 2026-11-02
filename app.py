@@ -1133,6 +1133,8 @@ def init_db():
             # Onde a imagem (quando menor que o cartão) fica na horizontal:
             # 0 = encostada à esquerda, 50 = centralizada, 100 = à direita.
             ('lateral',  'img_x', 'INTEGER NOT NULL DEFAULT 0'),
+            # Corpo com texto e imagens do editor rico (o mesmo dos demais conteúdos). Vazio = item antigo.
+            ('lateral',  'corpo_html', "TEXT NOT NULL DEFAULT ''"),
             ('cartoes',  'coluna',  'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'coluna', 'INTEGER NOT NULL DEFAULT 0'),
             ('cartoes_painel', 'altura', 'INTEGER NOT NULL DEFAULT 0'),
@@ -1172,10 +1174,27 @@ def init_db():
             # e as já existentes não ganham um bloco novo por conta da atualização.
             ('paginas_lateral', 'mostrar_leia',   'INTEGER NOT NULL DEFAULT 0'),
             ('noticias', 'ordem',    'INTEGER NOT NULL DEFAULT 0'),
+            ('noticias', 'so_pagina', 'INTEGER NOT NULL DEFAULT 0'),   # página de apoio: fora das listas
+            # Chamada da página principal, independente da matéria. Vazio = usa título, resumo e capa da matéria.
+            ('noticias', 'chamada_titulo',  "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'chamada_resumo',  "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'chamada_imagem',  "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'chamada_legenda', "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'chamada_alt',     "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'chamada_formato', "TEXT NOT NULL DEFAULT ''"),     # '' = o do cartão
+            ('noticias', 'chamada_visivel', 'INTEGER NOT NULL DEFAULT 1'),
+            ('noticias', 'chamada_credito', "TEXT NOT NULL DEFAULT ''"),
+            ('noticias', 'chamada_posicao', "TEXT NOT NULL DEFAULT ''"),     # '' = automática | principal | lista
+            ('noticias', 'capa_credito',    "TEXT NOT NULL DEFAULT ''"),
             ('noticias', 'titulo_fonte', "TEXT NOT NULL DEFAULT ''"),
             ('noticias', 'titulo_cor',   "TEXT NOT NULL DEFAULT ''"),
             ('noticias', 'titulo_tam',   "TEXT NOT NULL DEFAULT ''"),
             ('cartao_conteudo', 'url', "TEXT NOT NULL DEFAULT ''"),
+            # Matéria completa do cartão / comunicado: a página que abre no clique (opcional).
+            ('cartao_conteudo', 'materia_titulo', "TEXT NOT NULL DEFAULT ''"),
+            ('cartao_conteudo', 'materia_html',   "TEXT NOT NULL DEFAULT ''"),
+            ('lateral', 'materia_titulo', "TEXT NOT NULL DEFAULT ''"),
+            ('lateral', 'materia_html',   "TEXT NOT NULL DEFAULT ''"),
             ('ramais',   'destaque', 'INTEGER NOT NULL DEFAULT 0'),
             ('usuarios', 'ultimo_acesso', "TEXT DEFAULT ''")):
         existentes = {c[1] for c in con.execute(f'PRAGMA table_info({tabela})')}
@@ -1217,6 +1236,41 @@ def init_db():
     for chave, valor in PADROES.items():
         con.execute('INSERT OR IGNORE INTO config (chave, valor) VALUES (?,?)',
                     (chave, valor))
+
+    # Nome dos cartões de texto e imagem: o nome é para o administrador gerenciar; no portal só aparece se
+    # ele marcar "Mostrar o nome do cartão". Uma vez só, esconde os que já existiam.
+    if not con.execute("SELECT 1 FROM config WHERE chave='titulos_ocultos_v1'").fetchone():
+        try:
+            con.execute('UPDATE cartao_conteudo SET titulo_visivel=0')
+        except sqlite3.OperationalError:
+            pass                                  # tabela ainda não existe: nada a esconder
+        con.execute("INSERT INTO config (chave,valor) VALUES ('titulos_ocultos_v1','1')")
+
+    # Cartões e comunicados que apontavam para uma "página de apoio" (notícia oculta criada pelos botões antigos):
+    # o texto completo da página vira a matéria do próprio cartão, e o cartão fica só com imagens e uma chamada.
+    if not con.execute("SELECT 1 FROM config WHERE chave='materia_migrada_v1'").fetchone():
+        def _chamada(html, nome):
+            imgs = re.findall(r'<img\b[^>]*>', html or '')
+            curto = len(so_texto(html or '')) <= 140
+            return html if curto else limpa_html(''.join('<p>%s</p>' % i for i in imgs)
+                                                  + '<p><strong>%s</strong></p>' % escape((nome or 'Saiba mais')[:200]))
+        try:
+            for chave, nome, html, url in con.execute(
+                    "SELECT k.chave,p.nome,k.html,k.url FROM cartao_conteudo k JOIN cartoes_painel p ON p.chave=k.chave"
+                    " WHERE k.url LIKE '/noticias/%' AND k.materia_html=''").fetchall():
+                n = con.execute('SELECT titulo,corpo FROM noticias WHERE slug=? AND so_pagina=1', (url[len('/noticias/'):],)).fetchone()
+                if n and (so_texto(n[1]) or '<img' in n[1]):
+                    con.execute("UPDATE cartao_conteudo SET materia_titulo=?,materia_html=?,html=?,url='' WHERE chave=?",
+                                (n[0], n[1], _chamada(html, nome), chave))
+            for ident, titulo, html, url in con.execute(
+                    "SELECT id,titulo,corpo_html,url FROM lateral WHERE url LIKE '/noticias/%' AND materia_html='' AND corpo_html<>''").fetchall():
+                n = con.execute('SELECT titulo,corpo FROM noticias WHERE slug=? AND so_pagina=1', (url[len('/noticias/'):],)).fetchone()
+                if n and (so_texto(n[1]) or '<img' in n[1]):
+                    con.execute("UPDATE lateral SET materia_titulo=?,materia_html=?,corpo_html=?,url='' WHERE id=?",
+                                (n[0], n[1], _chamada(html, titulo), ident))
+        except sqlite3.OperationalError:
+            pass
+        con.execute("INSERT INTO config (chave,valor) VALUES ('materia_migrada_v1','1')")
 
     # Título das notícias: o padrão passou de vinho para azul. Uma vez só, troca quem ainda
     # estava no vinho antigo; depois disso, a cor escolhida no painel é respeitada.
@@ -1309,7 +1363,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.9.21'
+VERSAO = '1.9.34'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1820,6 +1874,110 @@ def limpa_html(html):
     return p.resultado()
 
 
+# ── imagem + texto abaixo, sempre da mesma largura ────────────────────────────
+# Em qualquer cartão ou conteúdo, uma imagem sozinha no parágrafo e o texto que vem
+# logo depois dela (até a próxima imagem) formam uma "figura": a caixa tem a largura
+# da imagem (px ou %), a imagem ocupa 100% dela e o texto acompanha. Assim o texto
+# fica alinhado à imagem, qualquer que seja o tamanho dela. É feito na hora de
+# mostrar; o que está guardado não muda.
+_VAZIOS_HTML = {'br', 'img', 'hr'}
+_FLUTUA_IMG = ('im-esq', 'im-dir')
+_PCT_IMG = {'im-p': 25, 'im-m': 50, 'im-g': 75, 'im-c': 100}
+
+
+class _TopoHTML(HTMLParser):
+    """Divide um HTML já limpo em pedaços de nível superior (p, ul, h2, div...)."""
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.pedacos, self.atual, self.prof = [], [], 0
+
+    def _fecha(self):
+        if self.atual:
+            self.pedacos.append(''.join(self.atual))
+            self.atual = []
+
+    def handle_starttag(self, tag, attrs):
+        if self.prof == 0 and self.atual and not ''.join(self.atual).strip() == '':
+            self._fecha()
+        self.atual.append(self.get_starttag_text())
+        if tag in _VAZIOS_HTML:
+            if self.prof == 0:
+                self._fecha()
+        else:
+            self.prof += 1
+
+    def handle_startendtag(self, tag, attrs):
+        self.atual.append(self.get_starttag_text())
+        if self.prof == 0:
+            self._fecha()
+
+    def handle_endtag(self, tag):
+        self.atual.append(f'</{tag}>')
+        self.prof = max(0, self.prof - 1)
+        if self.prof == 0:
+            self._fecha()
+
+    def handle_data(self, d):
+        self.atual.append(d)
+
+    def handle_entityref(self, n):
+        self.atual.append(f'&{n};')
+
+    def handle_charref(self, n):
+        self.atual.append(f'&#{n};')
+
+
+def _so_imagem(pedaco):
+    """(largura css, alinhamento) se o pedaço é um parágrafo só com uma imagem; senão None."""
+    if not pedaco.startswith('<p') or pedaco.count('<img') != 1:
+        return None
+    resto = re.sub(r'<(?!img)[^>]+>', '', pedaco).replace('&nbsp;', ' ')
+    if re.sub(r'<img[^>]*>', '', resto).strip():
+        return None
+    tag = re.search(r'<img[^>]*>', pedaco).group(0)
+    classes = (re.search(r'class="([^"]*)"', tag) or [None, ''])[1].split()
+    if any(c in classes for c in _FLUTUA_IMG):
+        return None
+    px = re.search(r'width:(\d+)px', tag)
+    pct = re.search(r'width:(\d+)%', tag)
+    if px:
+        larg = f'{px.group(1)}px'
+    elif pct:
+        larg = f'{pct.group(1)}%'
+    else:
+        p = next((_PCT_IMG[c] for c in classes if c in _PCT_IMG), 100)
+        larg = f'{p}%'
+    if larg == '100%':
+        return None                       # largura total: o texto já acompanha
+    alinha = (re.search(r'text-align:(center|right)', pedaco.split('>', 1)[0]) or [None, ''])[1]
+    return larg, {'center': 'fig-c', 'right': 'fig-d'}.get(alinha, 'fig-e')
+
+
+def agrupa_figuras(html):
+    """Veja o comentário acima. Recebe e devolve HTML já limpo."""
+    if '<img' not in (html or ''):
+        return html
+    p = _TopoHTML()
+    p.feed(html)
+    p.close()
+    p._fecha()
+    pedacos, saida, i = p.pedacos, [], 0
+    while i < len(pedacos):
+        info = _so_imagem(pedacos[i])
+        if not info:
+            saida.append(pedacos[i])
+            i += 1
+            continue
+        larg, cls = info
+        grupo = [pedacos[i]]
+        i += 1
+        while i < len(pedacos) and '<img' not in pedacos[i] and not pedacos[i].startswith('<div class="fig'):
+            grupo.append(pedacos[i])
+            i += 1
+        saida.append(f'<div class="fig {cls}" style="width:{larg}">{"".join(grupo)}</div>')
+    return ''.join(saida)
+
+
 def so_texto(html):
     """O texto visível de um trecho de HTML, para saber se o bloco está vazio."""
     return re.sub(r'<[^>]+>', '', html or '').replace('&nbsp;', ' ').strip()
@@ -1863,6 +2021,7 @@ def agrupar_blocos(linhas):
         else:
             html = (limpa_html(b['texto']) if b['formato'] == 'html'
                     else texto_para_html(b['texto']))
+            html = agrupa_figuras(str(html))
             if so_texto(html) or '<li' in html or '<img' in html:
                 saida.append({'tipo': 'texto', 'id': b['id'], 'ativo': ativo,
                               'html': Markup(html),
@@ -2002,7 +2161,7 @@ def modulo(chave):
                                   if b['arquivo'] else ''})
     corpo = limpa_html(row['corpo'] or '') if (row['corpo'] or '').strip() else ''
     return render_template('modulo.html', chave=chave, nome=row['nome'],
-                           cab=cab, leia=leia, corpo=Markup(corpo),
+                           cab=cab, leia=leia, corpo=Markup(agrupa_figuras(corpo)),
                            corpo_editar=Markup(corpo or (blocos_para_html(linhas) if admin else '')),
                            cab_campos=row if admin else None,
                            blocos=agrupar_blocos(linhas), edicao=admin, blocos_cru=cru,
@@ -2043,6 +2202,7 @@ def _injeta():
         "SELECT COUNT(*) c FROM lateral WHERE ativo=1 AND urgencia='urgente'"
     ).fetchone()['c']
     return {'cfg': cfg(), 'csrf_token': token_csrf(),
+            'destinos_portal': destinos_de_links() if session.get('admin') else [],
             'faixa_links': linhas_faixa(cfg('faixa_links')),
             'destaque': dados_destaque(),
             'fundo_nome': fundo, 'fundo_versao': fundo_v,
@@ -2731,7 +2891,7 @@ def _editar_conteudo_cartao(c):
         return 'Editar notícias', url_for('conteudos', tipo='noticia')
     if t == 'conteudo':
         return 'Editar conteúdo', url_for('conteudos_editor', tipo='cartao', ident=k)
-    return 'Editar itens', url_for('admin_lateral', cartao=k)
+    return 'Editar itens', url_for('conteudos', tipo='comunicado', cartao=k)
 
 
 @app.route('/admin/cartoes', methods=['GET', 'POST'])
@@ -2750,152 +2910,26 @@ def admin_cartoes():
                 salvar_nome_cartao_painel(chave)
             else:
                 flash('O nome do cartão não pode ficar em branco.', 'erro')
-        return redirect(url_for('admin_cartoes') + '#c-' + chave)
-    cartoes = []
+        return redirect(url_for('conteudos') + '#c-' + chave)
+    # "Todos os cartões" agora é uma seção de Conteúdos.
+    return redirect(url_for('conteudos') + '#cartoes')
+
+
+def cartoes_para_gerenciar():
+    """Todos os cartões da página inicial, com o que a seção de Conteúdos mostra de cada um."""
+    saida = []
     for c in cartoes_do_painel():
         rotulo, destino = _editar_conteudo_cartao(c)
-        cartoes.append({'c': c, 'tipo': TIPOS_CARTAO.get(c['tipo'], c['tipo']),
-                        'rotulo': rotulo, 'destino': destino,
-                        'aparencia': dados_aparencia_cartao(c['chave'])})
-    return render_template('admin_cartoes.html', cartoes=cartoes, fontes=FONTES_TEXTO,
-                           regioes=CARTAO_REGIOES)
+        saida.append({'c': c, 'tipo': TIPOS_CARTAO.get(c['tipo'], c['tipo']),
+                      'rotulo': rotulo, 'destino': destino,
+                      'aparencia': dados_aparencia_cartao(c['chave'])})
+    return saida
 
 
-@app.route('/admin/lateral', methods=['GET', 'POST'])
+@app.route('/admin/lateral')
 @admin_obrigatorio
 def admin_lateral():
-    con = db()
-    if request.method == 'POST':
-        acao = request.form.get('acao')
-        ident = _int(request.form.get('id'))
-        # Qual dos cinco cartoes esta sendo editado. Vem do formulario no POST
-        # e da URL no GET; chave desconhecida cai no primeiro.
-        chave = request.form.get('cartao') or ''
-        if not cartao_por_chave(chave):
-            chave = CARTOES_SEMENTE[0][0]
-        volta = url_for('admin_lateral', cartao=chave)
-
-        if acao == 'novo_cartao':
-            nova = _proxima_chave_cartao(con)
-            proxima_ordem = con.execute(
-                'SELECT COALESCE(MAX(ordem),0)+1 FROM cartoes_painel').fetchone()[0]
-            con.execute('INSERT INTO cartoes_painel (chave,nome,icone,regiao,'
-                        'largura,coluna,ordem,tipo,ativo)'
-                        " VALUES (?,?,'prancheta','baixo',1,0,?,'itens',1)",
-                        (nova, 'Cartão ' + nova.replace('cartao', ''),
-                         proxima_ordem))
-            _semear_aparencia(con, nova)
-            con.commit()
-            flash('Cartão criado. Arraste-o no mapa para posicionar.', 'ok')
-            return redirect(url_for('admin_lateral', cartao=nova))
-
-        if acao == 'excluir_cartao':
-            # O último não sai: sem nenhum cartão a tela não teria o que abrir.
-            quantos = con.execute("SELECT COUNT(*) FROM cartoes_painel"
-                                  " WHERE tipo='itens'").fetchone()[0]
-            if quantos <= 1:
-                flash('Este é o último cartão — crie outro antes de excluí-lo.',
-                      'erro')
-                return redirect(volta)
-            for linha in con.execute('SELECT imagem, video FROM lateral'
-                                     ' WHERE cartao=?', (chave,)):
-                remove_upload(linha['imagem'])
-                remove_upload(linha['video'])
-            con.execute('DELETE FROM lateral WHERE cartao=?', (chave,))
-            con.execute('DELETE FROM cartoes_painel WHERE chave=? AND '
-                        "tipo='itens'", (chave,))
-            con.commit()
-            flash('Cartão e itens removidos.', 'ok')
-            return redirect(url_for('admin_lateral'))
-
-        if acao == 'titulo_cartao':
-            salvar_nome_cartao_painel(chave)
-            return redirect(volta)
-        if acao == 'aparencia_cartao':
-            salvar_aparencia_cartao(chave)
-            return redirect(volta)
-        if acao == 'ordenar':
-            return reordenar('lateral')
-        if acao == 'excluir':
-            linha = con.execute('SELECT imagem, video FROM lateral WHERE id=?',
-                                (ident,)).fetchone()
-            # Arquivos enviados saem junto: item apagado deixaria orfao em
-            # uploads/, ocupando espaco sem nada apontando para ele.
-            if linha:
-                remove_upload(linha['imagem'])
-                remove_upload(linha['video'])
-            con.execute('DELETE FROM lateral WHERE id=?', (ident,))
-            flash('Item removido.', 'ok')
-        else:
-            urg  = request.form.get('urgencia', 'informacao')
-            dest = request.form.get('destaque', 'nenhum')
-            atuais = con.execute('SELECT imagem, video FROM lateral WHERE id=?',
-                                 (ident,)).fetchone() if ident else None
-            try:
-                imagem = salva_upload('imagem', atuais['imagem'] if atuais else '')
-                video = salva_upload('video', atuais['video'] if atuais else '',
-                                     VIDEO_EXTS)
-            except ValueError as e:
-                flash(str(e), 'erro')
-                return redirect(volta)
-            for campo, novo, antigo in (('imagem', imagem, atuais['imagem'] if atuais else ''),
-                                        ('video', video, atuais['video'] if atuais else '')):
-                if novo != antigo:
-                    remove_upload(antigo)
-                if request.form.get('remover_' + campo):
-                    remove_upload(novo)
-                    if campo == 'imagem':
-                        imagem = ''
-                    else:
-                        video = ''
-            dados = (request.form.get('tipo', 'aviso'),
-                     request.form.get('titulo', '').strip(),
-                     # strip() inteiro comeria a indentacao da primeira linha:
-                     # tira so as quebras das pontas e o espaco do fim.
-                     request.form.get('conteudo', '').strip('\r\n').rstrip(),
-                     request.form.get('url', '').strip(),
-                     _int(request.form.get('ordem')),
-                     1 if request.form.get('ativo') else 0,
-                     urg if urg in ('urgente', 'comunicado', 'informacao') else 'informacao',
-                     dest if dest in DESTAQUES_COMUNICADO else 'nenhum',
-                     # Vazio quer dizer "usa o padrão de Aparência" — por isso
-                     # o padrão dos validadores aqui é a string vazia.
-                     medida(request.form.get('titulo_tam'), '', 0.6, 2.0)
-                     if request.form.get('titulo_tam', '').strip() else '',
-                     cor_hexa(request.form.get('titulo_cor'), ''),
-                     medida(request.form.get('texto_tam'), '', 0.6, 2.0)
-                     if request.form.get('texto_tam', '').strip() else '',
-                     cor_hexa(request.form.get('texto_cor'), ''),
-                     cor_hexa(request.form.get('fundo_cor'), ''),
-                     request.form.get('data', '').strip(),
-                     imagem, video,
-                     request.form.get('url_rot', '').strip(),
-                     (request.form.get('img_pos')
-                      if request.form.get('img_pos') in CARTAO_IMG_POS else 'topo'),
-                     chave)
-            # O título é opcional (o nome do cartão já titula o bloco), mas o
-            # item precisa ter algo para mostrar: texto, imagem, vídeo ou link.
-            if not (dados[1] or dados[2] or dados[3] or imagem or video):
-                flash('Preencha ao menos um destes: título, texto, link, '
-                      'imagem ou vídeo.', 'erro')
-            elif ident:
-                con.execute('UPDATE lateral SET tipo=?,titulo=?,conteudo=?,url=?,'
-                            'ordem=?,ativo=?,urgencia=?,destaque=?,titulo_tam=?,'
-                            'titulo_cor=?,texto_tam=?,texto_cor=?,fundo_cor=?,'
-                            'data=?,imagem=?,video=?,url_rot=?,img_pos=?,cartao=?'
-                            ' WHERE id=?', dados + (ident,))
-                flash('Item atualizado.', 'ok')
-                volta = url_for('admin_lateral', cartao=chave, editar=ident)
-            else:
-                con.execute('INSERT INTO lateral (tipo,titulo,conteudo,url,ordem,'
-                            'ativo,urgencia,destaque,titulo_tam,titulo_cor,'
-                            'texto_tam,texto_cor,fundo_cor,data,imagem,video,'
-                            'url_rot,img_pos,cartao)'
-                            ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', dados)
-                flash('Item adicionado.', 'ok')
-        con.commit()
-        return redirect(volta)
-
+    """Endereço antigo, mantido só por compatibilidade (links e favoritos): leva ao editor único de Conteúdos."""
     chave = request.args.get('cartao') or ''
     if not cartao_por_chave(chave):
         chave = CARTOES_SEMENTE[0][0]
@@ -2905,16 +2939,9 @@ def admin_lateral():
                                 ident=_int(request.args['editar'])))
     if request.args.get('novo'):
         return redirect(url_for('conteudos_editor', tipo='comunicado', ident='novo', cartao=chave))
-    editar = None
-    return render_template(
-        'admin_lateral.html', editar=editar, destaques=DESTAQUES_COMUNICADO,
-        paleta=PALETA, paleta_fundo=PALETA_FUNDO,
-        abas=abas_painel(chave), fontes=FONTES_TEXTO,
-        cartao_atual=cartao_por_chave(chave),
-        icones_cartao=dados_icone_cartao(chave), img_pos=CARTAO_IMG_POS,
-        aparencia=dados_aparencia_cartao(chave),
-        itens=con.execute('SELECT * FROM lateral WHERE cartao=?'
-                          ' ORDER BY ordem, id', (chave,)).fetchall())
+    # A aba "Cartões do painel" não existe mais: os itens de cada cartão ficam em Conteúdos.
+    # Este endereço continua valendo (links antigos e o POST de ordenar/excluir) e leva para lá.
+    return redirect(url_for('conteudos', tipo='comunicado', cartao=chave))
 
 
 @app.route('/admin/imagem-tamanho/<int:item>', methods=['POST'])
@@ -3558,7 +3585,7 @@ def abas_painel(atual):
     # registro por causa da posição, mas o conteúdo deles vem de outro cadastro
     # e cada um tem tela própria — uma aba aqui abriria uma lista que nunca
     # terá item, e duplicaria o que já existe noutra seção.
-    return [(c['nome'], url_for('admin_lateral', cartao=c['chave']),
+    return [(c['nome'], url_for('conteudos', tipo='comunicado', cartao=c['chave']),
              c['chave'] == atual)
             for c in cartoes_do_painel() if c['tipo'] == 'itens']
 

@@ -19,7 +19,7 @@ Este arquivo registra o que foi feito seguindo a Especificação-Mestra do Porta
 | Comando | Resultado antes das mudanças |
 |---|---|
 | `python3 -m py_compile app.py modulos/*.py` | passou |
-| `python3 -I tests/test_modulos.py` | 129 verificações, todas passaram |
+| `python3 -I tests/verificacoes_portal.py` | 129 verificações, todas passaram |
 | `python3 -m unittest discover -s tests -v` | não achava nenhum teste (script comum) |
 
 ## Entregas desta versão
@@ -38,14 +38,14 @@ Este arquivo registra o que foi feito seguindo a Especificação-Mestra do Porta
 `app.py` (versão, cores padrão), `modulos/noticias.py` (respostas JSON, prévia), `modulos/midia.py`
 (usos, dimensões), `modulos/seguranca.py` (CSP), `templates/noticias.html`, `noticia.html`,
 `admin_noticias.html`, `admin_midia.html`, `static/limpo.css`, `static/style.css`,
-`static/editor-estado.js` (novo), `tests/test_modulos.py`, `tests/test_unittest.py` (novo),
+`static/editor-estado.js` (novo), `tests/verificacoes_portal.py`, `tests/test_unittest.py` (novo),
 `.gitignore`, `docs/MODERNIZACAO.md` (novo).
 
 Nenhuma tabela, coluna ou arquivo de dados foi alterado: **não há migração de banco nesta versão**.
 
 ## Testes executados
 
-- `python3 -I tests/test_modulos.py`: 153 verificações, todas passaram (inclui salvar por fetch,
+- `python3 -I tests/verificacoes_portal.py`: 153 verificações, todas passaram (inclui salvar por fetch,
   prévia, CSRF, uso de imagem, CSP, backup e restauração, entrada `../` em backup).
 - `python3 -m unittest discover -s tests -v`: passa.
 - Navegador real (Chromium): editor completo (estado, erro, falha do servidor, prévia, aviso de
@@ -87,7 +87,7 @@ recomendado, se houver interesse: prova de conceito isolada com amostras reais d
 3. Extraia `portal-atualizacao.zip` sobre a pasta do portal.
 4. `sudo systemctl restart portal` (ou `./atualizar.sh`) e Ctrl+F5 no navegador.
 5. Abra Administração → Notícias, edite uma notícia, clique em **Prévia** e depois em **Salvar**.
-6. Para validar: `python3 -I tests/test_modulos.py` (usa cópia temporária; não toca no banco real).
+6. Para validar: `python3 -I tests/verificacoes_portal.py` (usa cópia temporária; não toca no banco real).
 
 ## Reversão
 
@@ -112,3 +112,82 @@ de caixa "figura") passa a ocupar a coluna inteira, e todo texto fica na mesma l
 esquerda, mesmo que tenha sido colado centralizado. Vale para notícias novas e antigas, sem precisar
 salvar de novo. Blocos de colunas (`.cols`) continuam livres. Reversão: apagar o último bloco de
 `static/limpo.css` ("Notícia no padrão do UOL").
+
+## 1.9.22 — Cartões dentro de Conteúdos (Fases 0 e 1 do plano de 29/10/2026)
+
+- **Aba "Cartões do painel" removida.** Em Administração → Conteúdos há agora a seção
+  "Cartões da página inicial" (nome, ícone de cada cartão, fonte e cores, vitrine de notícias, novo cartão de
+  comunicados, excluir cartão) e o filtro "Comunicados → cartão", com ordem por arrastar e caixa de visível.
+  `/admin/lateral` e `/admin/cartoes` continuam existindo e redirecionam para Conteúdos; o POST de ordenar e excluir
+  itens segue em `/admin/lateral`. Os templates `admin_lateral.html` e `admin_cartoes.html` foram removidos.
+- **Erro 405 corrigido:** o formulário de aparência de "Últimas notícias" na tela Conteúdos agora é aceito
+  (`/admin/conteudos` passou a receber POST).
+- **Testes:** `tests/test_modulos.py` virou `tests/verificacoes_portal.py` (o `unittest discover` tentava importá-lo e
+  quebrava). 225 verificações passam; `python3 -m unittest discover -s tests` passa.
+- **Texto exatamente na largura da imagem, em qualquer cartão ou conteúdo** (`agrupa_figuras` em `app.py`), tamanho da
+  letra e da imagem em pixels (`static/tamanho-px.js`, `static/editor-rico.js`), grade de notícias opcional.
+- **Não alterado:** banco de dados (sem migração), `secret.key`, uploads. Cópias antigas na raiz (`index.html`,
+  `blocos.html`, `style.css`, `encaixe.js`) e os scripts sem uso (`static/barra-extra.js`, `static/alinha-texto.js`)
+  aguardam sua confirmação para serem removidos.
+- Reversão: restaurar os arquivos anteriores; não há alteração de banco.
+
+Mapa de destinos (Fase 1): ver `docs/MAPA-DE-DESTINOS.md`.
+
+## 1.9.23 — Nomes dos cartões ocultos no portal
+- O nome do cartão (conteúdo) serve só para o administrador gerenciar; no portal público não aparece mais por padrão.
+- Cartões novos nascem com "Mostrar o nome do cartão" desmarcado. Para ter título, escreva-o dentro do conteúdo.
+- Migração única (`titulos_ocultos_v1`) esconde o nome dos cartões já existentes. Em modo de edição o admin continua vendo o nome.
+
+## 1.9.24 — Nome oculto também nos cartões de comunicados
+- Cartões do tipo comunicados ("itens") também não mostram o nome no portal por padrão (config `<cartao>_titulo_visivel`).
+- Em Conteúdos → Cartões da página inicial, a caixa "Mostrar o nome no portal" liga/desliga por cartão (comunicados e texto/imagem).
+
+## 1.9.25 — Um só editor: comunicados também usam o editor rico
+- Comunicados agora são editados no mesmo editor de texto e imagens dos cartões e notícias (fonte, tamanho em px, cor, alinhamento, imagem com texto embaixo, links). Nova coluna `lateral.corpo_html`.
+- O campo "Nome" do comunicado serve só para gerenciar; não aparece no portal. Escreva o título dentro do texto.
+- Comunicados antigos (título + texto + imagem) abrem já convertidos: imagem, título em negrito e texto; ao salvar passam ao formato novo.
+- Urgência (selo), destaque, visível e endereço continuam como opções do item.
+
+## 1.9.26 — Página interna para qualquer cartão
+- Botão "Criar página interna deste cartão" (cartões de texto/imagem e comunicados): cria uma página como uma notícia com o conteúdo salvo, liga o clique do cartão a ela e abre a edição.
+- Nova coluna `noticias.so_pagina`: páginas de apoio não aparecem em "Últimas notícias", na vitrine nem na lista de notícias; só pelo link. Caixa "Página de apoio" no editor de notícia.
+
+## 1.9.27 — Destino escolhível em Sistemas, Atalhos e Banners
+- Os campos de endereço de Sistemas/Atalhos e Banners passam a oferecer a lista de páginas e notícias do portal, além de aceitar um site (https://...).
+
+## 1.9.28 — Criar página interna deixa só a chamada no cartão
+- Ao criar a página interna, o texto completo vai para a página; o cartão fica com as imagens e uma linha de chamada (o nome), editável.
+
+## 1.9.29 — Consolidação (roteiro): um só caminho de edição
+Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/lateral` só redirecionam; removidos `/admin/noticia-rapida`, `/admin/cartao-conteudo`, `admin_noticias.html` e 5 JS sem uso; botão único "+ Novo conteúdo"; ordenar em `/admin/conteudos/ordenar`.
+
+## 1.9.30 — "Deixar só imagem e chamada no cartão"
+- Para cartões/comunicados que já têm página interna: o botão troca o texto do cartão por uma linha de chamada (perguntada na hora); o texto completo fica só na página.
+
+## 1.9.31 — Chamada e matéria independentes (roteiro "Editor de notícias com referências visuais")
+- Notícia: bloco 1 (chamada da página principal: título, resumo, imagem exclusiva, legenda, alt, formato, destino) e bloco 2 (matéria completa: título, subtítulo, capa, corpo); bloco 3 organização (categoria, situação, agendamento, visibilidade da chamada, destaque). Salvar um bloco não altera o outro.
+- Formatos da chamada: padrão do cartão, manchete, cartão, faixa, somente texto; modelo do cartão também "agrupado por categoria".
+- Prévia isolada da chamada, da página principal e da matéria, com visão de computador/tablet/celular.
+- Cartões e comunicados: chamada (o que aparece no cartão) + matéria completa própria em `/materia/cartao/<chave>` e `/materia/comunicado/<id>`; o clique leva à matéria. Os botões "Criar página interna" e "Deixar só chamada" (que criavam uma notícia oculta) foram substituídos por isso.
+- Detalhes em `docs/PLANO-DE-REVERSAO.md`.
+
+## 1.9.32 — Cartões existentes passam ao novo formato
+- Migração única (`materia_migrada_v1`): cartões e comunicados que apontavam para uma página de apoio (notícia oculta) recebem o texto dela como matéria completa e ficam só com imagens e uma linha de chamada; o link antigo é limpo (o clique vai à matéria).
+- Botão "Mover o texto deste cartão para a matéria completa" no bloco 2 de cartões e comunicados: leva o texto atual para a matéria e deixa no cartão a imagem e uma chamada.
+
+## 1.9.33 — Editor de notícia em painéis (roteiro "Editor de notícias com referências visuais")
+- Novo layout do editor de notícias, como nas referências: cabeçalho com trilha (Conteúdos › Notícias › Editar) e botões Pré-visualizar / Salvar rascunho / Publicar; painel 1 (chamada: título e resumo com contador, imagem com Trocar/Enviar/Remover, legenda, crédito, texto alternativo, formato, destino do clique, prévia da chamada); painel 2 (matéria: título, subtítulo, capa com Trocar/Remover/Ver imagem, legenda, crédito, alt, corpo no editor rico existente, contador de caracteres); painel 3 (organização: categoria, posição na página, ordem, exibir na página principal, destaque, situação, agendamento); painel 4 (visualização com abas Página principal / Matéria completa / Mobile e aparelhos computador/tablet/celular); barra de estado (sem alterações, não salvas, salvando, salvo às HH:MM, erro) com último publicado e histórico.
+- Destino do clique: página da notícia (padrão), outra página do portal ou endereço externo.
+- Prévia ao vivo (a cada pausa na digitação), sem gravar nada; falha de salvamento mantém o que foi digitado.
+- Banco (somente aditivo): `noticias.chamada_credito`, `noticias.capa_credito`, `noticias.chamada_posicao` ('' automática | principal | lista). A ordem usa a coluna `ordem` existente (campo "Ordem" = posição 1..N).
+- Arquivos novos: `templates/admin_noticia_painel.html`, `static/noticia-painel.js`. Alterados: `admin_conteudo_editor.html`, `admin_conteudo_previa.html`, `noticia.html`, `chamada.html`, `modulos/conteudos.py`, `modulos/noticias.py`, `app.py`, `static/limpo.css`, `tests/verificacoes_portal.py`.
+- Reversão: restaurar esses arquivos e apagar os dois novos. As colunas novas são ignoradas pelo código antigo.
+- Não alterados: `secret.key`, uploads, registros, slugs. Cartões e comunicados continuam no editor anterior.
+- **Cartões e comunicados no mesmo layout:** `templates/admin_cartao_painel.html` (novo) usa os mesmos quatro painéis: 1 chamada (nome interno, texto e imagens no editor rico, destino do clique, prévia), 2 conteúdo completo (título e texto da matéria, botão "Mover o texto deste cartão para a matéria completa"), 3 organização (comunicado: exibir, urgência, destaque; cartão: atalhos para posicionar) e 4 visualização (Chamada / Matéria completa / Mobile). Mesmo script (`static/noticia-painel.js`), sem mudança de banco e sem mudança na gravação: chamada e matéria continuam independentes.
+
+## 1.9.34 — Padrão visual da página principal
+- Imagens das chamadas em 4:3 (grade, cartão, manchete, faixa); imagens de cartões e comunicados em quadro 4:3 sem cortar.
+- Títulos 19px negrito, entrelinha 27px; texto de apoio 14px/20px; 12px entre imagem e título.
+- Variáveis `--pad-*` no fim de `static/limpo.css`: para mudar o padrão, altere só ali. Tamanho de título escolhido por notícia continua valendo.
+- Vitrine: no máximo `--col` colunas, nunca com menos de 150px. "Últimas notícias" em lista não mudou.
+- Reversão: apagar o bloco "Padrão visual" no fim de `limpo.css`.

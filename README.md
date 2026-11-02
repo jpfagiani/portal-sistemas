@@ -330,7 +330,7 @@ quiser, inclusive para a coluna da esquerda.
 ## Testes
 
 ```bash
-python3 tests/test_modulos.py   # trabalha numa cópia temporária; não toca nos dados
+python3 tests/verificacoes_portal.py   # trabalha numa cópia temporária; não toca nos dados
 ```
 
 ## Estrutura
@@ -360,4 +360,4 @@ pesquisados, filtrados, pré-visualizados, duplicados e excluídos em **Administ
 - Endereços antigos (`/admin/noticias`, `/admin/lateral?editar=…`) redirecionam. Os dados continuam nas
   mesmas tabelas (`cartao_conteudo`, `noticias`, `lateral`); nada foi migrado.
 - Implementação: `modulos/conteudos.py`, `templates/admin_conteudos.html`,
-  `templates/admin_conteudo_editor.html`, `static/conteudo-editor.js`. Testes: `python3 tests/test_modulos.py`.
+  `templates/admin_conteudo_editor.html`, `static/conteudo-editor.js`. Testes: `python3 tests/verificacoes_portal.py`.
