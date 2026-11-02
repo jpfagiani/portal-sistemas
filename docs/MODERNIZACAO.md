@@ -205,3 +205,9 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 - Padrão 225×168 continua valendo para imagens sem tamanho escolhido.
 - Fora desta versão: banner e blocos de imagem das páginas internas.
 - Reversão: colunas novas são ignoradas pelo código antigo.
+
+## 1.9.37 — Imagem e texto alinhados; espaçamento escolhido no editor
+- Imagem e texto começam na mesma margem esquerda (sem faixa de fundo ao lado da imagem).
+- Barra do editor: grupo "Espaço" (acima − +, abaixo − +, linhas − +, Juntar, Normal) em `static/espacamento.js`; vale para os parágrafos selecionados e, com imagem selecionada, para a imagem e o texto logo abaixo.
+- `limpa_html` aceita `margin-top`/`margin-bottom` (−24 a 80 px) e `line-height` (10 a 80 px).
+- Reversão: remover `espacamento.js` e as linhas que o carregam; o HTML salvo continua válido.
