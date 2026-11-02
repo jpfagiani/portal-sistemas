@@ -771,7 +771,7 @@ html:not([data-tema="escuro"]) .ntit[style*="--n-cor"]{color:var(--n-cor)}
 .com-imagem.com-img-topo,.cartao-texto .fig img:not([style*="height"]),.cartao-texto>p>img:not([style*="height"]){aspect-ratio:var(--pad-prop);height:auto;max-height:none;object-fit:contain;border-radius:var(--pad-raio);background:var(--cartao-suave)}
 .com-img-caixa.livre .com-imagem{aspect-ratio:auto}
 .cartao-texto{font-size:var(--pad-apoio);line-height:var(--pad-apoio-ent)}
-.cartao-texto p:has(>strong:only-child),.cartao-texto h2,.cartao-texto h3{font-size:var(--pad-tit);font-weight:700;line-height:var(--pad-ent);margin:var(--pad-espaco) 0 0}
+.cartao-texto p:has(>strong:only-child),.cartao-texto h2:not([style*="line-height"]),.cartao-texto h3{font-size:var(--pad-tit);font-weight:700;line-height:var(--pad-ent);margin:var(--pad-espaco) 0 0}
 .cartao-texto p:has(>strong:only-child)>strong{font-weight:700}
 .comunicado .titulo{font-size:var(--pad-tit);font-weight:700;line-height:var(--pad-ent)}
 .comunicado p{font-size:var(--pad-apoio);line-height:var(--pad-apoio-ent)}
@@ -802,7 +802,7 @@ html:not([data-tema="escuro"]) .ntit[style*="--n-cor"]{color:var(--n-cor)}
 .com-img-caixa,.com-img-caixa.livre{width:var(--pad-w)!important;max-width:100%;margin-left:0!important}
 .comunicado .conteudo:has(.com-img-lado){grid-template-columns:var(--pad-w) minmax(0,1fr)}
 .comunicado .com-img-lado{width:var(--pad-w)!important;height:var(--pad-h)!important;max-height:none}
-.not-chamada strong,.ch .ntit,.ch-resumo,.ch-sup,.ch-leg,.cartao-texto,.cartao-texto p,.cartao-texto li,.cartao-texto h2,.cartao-texto h3,.cartao-texto strong,
+.not-chamada strong,.ch .ntit,.ch-resumo,.ch-sup,.ch-leg,.cartao-texto,.cartao-texto p:not([style*="line-height"]),.cartao-texto li:not([style*="line-height"]),.cartao-texto h2,.cartao-texto h3:not([style*="line-height"]),.cartao-texto strong,
 .comunicado .titulo,.comunicado p,.not-item strong,.not-item small{font-size:var(--pad-tit)!important;font-weight:700!important;line-height:var(--pad-ent)!important}
 .comunicado[style*="--com-titulo-tam"] .titulo{font-size:var(--com-titulo-tam)!important}
 .comunicado[style*="--com-texto-tam"] p{font-size:var(--com-texto-tam)!important}
@@ -835,3 +835,11 @@ img[style*="height"].redim-img,.redim-caixa>img[style*="height"]{object-fit:cove
 .com-img-caixa.redim-caixa>.com-imagem{display:block}
 .com-img-caixa:has(img[style*="height"]),.com-img-caixa.livre:has(img[style*="height"]){width:auto!important}
 .comunicado .com-imagem[style*="height"]{object-fit:cover;aspect-ratio:auto!important;max-height:none!important}
+
+/* ── 1.9.37: imagem e texto alinhados e espaçamento escolhido no editor ── */
+.cartao-texto img:not([style*="height"]),.comunicado .com-imagem:not([style*="height"]){object-position:left top;background:none!important}
+.cartao-texto p>img,.pagina-texto p>img{vertical-align:top}
+.cartao-texto .fig{margin:var(--pad-espaco) 0 0}
+.fig>p:has(>img),.fig>p:has(>a>img){margin-bottom:6px}
+.cartao-texto p{margin:0 0 6px}
+.re-esp-grupo{display:inline-flex;align-items:center;gap:.2rem;flex-wrap:wrap}
