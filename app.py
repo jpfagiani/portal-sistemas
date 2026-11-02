@@ -1184,6 +1184,13 @@ def init_db():
             ('noticias', 'chamada_formato', "TEXT NOT NULL DEFAULT ''"),     # '' = o do cartão
             ('noticias', 'chamada_visivel', 'INTEGER NOT NULL DEFAULT 1'),
             ('noticias', 'chamada_credito', "TEXT NOT NULL DEFAULT ''"),
+            # Tamanho em px arrastado no editor (0 = padrão da página principal)
+            ('noticias', 'chamada_pw', 'INTEGER NOT NULL DEFAULT 0'),
+            ('noticias', 'chamada_ph', 'INTEGER NOT NULL DEFAULT 0'),
+            ('noticias', 'capa_pw', 'INTEGER NOT NULL DEFAULT 0'),
+            ('noticias', 'capa_ph', 'INTEGER NOT NULL DEFAULT 0'),
+            ('lateral',  'img_pw', 'INTEGER NOT NULL DEFAULT 0'),
+            ('lateral',  'img_ph', 'INTEGER NOT NULL DEFAULT 0'),
             ('noticias', 'chamada_posicao', "TEXT NOT NULL DEFAULT ''"),     # '' = automática | principal | lista
             ('noticias', 'capa_credito',    "TEXT NOT NULL DEFAULT ''"),
             ('noticias', 'titulo_fonte', "TEXT NOT NULL DEFAULT ''"),
@@ -1363,7 +1370,7 @@ def _valida_csrf():
             abort(400, 'Sessão expirada. Recarregue a página e tente de novo.')
 
 
-VERSAO = '1.9.35'
+VERSAO = '1.9.36'
 
 MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
          'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -1797,10 +1804,15 @@ class _LimpaHTML(HTMLParser):
                     re.search(r'(?<![-\w])width\s*:\s*(\d{1,4})(?:\.\d+)?px', attrs.get('style', ''))
                 w = None if px else (re.search(r'(\d{1,3})(?:\.\d+)?\s*%?', attrs.get('data-w', '')) or
                                      re.search(r'width\s*:\s*(\d{1,3})(?:\.\d+)?%', attrs.get('style', '')))
+                py = re.fullmatch(r'\s*(\d{1,4})(?:\.\d+)?\s*(?:px)?\s*', attrs.get('data-py', '')) or \
+                    re.search(r'(?<![-\w])height\s*:\s*(\d{1,4})(?:\.\d+)?px', attrs.get('style', ''))
                 if px:
-                    estilo_w = f' style="width:{max(20, min(2000, int(px.group(1))))}px"'
+                    partes = [f'width:{max(20, min(2000, int(px.group(1))))}px']
                 else:
-                    estilo_w = f' style="width:{max(5, min(100, int(w.group(1))))}%"' if w else ''
+                    partes = [f'width:{max(5, min(100, int(w.group(1))))}%'] if w else []
+                if py:
+                    partes.append(f'height:{max(20, min(2000, int(py.group(1))))}px')
+                estilo_w = f' style="{";".join(partes)}"' if partes else ''
                 self.saida.append(f'<img src="/static/uploads/{m.group(1)}" alt="{alt}" loading="lazy"{cls}{estilo_w}>')
             return
         if tag in _TAGS_OK:
@@ -2962,6 +2974,10 @@ def admin_imagem_tamanho(item):
             vals['img_x'] = 0
     if 'x' in request.form and vals.get('img_larg', 1) != 0:
         vals['img_x'] = max(0, min(100, _int(request.form.get('x'))))
+    for campo, col in (('pw', 'img_pw'), ('ph', 'img_ph')):       # tamanho em px (0 = padrão)
+        if campo in request.form:
+            v = _int(request.form.get(campo))
+            vals[col] = 0 if v <= 0 else max(20, min(2000, v))
     if not vals:
         abort(400)
     con = db()

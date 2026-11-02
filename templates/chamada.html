@@ -8,7 +8,8 @@
 {% set im = n.chamada_imagem or n.capa %}
 {% set ext = href.startswith('http') %}
 {% set alvo %}href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %}{% endset %}
-{% set foto %}{% if im %}<img src="{{ url_for('static', filename='uploads/' ~ im) }}" alt="{{ n.chamada_alt or '' }}" loading="lazy" data-previa-chamada>{% endif %}{% endset %}
+{% set tam %}{% if n.chamada_pw and n.chamada_ph and n.chamada_imagem %} style="width:{{ n.chamada_pw }}px;height:{{ n.chamada_ph }}px"{% endif %}{% endset %}
+{% set foto %}{% if im %}<img{{ tam|safe }} src="{{ url_for('static', filename='uploads/' ~ im) }}" alt="{{ n.chamada_alt or '' }}" loading="lazy" data-previa-chamada>{% endif %}{% endset %}
 {% if fmt == 'lista' %}
 <a class="not-item" {{ alvo|safe }}>
   {{ foto|safe }}

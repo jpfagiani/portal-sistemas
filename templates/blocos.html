@@ -69,6 +69,7 @@
       {% set img_link = c.imagem and c.url and c.tipo != 'link' %}
       {% if c.imagem %}
       {% set img %}<img class="com-imagem com-img-{{ c.img_pos|default('topo') }}" loading="lazy"
+           {% if c.img_pw and c.img_ph %}style="width:{{ c.img_pw }}px;height:{{ c.img_ph }}px;max-width:100%"{% endif %}
            alt="{{ c.titulo or 'Imagem' }}"
            src="{{ url_for('static', filename='uploads/' ~ c.imagem) }}">{% endset %}
       {% set img_final %}{% if img_link %}
@@ -87,22 +88,12 @@
           horizontal: 0 à esquerda, 50 no centro, 100 à direita. Vira margem. #}
       {% set img_x = c.img_x or 0 %}
       <span class="com-img-caixa{{ ' livre' if larg }}"
-            {% if modo_edicao %}data-editavel data-x="{{ img_x }}"{% endif %}
+            {% if modo_edicao %}data-editavel data-x="{{ img_x }}"{% if c.id %} data-redim data-redim-url="{{ url_for('admin_imagem_tamanho', item=c.id) }}" data-csrf="{{ csrf_token }}"{% endif %}{% endif %}
             {% if larg %}style="width:{{ larg }}%{% if img_x %};margin-left:{{ ((100 - larg) * img_x / 100)|round(2) }}%{% endif %}"{% endif %}>
         {{ img_final }}
         {#  <span> e não <button>: em item do tipo Link o cartão inteiro é um <a>,
             e botão dentro de link não é permitido. O imagem.js impede que o
             clique do puxador chegue ao link. #}
-        {% if modo_edicao and c.id %}
-        {% for lado in ('borda', 'canto') %}
-        <span role="button" tabindex="0"
-              class="com-img-alca com-img-alca-{{ lado }}"
-              data-url="{{ url_for('admin_imagem_tamanho', item=c.id) }}"
-              data-csrf="{{ csrf_token }}"
-              title="Arraste para ajustar o tamanho da imagem · duplo clique volta ao padrão"
-              aria-label="Ajustar o tamanho da imagem"></span>
-        {% endfor %}
-        {% endif %}
       </span>
       {% else %}{{ img_final }}{% endif %}
       {% endif %}

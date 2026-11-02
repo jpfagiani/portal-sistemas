@@ -757,24 +757,27 @@ html:not([data-tema="escuro"]) .ntit[style*="--n-cor"]{color:var(--n-cor)}
 
 /* ── Padrão visual da página principal (1.9.34) ────────────────────────────
    Medidas tomadas de um portal de notícias de referência. Mude só aqui:
-   imagem 4:3 · título 19px negrito, entrelinha 27px · texto de apoio 14px/20px. */
-:root{--pad-prop:4/3;--pad-raio:8px;--pad-tit:19px;--pad-ent:27px;--pad-apoio:14px;--pad-apoio-ent:20px;--pad-espaco:12px}
+   imagem 225×168px · todo texto 14px negrito, entrelinha 20px. */
+:root{--pad-prop:4/3;--pad-raio:8px;--pad-tit:14px;--pad-ent:20px;--pad-apoio:14px;--pad-apoio-ent:20px;--pad-espaco:12px;--pad-w:225px;--pad-h:168px}
 
 /* Chamadas de notícia (grade, cartão, manchete, faixa): foto 4:3, título embaixo */
 .not-chamada,.ch-cartao,.ch-manchete{gap:var(--pad-espaco)}
-.not-chamada img,.ch-cartao img,.ch-manchete img,.ch-faixa img{aspect-ratio:var(--pad-prop);border-radius:var(--pad-raio)}
+.not-chamada img:not([style*="height"]),.ch-cartao img:not([style*="height"]),.ch-manchete img:not([style*="height"]),.ch-faixa img:not([style*="height"]){aspect-ratio:var(--pad-prop);border-radius:var(--pad-raio)}
 .not-chamada strong,.ch .ntit,.ch-manchete .ntit,.ch-cartao .ntit,.ch-faixa .ntit,.ch-texto .ntit{font-size:var(--pad-tit);font-weight:700;line-height:var(--pad-ent)}
 .ch-resumo{font-size:var(--pad-apoio);line-height:var(--pad-apoio-ent)}
 .ch-faixa .ch-foto{flex:0 0 40%}
 
 /* Cartões de texto/imagem e comunicados: imagem 4:3 inteira (sem cortar infográficos), texto no mesmo padrão */
-.com-imagem.com-img-topo,.cartao-texto .fig img,.cartao-texto>p>img{aspect-ratio:var(--pad-prop);height:auto;max-height:none;object-fit:contain;border-radius:var(--pad-raio);background:var(--cartao-suave)}
+.com-imagem.com-img-topo,.cartao-texto .fig img:not([style*="height"]),.cartao-texto>p>img:not([style*="height"]){aspect-ratio:var(--pad-prop);height:auto;max-height:none;object-fit:contain;border-radius:var(--pad-raio);background:var(--cartao-suave)}
 .com-img-caixa.livre .com-imagem{aspect-ratio:auto}
 .cartao-texto{font-size:var(--pad-apoio);line-height:var(--pad-apoio-ent)}
 .cartao-texto p:has(>strong:only-child),.cartao-texto h2,.cartao-texto h3{font-size:var(--pad-tit);font-weight:700;line-height:var(--pad-ent);margin:var(--pad-espaco) 0 0}
 .cartao-texto p:has(>strong:only-child)>strong{font-weight:700}
-.comunicado .titulo{font-size:var(--com-titulo-tam,var(--pad-tit));font-weight:700;line-height:var(--pad-ent)}
-.comunicado p{font-size:var(--com-texto-tam,var(--pad-apoio));line-height:var(--pad-apoio-ent)}
+.comunicado .titulo{font-size:var(--pad-tit);font-weight:700;line-height:var(--pad-ent)}
+.comunicado p{font-size:var(--pad-apoio);line-height:var(--pad-apoio-ent)}
+/* Só o tamanho escolhido NESTE item vale sobre o padrão; o tamanho geral de Aparência não */
+.comunicado[style*="--com-titulo-tam"] .titulo{font-size:var(--com-titulo-tam)}
+.comunicado[style*="--com-texto-tam"] p{font-size:var(--com-texto-tam)}
 /* Faixa: foto e texto lado a lado só quando há largura; em coluna estreita empilha (sem quebrar palavras no meio) */
 .ch-faixa{flex-wrap:wrap}
 .ch-faixa .ch-foto{flex:1 1 150px}
@@ -783,3 +786,52 @@ html:not([data-tema="escuro"]) .ntit[style*="--n-cor"]{color:var(--n-cor)}
 /* Vitrine: no máximo --col colunas, nunca mais estreitas que 150px (título de 19px precisa de espaço) */
 .not-vitrine{grid-template-columns:repeat(auto-fit,minmax(max(150px,calc((100% - 1rem*(var(--col,2) - 1))/var(--col,2))),1fr))}
 @media (max-width:560px){.not-vitrine{grid-template-columns:repeat(auto-fit,minmax(max(150px,calc((100% - 1rem)/2)),1fr))}}
+
+/* Padrão em TODAS as imagens dos cartões e comunicados, inclusive as com tamanho livre, ao lado ou dentro do texto */
+.cartao-texto img:not([style*="height"]),.comunicado .com-imagem:not(.com-img-fundo):not([style*="height"]){aspect-ratio:var(--pad-prop)!important;width:100%!important;height:auto!important;max-height:none!important;object-fit:contain!important;border-radius:var(--pad-raio)}
+.com-img-caixa.livre{width:100%!important;margin-left:0!important}
+.comunicado .conteudo:has(.com-img-lado){grid-template-columns:120px minmax(0,1fr)}
+.comunicado .com-img-lado{width:120px!important}
+.comunicado .com-video{aspect-ratio:var(--pad-prop);max-height:none;border-radius:var(--pad-raio)}
+
+/* ── 1.9.35: tudo igual — imagem 225×168px; todo texto 14px negrito ───────── */
+.not-chamada img:not([style*="height"]),.ch img:not([style*="height"]),.ch-faixa img:not([style*="height"]),.ch-manchete img:not([style*="height"]),.ch-cartao img:not([style*="height"]),
+.cartao-texto img:not([style*="height"]),.comunicado .com-imagem:not(.com-img-fundo):not([style*="height"]),.comunicado .com-video{width:var(--pad-w)!important;height:var(--pad-h)!important;aspect-ratio:auto!important;max-width:100%;border-radius:var(--pad-raio)}
+.not-chamada img,.ch img{object-fit:cover}
+.ch-foto,.ch-faixa .ch-foto{flex:0 0 auto;width:var(--pad-w);max-width:100%}
+.com-img-caixa,.com-img-caixa.livre{width:var(--pad-w)!important;max-width:100%;margin-left:0!important}
+.comunicado .conteudo:has(.com-img-lado){grid-template-columns:var(--pad-w) minmax(0,1fr)}
+.comunicado .com-img-lado{width:var(--pad-w)!important;height:var(--pad-h)!important;max-height:none}
+.not-chamada strong,.ch .ntit,.ch-resumo,.ch-sup,.ch-leg,.cartao-texto,.cartao-texto p,.cartao-texto li,.cartao-texto h2,.cartao-texto h3,.cartao-texto strong,
+.comunicado .titulo,.comunicado p,.not-item strong,.not-item small{font-size:var(--pad-tit)!important;font-weight:700!important;line-height:var(--pad-ent)!important}
+.comunicado[style*="--com-titulo-tam"] .titulo{font-size:var(--com-titulo-tam)!important}
+.comunicado[style*="--com-texto-tam"] p{font-size:var(--com-texto-tam)!important}
+.not-vitrine{grid-template-columns:repeat(auto-fill,minmax(var(--pad-w),var(--pad-w)));justify-content:start}
+@media (max-width:560px){.not-vitrine{grid-template-columns:repeat(auto-fill,minmax(min(var(--pad-w),100%),1fr))}}
+.cartao-texto .fig:not(:has(img[style*="height"])),.cartao-texto .fig:not(:has(img[style*="height"]))>*{width:var(--pad-w)!important;max-width:100%}
+
+/* Imagem redimensionada à mão no editor (style com altura): vale o tamanho escolhido, recortando em vez de esticar */
+.cartao-texto img[style*="height"],.pagina-texto img[style*="height"],.re-area img[style*="height"]{object-fit:cover;aspect-ratio:auto;max-width:100%;border-radius:var(--pad-raio)}
+
+/* Alças de redimensionamento (static/redimensiona.js): 4 lados e 4 cantos */
+.redim-caixa{position:relative;display:inline-block;max-width:100%;vertical-align:top;line-height:0}
+.redim-caixa>img,.redim-caixa>video{display:block}
+.redim-alca{position:absolute;width:12px;height:12px;background:var(--azul,#2563eb);border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.45);z-index:6;touch-action:none;opacity:0;transition:opacity .12s}
+.redim-caixa:hover>.redim-alca,.redim-caixa:focus-within>.redim-alca,.redim-caixa.ajustando>.redim-alca{opacity:1}
+@media (hover:none){.redim-alca{opacity:1}}
+.redim-nw{left:-6px;top:-6px}.redim-n{left:calc(50% - 6px);top:-6px}.redim-ne{right:-6px;top:-6px}
+.redim-e{right:-6px;top:calc(50% - 6px)}.redim-se{right:-6px;bottom:-6px}.redim-s{left:calc(50% - 6px);bottom:-6px}
+.redim-sw{left:-6px;bottom:-6px}.redim-w{left:-6px;top:calc(50% - 6px)}
+.redim-dica{position:absolute;left:4px;top:4px;background:var(--azul,#2563eb);color:#fff;font:700 .7rem/1.2 system-ui;border-radius:6px;padding:.1rem .4rem;pointer-events:none;z-index:7}
+.redim-dica:empty{display:none}
+img[style*="height"].redim-img,.redim-caixa>img[style*="height"]{object-fit:cover;max-width:none}
+.redim-caixa:has(>img[hidden]){display:none}
+.ne2-imagem .redim-caixa{max-width:100%;overflow:visible}
+/* Chamada e capa com tamanho arrastado no editor */
+.not-chamada img[style*="height"],.ch img[style*="height"]{object-fit:cover;max-width:100%}
+.ch-foto:has(img[style*="height"]),.ch-faixa .ch-foto:has(img[style*="height"]){width:auto}
+.not-vitrine{grid-template-columns:repeat(auto-fill,minmax(var(--pad-w),max-content))}
+.com-img-caixa.redim-caixa{display:block;width:fit-content!important;max-width:100%;line-height:normal}
+.com-img-caixa.redim-caixa>.com-imagem{display:block}
+.com-img-caixa:has(img[style*="height"]),.com-img-caixa.livre:has(img[style*="height"]){width:auto!important}
+.comunicado .com-imagem[style*="height"]{object-fit:cover;aspect-ratio:auto!important;max-height:none!important}

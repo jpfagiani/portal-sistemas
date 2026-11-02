@@ -128,7 +128,7 @@
       var area_px = Math.round(area.clientWidth - (parseFloat(getComputedStyle(area).paddingLeft) || 0) - (parseFloat(getComputedStyle(area).paddingRight) || 0));
       px = Math.max(20, Math.min(2000, Math.round(px)));
       var fig = figDe(atual);
-      semTamanhoPorClasse();
+      semTamanhoPorClasse(); atual.style.removeProperty('height'); atual.removeAttribute('data-py');
       if (fig) { fig.style.width = px + 'px'; atual.style.removeProperty('width'); atual.removeAttribute('data-px'); limpaStyle(); }
       else { atual.style.width = px + 'px'; atual.setAttribute('data-px', px); }
       campoPx.value = px; campoPx.title = 'Largura em pixels (a área do texto tem ' + area_px + ' px; passando disso a imagem se ajusta)';
@@ -142,7 +142,7 @@
       if (cls) atual.classList.add(cls);
       if (grupo === TAM) {
         if (fig) fig.style.removeProperty('width');
-        atual.style.removeProperty('width'); atual.removeAttribute('data-w'); atual.removeAttribute('data-px'); limpaStyle();
+        atual.style.removeProperty('width'); atual.style.removeProperty('height'); atual.removeAttribute('data-py'); atual.removeAttribute('data-w'); atual.removeAttribute('data-px'); limpaStyle();
       }
       marca(); posicionaAlca();
     }
@@ -312,7 +312,7 @@
     area.parentNode.insertBefore(barra, area);
     function desmarca() {
       if (atual) atual.removeAttribute('data-sel');
-      atual = null; barra.hidden = true; alca.hidden = true;
+      atual = null; barra.hidden = true; alcas.forEach(function (x) { x.hidden = true; });
     }
     /* Sobe ou desce a imagem um bloco do texto. */
     function mover(d) {
@@ -331,34 +331,58 @@
       }
       posicionaAlca(); atual.scrollIntoView({block: 'nearest'});
     }
-    /* Alça no canto da imagem: arraste para esticar ou encolher (proporção mantida). */
-    var alca = document.createElement('div'); alca.className = 're-alca'; alca.hidden = true; alca.title = 'Arraste para mudar o tamanho';
-    var dica = document.createElement('span'); dica.className = 're-alca-dica'; alca.appendChild(dica);
-    raiz.style.position = 'relative'; raiz.appendChild(alca);
+    /* Oito alças (4 lados e 4 cantos): arraste para esticar ou encolher a imagem por qualquer lado.
+       Largura e altura livres; com Shift (ou nos cantos) a proporção atual é mantida. */
+    var DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+    var CURSOR = {nw: 'nwse', se: 'nwse', ne: 'nesw', sw: 'nesw', n: 'ns', s: 'ns', e: 'ew', w: 'ew'};
+    var alcas = [], dica = document.createElement('span'); dica.className = 're-alca-dica';
+    raiz.style.position = 'relative';
+    DIRS.forEach(function (d) {
+      var el = document.createElement('div'); el.className = 're-alca'; el.hidden = true; el.dataset.dir = d;
+      el.style.cursor = CURSOR[d] + '-resize'; el.title = 'Arraste para mudar o tamanho';
+      raiz.appendChild(el); alcas.push(el);
+      el.addEventListener('pointerdown', function (e) { comeca(e, d, el); });
+    });
+    var alca = alcas[0]; alca.appendChild(dica);
     function posicionaAlca() {
-      if (!atual || !atual.isConnected) { alca.hidden = true; return; }
+      if (!atual || !atual.isConnected) { alcas.forEach(function (x) { x.hidden = true; }); return; }
       var a = atual.getBoundingClientRect(), r = raiz.getBoundingClientRect(), c = area.getBoundingClientRect();
-      var visivel = a.bottom > c.top + 4 && a.bottom < c.bottom + 4;
-      alca.hidden = !visivel;
-      alca.style.left = (a.right - r.left - 9) + 'px'; alca.style.top = (a.bottom - r.top - 9) + 'px';
+      var visivel = a.bottom > c.top + 4 && a.top < c.bottom - 4;
+      alcas.forEach(function (x) {
+        var d = x.dataset.dir, cx = d.indexOf('w') >= 0 ? a.left : d.indexOf('e') >= 0 ? a.right : (a.left + a.right) / 2;
+        var cy = d.indexOf('n') >= 0 ? a.top : d.indexOf('s') >= 0 ? a.bottom : (a.top + a.bottom) / 2;
+        x.hidden = !visivel; x.style.left = (cx - r.left - 9) + 'px'; x.style.top = (cy - r.top - 9) + 'px';
+      });
     }
     area.addEventListener('scroll', posicionaAlca);
     window.addEventListener('resize', posicionaAlca);
-    alca.addEventListener('pointerdown', function (e) {
+    function comeca(e, d, el) {
       if (!atual) return;
-      e.preventDefault(); alca.setPointerCapture(e.pointerId);
-      var x0 = e.clientX, w0 = atual.getBoundingClientRect().width;
+      e.preventDefault(); el.setPointerCapture(e.pointerId);
+      var x0 = e.clientX, y0 = e.clientY, r0 = atual.getBoundingClientRect(), w0 = r0.width, h0 = r0.height;
+      var fig = figDe(atual);
+      if (fig) { w0 = fig.getBoundingClientRect().width; }
       var cs = getComputedStyle(area), larg = area.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       function move(ev) {
-        var px = Math.max(20, Math.min(Math.round(larg), Math.round(w0 + ev.clientX - x0)));
+        var dx = ev.clientX - x0, dy = ev.clientY - y0, w = w0, h = h0;
+        if (d.indexOf('e') >= 0) w = w0 + dx; else if (d.indexOf('w') >= 0) w = w0 - dx;     /* para fora = maior */
+        if (d.indexOf('s') >= 0) h = h0 + dy; else if (d.indexOf('n') >= 0) h = h0 - dy;
+        if (ev.shiftKey || d.length === 2) {                                               /* cantos: mantém a proporção */
+          var k = d.length === 2 ? Math.max(w / w0, h / h0) : (d === 'e' || d === 'w' ? w / w0 : h / h0);
+          if (d.length === 2 && Math.abs(w - w0) < 1 && Math.abs(h - h0) < 1) k = 1;
+          w = w0 * k; h = h0 * k;
+        }
+        w = Math.max(40, Math.min(Math.round(larg), Math.round(w))); h = Math.max(30, Math.min(2000, Math.round(h)));
         ['im-p', 'im-m', 'im-g', 'im-c'].forEach(function (c) { atual.classList.remove(c); });
         atual.removeAttribute('data-w');
-        atual.style.width = px + 'px'; atual.setAttribute('data-px', px);
-        dica.textContent = px + ' px'; posicionaAlca(); marca();
+        if (fig) fig.style.width = w + 'px';
+        else { atual.style.width = w + 'px'; atual.setAttribute('data-px', w); }
+        atual.style.height = h + 'px'; atual.setAttribute('data-py', h);
+        dica.textContent = w + ' × ' + h + ' px'; posicionaAlca(); marca();
       }
-      function fim() { alca.removeEventListener('pointermove', move); alca.removeEventListener('pointerup', fim); alca.removeEventListener('pointercancel', fim); dica.textContent = ''; }
-      alca.addEventListener('pointermove', move); alca.addEventListener('pointerup', fim); alca.addEventListener('pointercancel', fim);
-    });
+      function fim() { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', fim); el.removeEventListener('pointercancel', fim); dica.textContent = ''; }
+      el.addEventListener('pointermove', move); el.addEventListener('pointerup', fim); el.addEventListener('pointercancel', fim);
+    }
     function seleciona(img) {
       if (atual && atual !== img) atual.removeAttribute('data-sel');
       atual = img; atual.setAttribute('data-sel', '1'); barra.hidden = false; marca(); atualizaLink(); posicionaAlca();

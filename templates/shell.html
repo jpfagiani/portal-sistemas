@@ -91,7 +91,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='tema.js') }}"></script>
-{% if modo_edicao %}<script src="{{ url_for('static', filename='imagem.js') }}"></script>{% endif %}
+{% if modo_edicao %}<script src="{{ url_for('static', filename='imagem.js') }}"></script><script src="{{ url_for('static', filename='redimensiona.js') }}"></script>{% endif %}
 <script>
   // Ctrl+K leva o cursor para a busca, como indicado ao lado do campo.
   document.addEventListener('keydown', function (e) {

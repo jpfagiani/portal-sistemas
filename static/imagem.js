@@ -21,7 +21,7 @@
     var corpo = new URLSearchParams();
     corpo.set('csrf', el.dataset.csrf);
     Object.keys(dados).forEach(function (k) { corpo.set(k, String(dados[k])); });
-    return fetch(el.dataset.url, {
+    return fetch(el.dataset.redimUrl || el.dataset.url, {
       method: 'POST', credentials: 'same-origin',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: corpo.toString()
@@ -44,69 +44,12 @@
   /*  Margem esquerda (em %) para uma posição x (0 a 100) numa largura de pct.  */
   function margem(pct, x) { return (100 - pct) * x / 100; }
 
-  /* ───────── tamanho: arrastar um puxador ───────── */
-  document.addEventListener('pointerdown', function (e) {
-    var alca = e.target.closest && e.target.closest('.com-img-alca');
-    if (!alca || e.button > 0) return;
-    var caixa = alca.closest('.com-img-caixa');
-    if (!caixa) return;
-    e.preventDefault();
-
-    var pai = caixa.parentElement.getBoundingClientRect().width;
-    var inicial = caixa.getBoundingClientRect().width;
-    var antesLarg = caixa.style.width, antesMargem = caixa.style.marginLeft;
-    var antesX = caixa.dataset.x, jaLivre = caixa.classList.contains('livre');
-    var margem0 = parseFloat(caixa.style.marginLeft) || 0;   /* % — borda esquerda fica onde está */
-    var x0 = e.clientX;
-    var pct = inicial / pai * 100;
-    var moveu = false, marg = margem0;
-    caixa.classList.add('livre', 'ajustando');
-    caixa.appendChild(etiqueta);
-    alca.setPointerCapture(e.pointerId);
-
-    function move(ev) {
-      if (Math.abs(ev.clientX - x0) < 3 && !moveu) return;   /* clique, não arrasto */
-      moveu = true;
-      pct = Math.max(MIN, Math.min(MAX, (inicial + ev.clientX - x0) / pai * 100));
-      if (pct > 97) pct = 100;          /* perto da borda, encaixa na largura toda */
-      marg = Math.min(margem0, 100 - pct);   /* a borda esquerda fica; só não passa do cartão */
-      caixa.style.width = pct.toFixed(1) + '%';
-      caixa.style.marginLeft = marg ? marg.toFixed(1) + '%' : '';
-      etiqueta.textContent = Math.round(pct) + '%';
-    }
-
-    function solta() {
-      alca.removeEventListener('pointermove', move);
-      alca.removeEventListener('pointerup', solta);
-      alca.removeEventListener('pointercancel', solta);
-      caixa.classList.remove('ajustando');
-      if (etiqueta.parentNode) etiqueta.parentNode.removeChild(etiqueta);
-      if (!moveu) return;                /* só clicou: nada a gravar */
-      var larg = Math.round(pct);
-      var folga = 100 - pct;
-      var x = folga > 0.5 ? Math.max(0, Math.min(100, Math.round(marg / folga * 100))) : 0;
-      caixa.dataset.x = x;
-      grava(alca, {larg: larg, x: x}).catch(function () {
-        /*  Não gravou: volta ao que estava, para a tela não mostrar um tamanho
-            que não ficou guardado.  */
-        caixa.style.width = antesLarg; caixa.style.marginLeft = antesMargem;
-        caixa.dataset.x = antesX;
-        if (!jaLivre) caixa.classList.remove('livre');
-        falhou();
-      });
-    }
-
-    alca.addEventListener('pointermove', move);
-    alca.addEventListener('pointerup', solta);
-    alca.addEventListener('pointercancel', solta);
-  });
-
   /* ───────── posição: arrastar a imagem inteira ───────── */
   var engole = false;      /* depois de arrastar, o clique seguinte não pode abrir o link */
 
   document.addEventListener('pointerdown', function (e) {
     if (e.button > 0 || e.pointerType !== 'mouse') return;
-    if (e.target.closest && e.target.closest('.com-img-alca')) return;
+    if (e.target.closest && e.target.closest('.com-img-alca, .redim-alca')) return;
     var caixa = e.target.closest && e.target.closest('.com-img-caixa[data-editavel]');
     if (!caixa) return;
     var pai = caixa.parentElement.getBoundingClientRect().width;
@@ -148,8 +91,8 @@
       setTimeout(function () { engole = false; }, 0);
       x = Math.round(x);
       caixa.dataset.x = x;
-      var alca = alvoDe(caixa);
-      if (!alca) return;
+      var alca = caixa;
+      if (!alca.dataset.redimUrl) return;
       grava(alca, {x: x}).catch(function () {
         caixa.style.marginLeft = antesMargem; caixa.dataset.x = antesX;
         falhou();
@@ -164,7 +107,7 @@
   /*  A imagem é arrastável por padrão no navegador (arrastar a figura para fora
       da janela); isso brigaria com o arrasto de posição.  */
   document.addEventListener('dragstart', function (e) {
-    if (e.target.closest && e.target.closest('.com-img-caixa[data-editavel], .com-img-alca')) {
+    if (e.target.closest && e.target.closest('.com-img-caixa[data-editavel], .redim-alca')) {
       e.preventDefault();
     }
   }, true);
@@ -173,26 +116,11 @@
       pode ser um link: o clique que termina um arrasto não pode abrir nada.  */
   ['click', 'auxclick', 'dblclick'].forEach(function (tipo) {
     document.addEventListener(tipo, function (e) {
-      var noPuxador = e.target.closest && e.target.closest('.com-img-alca');
+      var noPuxador = e.target.closest && e.target.closest('.redim-alca');
       if (noPuxador || (engole && tipo === 'click')) {
         e.preventDefault();
         if (tipo !== 'dblclick') e.stopPropagation();
       }
     }, true);
-  });
-
-  /*  Duplo clique num puxador: tamanho padrão e posição à esquerda.  */
-  document.addEventListener('dblclick', function (e) {
-    var alca = e.target.closest && e.target.closest('.com-img-alca');
-    if (!alca) return;
-    var caixa = alca.closest('.com-img-caixa');
-    if (!caixa) return;
-    var antesLarg = caixa.style.width, antesMargem = caixa.style.marginLeft, antesX = caixa.dataset.x;
-    caixa.style.width = ''; caixa.style.marginLeft = ''; caixa.dataset.x = 0;
-    caixa.classList.remove('livre');
-    grava(alca, {larg: 0}).catch(function () {
-      caixa.style.width = antesLarg; caixa.style.marginLeft = antesMargem; caixa.dataset.x = antesX;
-      caixa.classList.add('livre');
-    });
   });
 })();

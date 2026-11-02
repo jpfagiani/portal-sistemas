@@ -197,3 +197,11 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 - Todas as imagens (chamadas, cartões, comunicados, ao lado ou dentro do texto) em 225×168 px; todo texto em 14px negrito, entrelinha 20px. Valores em `--pad-*` no fim de `static/limpo.css`.
 - Só o tamanho escolhido dentro de um comunicado específico prevalece. Miniaturas da lista "Últimas notícias" mantidas pequenas.
 - Reversão: apagar o bloco "1.9.35" do fim de `limpo.css`.
+
+## 1.9.36 — Redimensionar imagens arrastando qualquer lado
+- Nova biblioteca `static/redimensiona.js` (8 alças: 4 lados + 4 cantos; cantos mantêm a proporção, lados são livres, Shift mantém a proporção; duplo clique volta ao padrão).
+- Editor de texto (`editor-rico.js`): imagens de cartões, comunicados, matérias e notícias; tamanho gravado em px (largura e altura) no próprio HTML (o filtro `limpa_html` aceita `data-py`/`height:px`).
+- Imagem da chamada e capa da notícia: colunas novas `noticias.chamada_pw/chamada_ph/capa_pw/capa_ph` (0 = padrão). Imagem de comunicado na página principal (modo de edição): `lateral.img_pw/img_ph`, gravado ao soltar.
+- Padrão 225×168 continua valendo para imagens sem tamanho escolhido.
+- Fora desta versão: banner e blocos de imagem das páginas internas.
+- Reversão: colunas novas são ignoradas pelo código antigo.

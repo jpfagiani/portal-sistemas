@@ -18,6 +18,10 @@
   <input type="hidden" name="imagem_biblioteca" value="">
   <input type="hidden" name="imagem_nova" value="">
   <input type="hidden" name="chamada_biblioteca" value="">
+  <input type="hidden" name="chamada_pw" value="{{ d.chamada_pw or 0 }}">
+  <input type="hidden" name="chamada_ph" value="{{ d.chamada_ph or 0 }}">
+  <input type="hidden" name="capa_pw" value="{{ d.capa_pw or 0 }}">
+  <input type="hidden" name="capa_ph" value="{{ d.capa_ph or 0 }}">
   <input type="hidden" name="url" value="{{ dest }}">
   <input type="hidden" name="tem_organizacao" value="1">
   <input type="hidden" name="ordem_pos_orig" value="{{ d.ordem_pos or 1 }}">
@@ -71,7 +75,7 @@
           <div>
             <label>Imagem da chamada</label>
             <div class="ne2-imagem">
-              <img id="ne-ch-prev" alt="" {% if d.chamada_imagem %}src="{{ url_for('static', filename='uploads/' ~ d.chamada_imagem) }}"{% else %}hidden{% endif %}>
+              <span class="redim-caixa" id="ne-ch-redim"><img id="ne-ch-prev" alt="" {% if d.chamada_imagem %}src="{{ url_for('static', filename='uploads/' ~ d.chamada_imagem) }}"{% else %}hidden{% endif %}{% if d.chamada_pw and d.chamada_ph %} style="width:{{ d.chamada_pw }}px;height:{{ d.chamada_ph }}px;max-width:none"{% endif %}></span>
               <span class="ne2-sem" id="ne-ch-sem" {% if d.chamada_imagem %}hidden{% endif %}>Sem imagem exclusiva<br><small>usa a capa da matéria</small></span>
               <div class="ne2-img-botoes">
                 <button type="button" class="btn btn-sm" id="ne-ch-trocar">Trocar imagem</button>
@@ -126,7 +130,7 @@
 
         <label>Imagem de capa</label>
         <div class="ne2-imagem ne2-imagem-larga">
-          <img id="ne-capa-prev" alt="" {% if d.capa %}src="{{ url_for('static', filename='uploads/' ~ d.capa) }}"{% else %}hidden{% endif %}>
+          <span class="redim-caixa" id="ne-capa-redim"><img id="ne-capa-prev" alt="" {% if d.capa %}src="{{ url_for('static', filename='uploads/' ~ d.capa) }}"{% else %}hidden{% endif %}{% if d.capa_pw and d.capa_ph %} style="width:{{ d.capa_pw }}px;height:{{ d.capa_ph }}px;max-width:none"{% endif %}></span>
           <span class="ne2-sem" id="ne-capa-sem" {% if d.capa %}hidden{% endif %}>Sem capa</span>
           <div class="ne2-img-botoes">
             <button type="button" class="btn btn-sm" id="ne-capa-trocar">Trocar imagem</button>
@@ -230,6 +234,22 @@
 </div>
 <script src="{{ url_for('static', filename='paleta.js') }}"></script>
 <script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
+<script src="{{ url_for('static', filename='redimensiona.js') }}"></script>
+<script>
+  /* Arraste qualquer lado ou canto da imagem para mudar o tamanho; a prévia ao lado acompanha. */
+  (function () {
+    function liga(caixa, w, h) {
+      var cx = document.getElementById(caixa + '-redim'), im = document.getElementById(caixa + '-prev');
+      var form = document.querySelector('form[data-previa]') || document.querySelector('form');
+      if (!cx || !im) return;
+      window.Redim.liga(cx, im, {aoMudar: function (pw, ph, final) {
+        form.elements[w].value = pw; form.elements[h].value = ph;
+        if (final) form.dispatchEvent(new Event('input', {bubbles: true}));
+      }});
+    }
+    liga('ne-ch', 'chamada_pw', 'chamada_ph'); liga('ne-capa', 'capa_pw', 'capa_ph');
+  })();
+</script>
 <script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
 <script src="{{ url_for('static', filename='tamanho-px.js') }}"></script>
 <script src="{{ url_for('static', filename='noticia-painel.js') }}"></script>
