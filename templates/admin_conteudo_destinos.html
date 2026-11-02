@@ -1,0 +1,58 @@
+{% extends 'admin_base.html' %}
+{% set aba = 'conteudos' %}
+{% block titulo %}Conferir destinos{% endblock %}
+
+{% block admin %}
+<section class="painel-caixa">
+  <p class="migalha"><a href="{{ url_for('conteudos') }}">← Conteúdos</a></p>
+  <h2>Conferir destinos dos cartões e comunicados</h2>
+  <p class="dica">Aonde cada clique leva. A mesma matéria não deve ter duas páginas: se existe uma notícia sobre o assunto,
+    o cartão ou comunicado deve abrir essa notícia. {{ resumo.total }} itens conferidos —
+    <b>{{ resumo.erros }}</b> com destino quebrado e <b>{{ resumo.duplicadas }}</b> com matéria repetida.</p>
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}
+  <p class="{{ 'pe-ok' if cat == 'ok' else 'pe-erro' }}" role="status">{{ m }}</p>{% endfor %}{% endwith %}
+
+  <div class="tabela-rolagem">
+  <table class="tabela">
+    <thead><tr><th>Tipo</th><th>Item</th><th>O clique leva a</th><th>Mesma matéria em Notícias?</th></tr></thead>
+    <tbody>
+    {% for i in itens %}
+    <tr class="{{ 'linha-erro' if i.estado == 'erro' }}">
+      <td>{{ 'Cartão' if i.tipo == 'cartao' else 'Comunicado' }}</td>
+      <td><a href="{{ url_for('conteudos_editor', tipo=i.tipo, ident=i.ident) }}"><b>{{ i.nome or '(sem nome)' }}</b></a>
+        <br><small class="dica">{{ i.chamada or 'sem texto' }}</small></td>
+      <td>{% if i.estado == 'erro' %}❌{% elif i.estado == 'ok' %}✅{% else %}⚠️{% endif %} {{ i.estado_txt }}
+        {% if i.tem_materia and i.tipo == 'cartao' %}<br><small><a href="{{ url_for('materia', tipo='cartao', ident=i.ident) }}" target="_blank" rel="noopener">ver matéria própria</a></small>
+        {% elif i.tem_materia %}<br><small><a href="{{ url_for('materia', tipo='comunicado', ident=i.ident) }}" target="_blank" rel="noopener">ver matéria própria</a></small>{% endif %}</td>
+      <td>
+        {% for p in i.parecidas %}
+          <div>
+            <a href="{{ url_for('noticia', slug=p.slug) }}" target="_blank" rel="noopener">{{ p.titulo }}</a> <small class="dica">({{ p.motivo }})</small>
+            {% if p.ja %}<b>✅ já leva a esta notícia</b>
+            {% else %}
+            <form method="post" action="{{ url_for('conteudos_unificar') }}" class="cont-inline" style="display:inline">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <input type="hidden" name="tipo" value="{{ i.tipo }}"><input type="hidden" name="id" value="{{ i.ident }}">
+              <input type="hidden" name="slug" value="{{ p.slug }}">
+              <button class="btn btn-sm btn-principal" type="submit">Levar a esta notícia</button>
+            </form>{% endif %}
+          </div>
+        {% else %}
+          <small class="dica">nenhuma notícia parecida</small>
+          {% if i.url.startswith('/noticias/') %}
+          <form method="post" action="{{ url_for('conteudos_unificar') }}" style="display:inline">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="tipo" value="{{ i.tipo }}"><input type="hidden" name="id" value="{{ i.ident }}">
+            <button class="btn btn-sm" type="submit" title="Tira o link para a notícia">Usar matéria própria</button>
+          </form>{% endif %}
+        {% endfor %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">Nenhum cartão ou comunicado ativo.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="dica">Para ligar um item a <b>qualquer</b> notícia (não só às parecidas), abra o item e escolha a notícia em “Link e destino”.</p>
+</section>
+{% endblock %}

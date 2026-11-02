@@ -220,3 +220,9 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 
 ## 1.9.39 — Alinhamento do editor vale na prévia e na página
 - Corrigido: a 1.9.38 forçava imagem e texto à esquerda. Agora esquerda, centro e direita escolhidos no editor valem na prévia da chamada, na prévia da página e no portal (imagem e texto abaixo dela).
+
+## 1.9.40 — Conferir destinos: uma matéria, uma página
+- Nova tela `Conteúdos → Conferir destinos` (`/admin/conteudos/destinos`): lista cada cartão e comunicado, aonde o clique leva (site, página do portal, matéria própria, sem link, quebrado) e acha notícias com o mesmo título, título parecido ou a mesma imagem.
+- Botão "Levar a esta notícia" (`/admin/conteudos/unificar`): o clique passa a abrir a página da notícia. A matéria própria não é apagada; "Usar matéria própria" desfaz.
+- Página `/materia/...` sem título digitado usa o primeiro título/negrito do texto (nunca o nome administrativo).
+- Reversão: remover a rota e o template; nada no banco foi alterado (só o campo `url` do item quando o administrador clica no botão).
