@@ -10,7 +10,7 @@
       <strong>{{ total.links }}</strong><span>Sistemas na página inicial</span></a>
     <a class="numero" href="{{ url_for('admin_banners') }}">
       <strong>{{ total.banners }}</strong><span>Imagens no banner</span></a>
-    <a class="numero" href="{{ url_for('admin_lateral') }}">
+    <a class="numero" href="{{ url_for('conteudos', tipo='comunicado') }}">
       <strong>{{ total.lateral }}</strong><span>Itens na barra lateral</span></a>
     <a class="numero" href="{{ url_for('admin_ramais') }}">
       <strong>{{ total.ramais }}</strong><span>Ramais na lista</span></a>

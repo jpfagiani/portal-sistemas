@@ -1,23 +1,39 @@
 {% import 'blocos.html' as b with context %}
+{% macro materia_previa() %}
+<article class="noticia">
+  <header><h1 class="pagina-titulo">{{ materia_titulo or titulo or '(sem título)' }}</h1></header>
+  <div class="pagina-texto noticia-corpo">{% if materia_corpo %}{{ materia_corpo }}{% else %}<p class="dica">Sem matéria completa: o cartão não abre outra página.</p>{% endif %}</div>
+</article>
+{% endmacro %}
 {#  Prévia do editor de Conteúdos. Só desenha o que veio do formulário: nada é
     gravado. A imagem escolhida e ainda não salva é trocada pelo JS (data-previa-imagem). #}
 {% if tipo == 'cartao' %}
+<div class="previa-visao" data-visao="chamada">
 <section class="cartao cartao-conteudo">
   {% if titulo_visivel %}<div class="cartao-cab"><h2>{{ titulo or 'Novo cartão' }}</h2></div>{% endif %}
   <div class="cartao-corpo pagina-texto cartao-texto">{{ corpo }}</div>
 </section>
+</div>
+<div class="previa-visao" data-visao="materia" hidden>{{ materia_previa() }}</div>
 {% elif tipo == 'noticia' %}
-<div class="previa-visao" data-visao="cartao">
-  <p class="dica">Como aparece no cartão “Últimas notícias”:</p>
-  <div class="cartao"><div class="cartao-corpo not-lista">
-    <span class="not-item">
-      {% if capa %}<img data-previa-imagem src="{{ url_for('static', filename='uploads/' ~ capa) }}" alt="">{% endif %}
-      <span><small>{% if categoria %}{{ categoria }} · {% endif %}hoje</small>
-        <strong class="ntit" style="{{ estilo }}">{{ titulo or '(sem título)' }}</strong></span>
-    </span>
+{% import 'chamada.html' as ch with context %}
+{% set fmt = (n.chamada_formato or ('grade' if modelo == 'grade' else 'lista')) %}
+<div class="previa-visao" data-visao="chamada">
+  <p class="dica">Só a chamada, como aparece na página principal (formato: <strong>{{ formatos[n.chamada_formato] if n.chamada_formato else 'padrão do cartão' }}</strong>). O clique leva à matéria.</p>
+  <div class="cartao"><div class="cartao-corpo {{ 'not-vitrine' if fmt == 'grade' else 'not-lista' }}" style="--col:1">
+    {{ ch.chamada(n, fmt, '#', 'hoje') }}
   </div></div>
 </div>
+<div class="previa-visao" data-visao="inicial" hidden>
+  <section class="cartao"><div class="cartao-cab"><h2>Últimas notícias</h2></div>
+    <div class="cartao-corpo not-lista" style="--col:1">
+      {{ ch.chamada(n, fmt, '#', 'hoje') }}
+      {% for o in outras %}{{ ch.chamada(o, 'lista', '#', o.publicar_em|data_br) }}{% endfor %}
+      {% if not outras %}<span class="not-item" aria-hidden="true"><span><small>outra notícia</small><strong class="ntit">Título de outra notícia</strong></span></span>{% endif %}
+    </div></section>
+</div>
 <div class="previa-visao" data-visao="pagina" hidden>
+  <p class="dica">A matéria completa, como abre depois do clique.</p>
   <article class="noticia">
     <header>
       {% if categoria %}<span class="noticia-cat">{{ categoria }}</span>{% endif %}
@@ -27,13 +43,13 @@
     {% if capa %}
     <figure class="noticia-capa">
       <img data-previa-imagem src="{{ url_for('static', filename='uploads/' ~ capa) }}" alt="{{ capa_alt }}">
-      {% if legenda %}<figcaption>{{ legenda }}</figcaption>{% endif %}
+      {% if legenda or credito %}<figcaption>{{ legenda }}{% if credito %}{% if legenda %} · {% endif %}<span class="cred">Crédito: {{ credito }}</span>{% endif %}</figcaption>{% endif %}
     </figure>
     {% endif %}
-    {% if resumo %}<p class="noticia-sub">{{ resumo }}</p>{% endif %}
     <div class="pagina-texto noticia-corpo">{{ corpo }}</div>
   </article>
 </div>
 {% else %}
-<section class="cartao"><div class="cartao-corpo comunicados">{{ b.comunicados([item]) }}</div></section>
+<div class="previa-visao" data-visao="chamada"><section class="cartao"><div class="cartao-corpo comunicados">{{ b.comunicados([item]) }}</div></section></div>
+<div class="previa-visao" data-visao="materia" hidden>{{ materia_previa() }}</div>
 {% endif %}

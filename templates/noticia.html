@@ -21,7 +21,7 @@
     {% if n.capa %}
     <figure class="noticia-capa">
       <img src="{{ url_for('static', filename='uploads/' ~ n.capa) }}" alt="{{ n.capa_alt or midia_alt(n.capa, '') }}">
-      {% if n.legenda %}<figcaption>{{ n.legenda }}</figcaption>{% endif %}
+      {% if n.legenda or n.capa_credito %}<figcaption>{{ n.legenda }}{% if n.capa_credito %}{% if n.legenda %} · {% endif %}<span class="cred">Crédito: {{ n.capa_credito }}</span>{% endif %}</figcaption>{% endif %}
     </figure>
     {% endif %}
     <div class="pagina-texto noticia-corpo">{{ corpo }}</div>

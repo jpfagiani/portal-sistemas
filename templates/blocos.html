@@ -33,6 +33,13 @@
       'comunicado':'megafone'}.get(u, 'calendario')) }}</span>
     {% endif %}
     <span class="conteudo">
+      {% if c.corpo_html %}
+      {#  Item no formato único: texto e imagens do editor rico, como nos demais conteúdos. #}
+      {% if u in ('urgente', 'comunicado') %}
+      <span class="linha-titulo"><span class="selo selo-{{ u }}">{{ {'urgente':'Urgente','comunicado':'Aviso'}.get(u) }}</span></span>
+      {% endif %}
+      <div class="pagina-texto cartao-texto com-rico">{{ c.corpo_html|rico }}</div>
+      {% else %}
       {#  Título é opcional: o nome do cartão já diz do que se trata. Sem título
           (e sem selo) a linha nem é desenhada. #}
       {% if c.titulo or u in ('urgente', 'comunicado') %}
@@ -108,12 +115,13 @@
         >{{ c.url_rot or 'Abrir' }}</a>
       {% endif %}
       {% if c.data %}<span class="quando">{{ c.data }}</span>{% endif %}
+      {% endif %}
     </span>
   {% endset %}
   {% if c.tipo == 'link' and c.url %}
     <a class="comunicado destaque-{{ d }} tom-{{ u }}" style="{{ estilo }}" href="{{ c.url }}" target="_blank" rel="noopener">{{ interno }}</a>
   {% else %}
-    {% set alvo = c.url or destino %}
+    {% set alvo = c.url or (url_for('materia', tipo='comunicado', ident=c.id) if c.materia_html and c.id else '') or destino %}
     {% if alvo and not modo_edicao %}
     <div class="comunicado comunicado-clicavel destaque-{{ d }} tom-{{ u }}" style="{{ estilo }}">
       <a class="com-overlay" href="{{ alvo }}" target="{{ '_blank' if c.url or destino.startswith('http') else '_self' }}" rel="noopener"
@@ -299,6 +307,7 @@
       vendo (no editor) para poder preenchê-lo. #}
   {% if itens or modo_edicao %}
   <section class="cartao" {{ pos(c) }}>
+    {% if cartao_titulo_visivel(c.chave) or modo_edicao %}
     <div class="cartao-cab">
       <span class="cab-ic">{{ ic(c.icone) }}</span>
       {#  O nome do cartão é o link para a lista completa. Para o administrador
@@ -306,13 +315,14 @@
           a lista de itens do cartão. #}
       {% if modo_edicao %}
       <h2><a class="cab-link cab-editar"
-             href="{{ url_for('admin_lateral', cartao=c.chave, editar=itens[0].id) if itens|length == 1 else url_for('admin_lateral', cartao=c.chave) }}"
+             href="{{ url_for('conteudos_editor', tipo='comunicado', ident=itens[0].id) if itens|length == 1 else url_for('conteudos', tipo='comunicado', cartao=c.chave) }}"
              title="Editar cartão: {{ c.nome }}">{{ c.nome }}</a></h2>
       {% else %}
       <h2><a class="cab-link" href="{{ url_for('lista', chave=c.chave) }}"
              target="_blank" rel="noopener" title="Ver todos: {{ c.nome }}">{{ c.nome }}</a></h2>
       {% endif %}
     </div>
+    {% endif %}
     <div class="cartao-corpo comunicados" style="--liv-fonte:var(--{{ c.chave }}-fonte)">
       {{ comunicados(itens, url_for('lista', chave=c.chave)) }}
     </div>

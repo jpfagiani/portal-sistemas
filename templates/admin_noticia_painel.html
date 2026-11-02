@@ -1,0 +1,235 @@
+{#  Editor de notícia em painéis (roteiro "Editor de notícias com referências visuais"):
+    1 Chamada da página principal · 2 Conteúdo completo · 3 Organização · 4 Visualização.
+    Os painéis 1 e 2 são independentes: o servidor só grava o que veio no formulário. #}
+{% import 'rico.html' as r with context %}
+{% import 'campos.html' as campos %}
+{% set publicada = d.situacao == 'Publicada' %}
+{% set dest = d.url or '' %}
+{% set dest_tipo = 'noticia' if not dest else ('externa' if dest.startswith('http') else 'interna') %}
+<div class="ne2">
+<form id="form-ne" method="post" enctype="multipart/form-data"
+      data-salvar="{{ url_for('conteudos_salvar') }}" data-previa="{{ url_for('conteudos_previa') }}"
+      data-lista="{{ volta }}" data-biblioteca="{{ url_for('admin_midia_lista') }}"
+      data-enviar="{{ url_for('admin_midia_enviar') }}" data-csrf="{{ csrf_token }}" novalidate>
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <input type="hidden" name="tipo" value="noticia">
+  <input type="hidden" name="id" value="{{ d.id }}">
+  <input type="hidden" name="volta" value="{{ volta }}">
+  <input type="hidden" name="imagem_biblioteca" value="">
+  <input type="hidden" name="imagem_nova" value="">
+  <input type="hidden" name="chamada_biblioteca" value="">
+  <input type="hidden" name="url" value="{{ dest }}">
+  <input type="hidden" name="tem_organizacao" value="1">
+  <input type="hidden" name="ordem_pos_orig" value="{{ d.ordem_pos or 1 }}">
+  <input type="hidden" name="categoria" value="{{ d.categoria }}">
+  <input type="checkbox" name="remover_imagem" id="ne-capa-remover" hidden>
+  <input type="checkbox" name="remover_chamada_imagem" id="ne-ch-remover" hidden>
+
+  <header class="ne2-topo">
+    <div>
+      <nav class="ne2-trilha" aria-label="Você está em">
+        <a href="{{ url_for('conteudos') }}">Conteúdos</a><span aria-hidden="true">›</span>
+        <a href="{{ url_for('conteudos', tipo='noticia') }}">Notícias</a><span aria-hidden="true">›</span>
+        <strong>{{ 'Nova notícia' if novo else 'Editar notícia' }}</strong>
+      </nav>
+      <h2 class="ne2-titulo">{{ 'Nova Notícia' if novo else 'Editar Notícia' }}
+        {% if not novo %}<span class="tag {{ 'tag-ok' if publicada else 'tag-off' }}">{{ d.situacao }}</span>{% endif %}</h2>
+    </div>
+    <div class="ne2-botoes">
+      <button class="btn" type="button" id="ne-previa-btn">Pré-visualizar</button>
+      {% if publicada %}
+      <button class="btn" type="submit" data-acao="salvar">Salvar alterações</button>
+      {% else %}
+      <button class="btn" type="submit" data-acao="rascunho" title="Guarda como rascunho: não publica">Salvar rascunho</button>
+      {% endif %}
+      <button class="btn btn-principal" type="submit" data-acao="publicar" title="Publica agora, ou na data escolhida">{{ 'Atualizar publicação' if publicada else 'Publicar' }}</button>
+      {% if not novo %}<button class="btn btn-perigo" type="button" id="ne-excluir" data-url="{{ url_for('conteudos_excluir') }}">Excluir</button>{% endif %}
+    </div>
+  </header>
+
+  <div class="ne2-grade">
+
+    {# ── 1 · Chamada ─────────────────────────────────────────────── #}
+    <section class="ne2-painel ne2-chamada" aria-labelledby="ne-h1">
+      <h3 id="ne-h1">1. Chamada da página principal <span class="ne2-ajuda" title="Aparece só na página principal; não altera a matéria completa.">?</span></h3>
+      <div class="ne2-corpo">
+        <p class="ne2-sub">Configure como esta notícia será exibida na página inicial. Em branco, usa título, resumo e capa da matéria.</p>
+        <div class="ne2-duas">
+          <div>
+            <label for="ne-ch-titulo">Título da chamada</label>
+            <textarea id="ne-ch-titulo" name="chamada_titulo" rows="2" maxlength="200" data-conta="200">{{ d.chamada_titulo }}</textarea>
+            <small class="ne2-conta" data-para="ne-ch-titulo"></small>
+          </div>
+          <div>
+            <label for="ne-ch-resumo">Resumo (texto de apoio)</label>
+            <textarea id="ne-ch-resumo" name="chamada_resumo" rows="2" maxlength="300" data-conta="300">{{ d.chamada_resumo }}</textarea>
+            <small class="ne2-conta" data-para="ne-ch-resumo"></small>
+          </div>
+        </div>
+
+        <div class="ne2-duas ne2-alto">
+          <div>
+            <label>Imagem da chamada</label>
+            <div class="ne2-imagem">
+              <img id="ne-ch-prev" alt="" {% if d.chamada_imagem %}src="{{ url_for('static', filename='uploads/' ~ d.chamada_imagem) }}"{% else %}hidden{% endif %}>
+              <span class="ne2-sem" id="ne-ch-sem" {% if d.chamada_imagem %}hidden{% endif %}>Sem imagem exclusiva<br><small>usa a capa da matéria</small></span>
+              <div class="ne2-img-botoes">
+                <button type="button" class="btn btn-sm" id="ne-ch-trocar">Trocar imagem</button>
+                <label class="btn btn-sm" for="ne-ch-arquivo" title="Enviar uma imagem do computador">Enviar</label>
+                <button type="button" class="btn btn-sm btn-perigo" id="ne-ch-tirar">Remover</button>
+                <input type="file" id="ne-ch-arquivo" name="chamada_arquivo" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+              </div>
+            </div>
+            <label for="ne-ch-leg">Legenda <small>(opcional)</small></label>
+            <input id="ne-ch-leg" name="chamada_legenda" maxlength="300" value="{{ d.chamada_legenda }}">
+            <div class="ne2-duas ne2-estreita">
+              <div><label for="ne-ch-cred">Crédito</label><input id="ne-ch-cred" name="chamada_credito" maxlength="200" value="{{ d.chamada_credito }}"></div>
+              <div><label for="ne-ch-alt">Texto alternativo</label><input id="ne-ch-alt" name="chamada_alt" maxlength="300" value="{{ d.chamada_alt }}"></div>
+            </div>
+          </div>
+          <div>
+            <label for="ne-ch-fmt">Formato de exibição</label>
+            <select id="ne-ch-fmt" name="chamada_formato">{% for k, v in formatos.items() %}<option value="{{ k }}" {{ 'selected' if d.chamada_formato == k }}>{{ v }}</option>{% endfor %}</select>
+            <label for="ne-dest-tipo">Destino do clique</label>
+            <select id="ne-dest-tipo">
+              <option value="noticia" {{ 'selected' if dest_tipo == 'noticia' }}>Página desta notícia</option>
+              <option value="interna" {{ 'selected' if dest_tipo == 'interna' }}>Outra página do portal</option>
+              <option value="externa" {{ 'selected' if dest_tipo == 'externa' }}>Endereço externo (URL)</option>
+            </select>
+            <select id="ne-dest-interna" aria-label="Página do portal" {{ 'hidden' if dest_tipo != 'interna' }}>
+              {% set achou = namespace(v=false) %}
+              {% for n, e in destinos_links %}<option value="{{ e }}" {% if dest == e %}selected{% set achou.v = true %}{% endif %}>{{ n }}</option>{% endfor %}
+              {% if dest_tipo == 'interna' and not achou.v %}<option value="{{ dest }}" selected>{{ dest }}</option>{% endif %}
+            </select>
+            <input id="ne-dest-externa" type="url" placeholder="https://..." maxlength="500" aria-label="Endereço externo"
+                   value="{{ dest if dest_tipo == 'externa' else '' }}" {{ 'hidden' if dest_tipo != 'externa' }}>
+            <p class="dica">Imagem, título e resumo levam ao mesmo destino.</p>
+          </div>
+        </div>
+
+        <div class="ne2-miniprevia" aria-live="polite">
+          <strong>👁 Pré-visualização da chamada</strong>
+          <div id="ne-previa-chamada"><p class="dica">Carregando…</p></div>
+        </div>
+      </div>
+    </section>
+
+    {# ── 2 · Matéria completa ─────────────────────────────────────── #}
+    <section class="ne2-painel ne2-materia" aria-labelledby="ne-h2">
+      <h3 id="ne-h2">2. Conteúdo completo da notícia <span class="ne2-ajuda" title="É a página que abre depois do clique.">?</span></h3>
+      <div class="ne2-corpo">
+        <p class="ne2-sub">Desenvolva aqui a matéria completa da notícia.</p>
+        <label for="ne-titulo">Título completo <b class="ne2-obr">*</b></label>
+        <input id="ne-titulo" name="titulo" maxlength="200" value="{{ d.titulo }}" required>
+        <label for="ne-sub">Subtítulo</label>
+        <input id="ne-sub" name="subtitulo" maxlength="300" value="{{ d.subtitulo }}">
+
+        <label>Imagem de capa</label>
+        <div class="ne2-imagem ne2-imagem-larga">
+          <img id="ne-capa-prev" alt="" {% if d.capa %}src="{{ url_for('static', filename='uploads/' ~ d.capa) }}"{% else %}hidden{% endif %}>
+          <span class="ne2-sem" id="ne-capa-sem" {% if d.capa %}hidden{% endif %}>Sem capa</span>
+          <div class="ne2-img-botoes">
+            <button type="button" class="btn btn-sm" id="ne-capa-trocar">Trocar imagem</button>
+            <label class="btn btn-sm" for="ne-capa-arquivo" title="Enviar uma imagem do computador">Enviar</label>
+            <button type="button" class="btn btn-sm btn-perigo" id="ne-capa-tirar">Remover</button>
+            <a class="btn btn-sm" id="ne-capa-ver" target="_blank" rel="noopener" {% if d.capa %}href="{{ url_for('static', filename='uploads/' ~ d.capa) }}"{% else %}hidden{% endif %}>Ver imagem</a>
+            <input type="file" id="ne-capa-arquivo" name="imagem" data-bib="1" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+          </div>
+        </div>
+        <div class="ne2-tres">
+          <div><label for="ne-leg">Legenda</label><input id="ne-leg" name="legenda" maxlength="300" value="{{ d.legenda }}"></div>
+          <div><label for="ne-cred">Crédito</label><input id="ne-cred" name="capa_credito" maxlength="200" value="{{ d.capa_credito }}"></div>
+          <div><label for="ne-alt">Texto alternativo</label><input id="ne-alt" name="capa_alt" maxlength="300" value="{{ d.capa_alt }}"></div>
+        </div>
+
+        <label>Corpo da notícia <b class="ne2-obr">*</b> <small>(arraste ou cole imagens no texto; clique numa imagem para tamanho, posição e link)</small></label>
+        {{ r.editor('corpo', d.corpo|safe, destinos_links, csrf_token) }}
+        <p class="ne2-conta" id="ne-corpo-conta">Quantidade de caracteres: 0</p>
+
+        <details class="ne2-mais">
+          <summary>Estilo do título</summary>
+          {{ campos.titulo_noticia(d, fontes) }}
+        </details>
+      </div>
+    </section>
+
+    {# ── 3 · Organização ──────────────────────────────────────────── #}
+    <section class="ne2-painel ne2-organiza" aria-labelledby="ne-h3">
+      <h3 id="ne-h3">3. Organização da página principal</h3>
+      <div class="ne2-corpo">
+        <p class="ne2-sub">Escolha a seção, a posição e a ordem desta notícia.</p>
+        <div class="ne2-tres">
+          <div>
+            <label for="ne-cat-sel">Seção / categoria</label>
+            <select id="ne-cat-sel">
+              <option value="">(sem categoria)</option>
+              {% for c in categorias %}<option value="{{ c }}" {{ 'selected' if d.categoria == c }}>{{ c }}</option>{% endfor %}
+              {% if d.categoria and d.categoria not in categorias %}<option value="{{ d.categoria }}" selected>{{ d.categoria }}</option>{% endif %}
+              <option value="__nova__">+ Nova categoria…</option>
+            </select>
+            <input id="ne-cat-nova" maxlength="60" placeholder="Nome da categoria" aria-label="Nova categoria" hidden>
+          </div>
+          <div>
+            <label for="ne-posicao">Posição na página</label>
+            <select id="ne-posicao" name="chamada_posicao">{% for k, v in posicoes.items() %}<option value="{{ k }}" {{ 'selected' if d.chamada_posicao == k }}>{{ v }}</option>{% endfor %}</select>
+          </div>
+          <div>
+            <label for="ne-ordem">Ordem</label>
+            <div class="ne2-ordem">
+              <button type="button" class="btn btn-sm" id="ne-ordem-topo" title="Colocar em primeiro" aria-label="Colocar em primeiro">↑</button>
+              <input id="ne-ordem" name="ordem_pos" type="number" min="1" max="{{ [total_noticias, 1]|max + (1 if novo else 0) }}" value="{{ d.ordem_pos or 1 }}">
+            </div>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" name="chamada_visivel" {{ 'checked' if d.chamada_visivel }}> Exibir na página principal <small>(desmarcar só esconde a chamada; a matéria continua publicada)</small></label>
+        <label class="check"><input type="checkbox" name="em_destaque" {{ 'checked' if d.destaque }}> Destaque <small>(vai para o topo da lista, como manchete)</small></label>
+        <div class="ne2-duas">
+          <div><label for="ne-estado">Situação</label>
+            <select id="ne-estado" name="estado">{% for k, v in estados.items() %}<option value="{{ k }}" {{ 'selected' if d.estado == k }}>{{ v }}</option>{% endfor %}</select></div>
+          <div><label for="ne-data">Publicar em <small>(vazio = agora; data futura = agendada)</small></label>
+            <input id="ne-data" name="publicar_em" type="datetime-local" value="{{ d.publicar_em_campo }}"></div>
+        </div>
+        <details class="ne2-mais">
+          <summary>Mais opções</summary>
+          <label for="ne-slug">Endereço da página <small>(gerado do título se vazio)</small></label>
+          <input id="ne-slug" name="slug" maxlength="80" value="{{ d.slug }}">
+          <label for="ne-meta">Descrição para buscadores</label>
+          <input id="ne-meta" name="meta" maxlength="300" value="{{ d.meta }}">
+          <label class="check"><input type="checkbox" name="so_pagina" {{ 'checked' if d.so_pagina }}> Página de apoio <small>(não aparece em listas; só abre pelo link)</small></label>
+        </details>
+      </div>
+    </section>
+
+    {# ── 4 · Visualização completa ────────────────────────────────── #}
+    <section class="ne2-painel ne2-previa" id="ne-previa" data-visao="inicial" data-aparelho="pc" aria-labelledby="ne-h4">
+      <h3 id="ne-h4">4. Visualização completa</h3>
+      <div class="ne2-abas" role="tablist">
+        <button type="button" role="tab" class="ativa" data-visao="inicial">Página principal</button>
+        <button type="button" role="tab" data-visao="pagina">Matéria completa</button>
+        <button type="button" role="tab" data-mobile="1">Mobile</button>
+      </div>
+      <div class="ne2-aparelhos" role="group" aria-label="Aparelho">
+        <button type="button" class="btn btn-sm btn-principal" data-aparelho="pc">Computador</button>
+        <button type="button" class="btn btn-sm" data-aparelho="tablet">Tablet</button>
+        <button type="button" class="btn btn-sm" data-aparelho="cel">Celular</button>
+      </div>
+      <div class="ne2-previa-area"><div id="ne-previa-corpo" aria-live="polite"><p class="dica">Carregando…</p></div></div>
+      <p class="dica">Só uma prévia: nada é salvo nem publicado.</p>
+    </section>
+  </div>
+
+  <p class="pe-erro" id="ne-erro" role="alert"></p>
+
+  <footer class="ne2-estado" role="status">
+    <span id="ne-estado-txt" class="ne2-ok">✔ Sem alterações</span>
+    <span>Última publicação: {% if d.publicar_em and publicada %}{{ d.publicar_em[8:10] }}/{{ d.publicar_em[5:7] }}/{{ d.publicar_em[:4] }} às {{ d.publicar_em[11:16] }}{% else %}—{% endif %}</span>
+    <a class="btn btn-sm" href="{{ url_for('admin_historico') }}">Ver histórico</a>
+    <a class="btn btn-sm" href="{{ volta }}" id="ne-cancelar">Voltar à lista</a>
+  </footer>
+</form>
+</div>
+<script src="{{ url_for('static', filename='paleta.js') }}"></script>
+<script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
+<script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
+<script src="{{ url_for('static', filename='tamanho-px.js') }}"></script>
+<script src="{{ url_for('static', filename='noticia-painel.js') }}"></script>

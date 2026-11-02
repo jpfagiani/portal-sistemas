@@ -11,13 +11,13 @@
     </div>
     {% if eh_admin and editavel %}
     <div class="lista-admin">
-      <a class="btn btn-principal btn-sm" href="{{ url_for('admin_lateral', cartao=chave) }}">Editar este cartão</a>
-      <a class="btn btn-sm" href="{{ url_for('admin_lateral', cartao=chave, novo=1) }}">+ Novo item</a>
+      <a class="btn btn-principal btn-sm" href="{{ url_for('conteudos', tipo='comunicado', cartao=chave) }}">Editar este cartão</a>
+      <a class="btn btn-sm" href="{{ url_for('conteudos_editor', tipo='comunicado', ident='novo', cartao=chave) }}">+ Novo item</a>
       <details>
         <summary>Editar um item</summary>
         <ul>
         {% for i in itens %}
-          <li><a href="{{ url_for('admin_lateral', cartao=chave, editar=i.id) }}">✎ {{ (i['titulo'] or i['conteudo'] or 'Item ' ~ i['id'])|string|truncate(60) }}</a></li>
+          <li><a href="{{ url_for('conteudos_editor', tipo='comunicado', ident=i.id) }}">✎ {{ (i['titulo'] or i['conteudo'] or 'Item ' ~ i['id'])|string|truncate(60) }}</a></li>
         {% endfor %}
         </ul>
       </details>

@@ -1,5 +1,6 @@
-/* Edição da notícia na própria página (só administrador): uma janela com
-   título, capa, texto com imagens e situação. Salva por /admin/noticia-rapida. */
+/* Edição de uma página do menu (modulo.html) na própria página, só administrador: uma janela com
+   título, capa, texto com imagens e situação. Salva pelo endereço do formulário (admin_pagina_rapida).
+   Não edita notícias: notícias, cartões e comunicados usam só o editor único de Conteúdos. */
 (function () {
   'use strict';
   var fundo = document.getElementById('noticia-fundo');

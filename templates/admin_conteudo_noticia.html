@@ -1,0 +1,84 @@
+{#  Campos da notícia no editor único: dois blocos independentes (a chamada da página principal e a matéria
+    completa) mais a organização. Um bloco nunca altera o outro: o servidor só grava o que veio no formulário. #}
+{% import 'rico.html' as r with context %}
+{% import 'campos.html' as campos %}
+<fieldset class="cont-bloco bloco-chamada">
+  <legend>1 · Chamada da página principal</legend>
+  <p class="dica">É o que aparece no cartão da página inicial. Em branco, usa o título, o resumo e a capa da matéria.</p>
+  <label for="c-ch-titulo">Título da chamada <small>(em branco = título da matéria)</small></label>
+  <input id="c-ch-titulo" name="chamada_titulo" maxlength="200" value="{{ d.chamada_titulo }}">
+  <label for="c-ch-resumo">Resumo ou texto de apoio <small>(até 300 caracteres)</small></label>
+  <textarea id="c-ch-resumo" name="chamada_resumo" rows="2" maxlength="300">{{ d.chamada_resumo }}</textarea>
+  <label>Imagem da chamada <small>(em branco = capa da matéria)</small></label>
+  <input type="hidden" name="chamada_biblioteca" value="">
+  <div class="ne-capa">
+    <img id="c-ch-img-prev" alt="" {% if d.chamada_imagem %}src="{{ url_for('static', filename='uploads/' ~ d.chamada_imagem) }}"{% else %}hidden{% endif %}>
+    <div class="ne-capa-acoes">
+      <button type="button" class="btn btn-sm" id="c-ch-img-biblioteca">Escolher da biblioteca</button>
+      <label class="btn btn-sm" for="c-ch-img-arquivo">Enviar do computador</label>
+      <input type="file" id="c-ch-img-arquivo" name="chamada_arquivo" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+      <label class="check"><input type="checkbox" name="remover_chamada_imagem" id="c-ch-img-remover"> Remover a imagem da chamada</label>
+    </div>
+  </div>
+  <div class="pe-duas">
+    <div><label for="c-ch-leg">Legenda / crédito</label><input id="c-ch-leg" name="chamada_legenda" maxlength="300" value="{{ d.chamada_legenda }}"></div>
+    <div><label for="c-ch-alt">Texto alternativo <small>(acessibilidade)</small></label><input id="c-ch-alt" name="chamada_alt" maxlength="300" value="{{ d.chamada_alt }}"></div>
+  </div>
+  <div class="pe-duas">
+    <div><label for="c-ch-fmt">Formato de exibição</label>
+      <select id="c-ch-fmt" name="chamada_formato">{% for k, v in formatos.items() %}<option value="{{ k }}" {{ 'selected' if d.chamada_formato == k }}>{{ v }}</option>{% endfor %}</select></div>
+    <div><label for="c-url">Ao clicar, abrir <small>(vazio = a página desta notícia)</small></label>
+      <input id="c-url" name="url" list="c-destinos" maxlength="500" placeholder="https://... ou /pagina" value="{{ d.url }}">
+      <datalist id="c-destinos">{% for n, e in destinos_links %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist></div>
+  </div>
+  <div class="acoes"><button type="button" class="btn btn-sm" data-ver="chamada">Ver a chamada</button></div>
+</fieldset>
+
+<fieldset class="cont-bloco bloco-materia">
+  <legend>2 · Matéria completa</legend>
+  <p class="dica">É a página que abre depois do clique, com a notícia inteira.</p>
+  <label for="c-titulo">Título completo *</label>
+  <input id="c-titulo" name="titulo" maxlength="200" value="{{ d.titulo }}" required>
+  {{ campos.titulo_noticia(d, fontes) }}
+  <label for="c-sub">Subtítulo</label>
+  <input id="c-sub" name="subtitulo" maxlength="300" value="{{ d.subtitulo }}">
+  <label>Imagem de capa <small>(topo da matéria)</small></label>
+  <div class="ne-capa">
+    <img id="c-img-prev" alt="" {% if d.capa %}src="{{ url_for('static', filename='uploads/' ~ d.capa) }}"{% else %}hidden{% endif %}>
+    <div class="ne-capa-acoes">
+      <button type="button" class="btn btn-sm" id="c-img-biblioteca">Escolher da biblioteca</button>
+      <label class="btn btn-sm" for="c-img-arquivo">Enviar do computador</label>
+      <input type="file" id="c-img-arquivo" name="imagem" data-bib="1" accept=".png,.jpg,.jpeg,.webp,.gif" hidden>
+      <label class="check"><input type="checkbox" name="remover_imagem" id="c-img-remover"> Remover a capa</label>
+    </div>
+  </div>
+  <div class="pe-duas">
+    <div><label for="c-leg">Legenda e crédito da capa</label><input id="c-leg" name="legenda" maxlength="300" value="{{ d.legenda }}"></div>
+    <div><label for="c-alt">Texto alternativo da capa</label><input id="c-alt" name="capa_alt" maxlength="300" value="{{ d.capa_alt }}"></div>
+  </div>
+  <label>Corpo da matéria <small>(arraste ou cole imagens no texto; clique numa imagem para tamanho, posição e link)</small></label>
+  {{ r.editor('corpo', d.corpo|safe, destinos_links, csrf_token) }}
+  <div class="acoes"><button type="button" class="btn btn-sm" data-ver="pagina">Ver a matéria</button></div>
+</fieldset>
+
+<fieldset class="cont-bloco">
+  <legend>3 · Organização e publicação</legend>
+  <input type="hidden" name="tem_organizacao" value="1">
+  <div class="pe-duas">
+    <div><label for="c-cat">Seção / categoria</label>
+      <input id="c-cat" name="categoria" list="c-cats" maxlength="60" value="{{ d.categoria }}">
+      <datalist id="c-cats">{% for c in categorias %}<option value="{{ c }}">{% endfor %}</datalist></div>
+    <div><label for="c-estado">Situação</label>
+      <select id="c-estado" name="estado">{% for k, v in estados.items() %}<option value="{{ k }}" {{ 'selected' if d.estado == k }}>{{ v }}</option>{% endfor %}</select></div>
+  </div>
+  <label for="c-data">Publicar em <small>(vazio = agora, ao publicar; data futura = agendada)</small></label>
+  <input id="c-data" name="publicar_em" type="datetime-local" value="{{ d.publicar_em_campo }}">
+  <label class="check"><input type="checkbox" name="chamada_visivel" {{ 'checked' if d.chamada_visivel }}> Mostrar a chamada na página principal <small>(desmarcar só esconde a chamada; a matéria continua publicada)</small></label>
+  <label class="check"><input type="checkbox" name="em_destaque" {{ 'checked' if d.destaque }}> Destaque (vai para o topo, como manchete)</label>
+  <p class="dica">A <strong>ordem</strong> das chamadas se muda arrastando as linhas na lista de Conteúdos.</p>
+  <label for="c-slug">Endereço da página <small>(gerado do título se vazio)</small></label>
+  <input id="c-slug" name="slug" maxlength="80" value="{{ d.slug }}">
+  <label for="c-meta">Descrição para buscadores</label>
+  <input id="c-meta" name="meta" maxlength="300" value="{{ d.meta }}">
+  <label class="check"><input type="checkbox" name="so_pagina" {{ 'checked' if d.so_pagina }}> Página de apoio <small>(não aparece em listas; só abre pelo link)</small></label>
+</fieldset>

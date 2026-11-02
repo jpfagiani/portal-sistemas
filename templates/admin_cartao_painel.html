@@ -1,0 +1,150 @@
+{#  Editor de cartão e de comunicado em painéis, como o da notícia:
+    1 Chamada (o que aparece no cartão) · 2 Conteúdo completo (matéria) · 3 Organização · 4 Visualização.
+    A chamada e a matéria são independentes: o servidor só grava o que veio no formulário. #}
+{% import 'rico.html' as r with context %}
+{% set eh_com = tipo == 'comunicado' %}
+{% set dest = d.url or '' %}
+{% set tem_materia = d.materia and (d.materia|striptags|trim or '<img' in d.materia) %}
+{% set dest_tipo = 'materia' if not dest else ('externa' if dest.startswith('http') else 'interna') %}
+<div class="ne2">
+<form id="form-ne" method="post" enctype="multipart/form-data" data-cartao="1"
+      data-salvar="{{ url_for('conteudos_salvar') }}" data-previa="{{ url_for('conteudos_previa') }}"
+      data-lista="{{ volta }}" data-csrf="{{ csrf_token }}" novalidate>
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <input type="hidden" name="tipo" value="{{ tipo }}">
+  <input type="hidden" name="id" value="{{ d.id }}">
+  <input type="hidden" name="volta" value="{{ volta }}">
+  <input type="hidden" name="cartao" value="{{ cartao_chave }}">
+  <input type="hidden" name="url" value="{{ dest }}">
+
+  <header class="ne2-topo">
+    <div>
+      <nav class="ne2-trilha" aria-label="Você está em">
+        <a href="{{ url_for('conteudos') }}">Conteúdos</a><span aria-hidden="true">›</span>
+        <a href="{{ url_for('conteudos', tipo=tipo) }}">{{ 'Comunicados' if eh_com else 'Cartões' }}</a><span aria-hidden="true">›</span>
+        <strong>{{ 'Novo' if novo else 'Editar' }} {{ rotulo|lower }}</strong>
+      </nav>
+      <h2 class="ne2-titulo">{{ 'Novo' if novo else 'Editar' }} {{ rotulo }}</h2>
+    </div>
+    <div class="ne2-botoes">
+      <button class="btn" type="button" id="ne-previa-btn">Pré-visualizar</button>
+      <button class="btn btn-principal" type="submit" data-acao="salvar">Salvar</button>
+      {% if not novo %}<button class="btn btn-perigo" type="button" id="ne-excluir" data-url="{{ url_for('conteudos_excluir') }}">Excluir</button>{% endif %}
+    </div>
+  </header>
+
+  <div class="ne2-grade">
+
+    {# ── 1 · Chamada ─────────────────────────────────────────────── #}
+    <section class="ne2-painel ne2-chamada" aria-labelledby="ne-h1">
+      <h3 id="ne-h1">1. Chamada (o que aparece no cartão) <span class="ne2-ajuda" title="É o conteúdo mostrado na página principal; não altera a matéria completa.">?</span></h3>
+      <div class="ne2-corpo">
+        <p class="ne2-sub">Escreva o texto e coloque as imagens que aparecem no cartão da página inicial.</p>
+        <label for="ne-titulo">{{ 'Nome do comunicado' if eh_com else 'Nome do cartão' }} <small>(só para você gerenciar; não aparece no portal)</small></label>
+        <input id="ne-titulo" name="titulo" maxlength="{{ 200 if eh_com else 80 }}" value="{{ d.titulo }}">
+        {% if not eh_com %}
+        <label class="check"><input type="checkbox" name="titulo_visivel" {{ 'checked' if d.titulo_visivel }}> Mostrar o nome do cartão no portal</label>
+        {% endif %}
+        <label>Texto e imagens da chamada <small>(arraste ou cole imagens; clique numa imagem para tamanho, posição e link)</small></label>
+        {{ r.editor('corpo', d.corpo|safe, destinos_links, csrf_token) }}
+        <p class="ne2-conta" id="ne-corpo-conta">Quantidade de caracteres: 0</p>
+
+        <label for="ne-dest-tipo">Destino do clique</label>
+        <select id="ne-dest-tipo">
+          <option value="materia" {{ 'selected' if dest_tipo == 'materia' }}>Matéria completa deste conteúdo (se houver)</option>
+          <option value="interna" {{ 'selected' if dest_tipo == 'interna' }}>Outra página do portal</option>
+          <option value="externa" {{ 'selected' if dest_tipo == 'externa' }}>Endereço externo (URL)</option>
+        </select>
+        <select id="ne-dest-interna" aria-label="Página do portal" {{ 'hidden' if dest_tipo != 'interna' }}>
+          {% set achou = namespace(v=false) %}
+          {% for n, e in destinos_links %}<option value="{{ e }}" {% if dest == e %}selected{% set achou.v = true %}{% endif %}>{{ n }}</option>{% endfor %}
+          {% if dest_tipo == 'interna' and not achou.v %}<option value="{{ dest }}" selected>{{ dest }}</option>{% endif %}
+        </select>
+        <input id="ne-dest-externa" type="url" placeholder="https://..." maxlength="500" aria-label="Endereço externo"
+               value="{{ dest if dest_tipo == 'externa' else '' }}" {{ 'hidden' if dest_tipo != 'externa' }}>
+        <p class="dica">Sem matéria completa e sem outro destino, o conteúdo não é um link.</p>
+
+        <div class="ne2-miniprevia" aria-live="polite">
+          <strong>👁 Pré-visualização da chamada</strong>
+          <div id="ne-previa-chamada"><p class="dica">Carregando…</p></div>
+        </div>
+      </div>
+    </section>
+
+    {# ── 2 · Matéria completa ─────────────────────────────────────── #}
+    <section class="ne2-painel ne2-materia" aria-labelledby="ne-h2">
+      <h3 id="ne-h2">2. Conteúdo completo <span class="ne2-ajuda" title="É a página que abre depois do clique. Opcional.">?</span></h3>
+      <div class="ne2-corpo">
+        <p class="ne2-sub">Opcional. Se preencher, o clique abre uma página com esta matéria e o cartão fica só com a chamada.</p>
+        <label for="ne-mat-titulo">Título da matéria <small>(em branco = nome)</small></label>
+        <input id="ne-mat-titulo" name="materia_titulo" maxlength="200" value="{{ d.materia_titulo }}">
+        <label>Texto e imagens da matéria</label>
+        {{ r.editor('materia', d.materia|safe, destinos_links, csrf_token) }}
+        <p class="ne2-conta" id="ne-mat-conta">Quantidade de caracteres: 0</p>
+        {% if not novo and tem_materia %}<p class="dica">Endereço da matéria: <code>/materia/{{ tipo }}/{{ d.id }}</code></p>{% endif %}
+        {% if not novo and not tem_materia %}
+        <button type="button" class="btn btn-sm btn-principal" id="ne-mover" data-url="{{ url_for('conteudos_mover_para_materia') }}"
+                title="Leva o texto que está no cartão para a matéria completa; no cartão ficam as imagens e uma linha de chamada">
+          Mover o texto deste cartão para a matéria completa</button>
+        {% endif %}
+      </div>
+    </section>
+
+    {# ── 3 · Organização ──────────────────────────────────────────── #}
+    <section class="ne2-painel ne2-organiza" aria-labelledby="ne-h3">
+      <h3 id="ne-h3">3. Organização na página principal</h3>
+      <div class="ne2-corpo">
+        {% if eh_com %}
+        <p class="ne2-sub">Escolha como este comunicado aparece no cartão
+          «{% for c in cartoes_itens if c.chave == cartao_chave %}{{ c.nome }}{% endfor %}».</p>
+        <label class="check"><input type="checkbox" name="ativo" {{ 'checked' if novo or d.ativo }}> Exibir na página principal</label>
+        <div class="ne2-duas">
+          <div><label for="ne-urg">Urgência <small>(define o selo)</small></label>
+            <select id="ne-urg" name="urgencia">
+              {% for k, v in {'informacao': 'Informação', 'comunicado': 'Comunicado', 'urgente': 'Urgente'}.items() %}
+              <option value="{{ k }}" {{ 'selected' if d.urgencia == k }}>{{ v }}</option>{% endfor %}</select></div>
+          <div><label for="ne-dest">Destaque</label>
+            <select id="ne-dest" name="destaque">{% for k, v in destaques.items() %}<option value="{{ k }}" {{ 'selected' if d.destaque == k }}>{{ v }}</option>{% endfor %}</select></div>
+        </div>
+        <p class="dica">A <strong>ordem</strong> dos comunicados se muda arrastando as linhas na lista de Conteúdos (filtro Comunicados → cartão).</p>
+        {% else %}
+        <p class="ne2-sub">Posição e tamanho do cartão na página inicial.</p>
+        <p><a class="btn btn-sm" href="{{ url_for('editor') }}">Editar portal (arrastar o cartão)</a>
+           <a class="btn btn-sm" href="{{ url_for('admin_mapa') }}">Mapa do painel</a></p>
+        <p class="dica">Para esconder o cartão da página inicial, use a lista de Conteúdos.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {# ── 4 · Visualização completa ────────────────────────────────── #}
+    <section class="ne2-painel ne2-previa" id="ne-previa" data-visao="chamada" data-aparelho="pc" aria-labelledby="ne-h4">
+      <h3 id="ne-h4">4. Visualização completa</h3>
+      <div class="ne2-abas" role="tablist">
+        <button type="button" role="tab" class="ativa" data-visao="chamada">Chamada</button>
+        <button type="button" role="tab" data-visao="materia">Matéria completa</button>
+        <button type="button" role="tab" data-mobile="1">Mobile</button>
+      </div>
+      <div class="ne2-aparelhos" role="group" aria-label="Aparelho">
+        <button type="button" class="btn btn-sm btn-principal" data-aparelho="pc">Computador</button>
+        <button type="button" class="btn btn-sm" data-aparelho="tablet">Tablet</button>
+        <button type="button" class="btn btn-sm" data-aparelho="cel">Celular</button>
+      </div>
+      <div class="ne2-previa-area"><div id="ne-previa-corpo" aria-live="polite"><p class="dica">Carregando…</p></div></div>
+      <p class="dica">Só uma prévia: nada é salvo nem publicado.</p>
+    </section>
+  </div>
+
+  <p class="pe-erro" id="ne-erro" role="alert"></p>
+
+  <footer class="ne2-estado" role="status">
+    <span id="ne-estado-txt" class="ne2-ok">✔ Sem alterações</span>
+    <a class="btn btn-sm" href="{{ url_for('admin_historico') }}">Ver histórico</a>
+    <a class="btn btn-sm" href="{{ volta }}" id="ne-cancelar">Voltar à lista</a>
+  </footer>
+</form>
+</div>
+<script src="{{ url_for('static', filename='paleta.js') }}"></script>
+<script src="{{ url_for('static', filename='midia-seletor.js') }}"></script>
+<script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
+<script src="{{ url_for('static', filename='tamanho-px.js') }}"></script>
+<script src="{{ url_for('static', filename='noticia-painel.js') }}"></script>

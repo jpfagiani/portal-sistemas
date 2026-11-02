@@ -1,0 +1,16 @@
+{% extends 'shell.html' %}
+{% set pagina = 'materia' %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block miolo %}
+<main class="pagina pagina-noticia">
+  <div class="migalha"><a href="{{ url_for('index') }}">← Início</a></div>
+  <article class="noticia">
+    <header><h1 class="pagina-titulo">{{ titulo }}</h1></header>
+    <div class="pagina-texto noticia-corpo">{{ corpo }}</div>
+  </article>
+  <div class="acoes pagina-acoes">
+    <a class="btn" href="{{ url_for('index') }}">Voltar ao início</a>
+    {% if eh_admin %}<a class="btn btn-principal" href="{{ editar }}">Editar</a>{% endif %}
+  </div>
+</main>
+{% endblock %}

@@ -1,5 +1,6 @@
 {% extends 'shell.html' %}
 {% import 'blocos.html' as b with context %}
+{% import 'chamada.html' as ch with context %}
 {% import 'rico.html' as r with context %}
 {% set pagina = 'inicio' %}
 {% block titulo %}Portal{% endblock %}
@@ -65,32 +66,31 @@
     <section class="cartao" {{ posicao(c) }}>
       <div class="cartao-cab">
         <span class="cab-ic">{{ ic(c.icone) }}</span>
-        <h2>{% if modo_edicao %}<a class="cab-link cab-editar" href="{{ url_for('admin_noticias') }}" title="Gerenciar notícias">{{ c.nome }}</a>
+        <h2>{% if modo_edicao %}<a class="cab-link cab-editar" href="{{ url_for('conteudos', tipo='noticia') }}" title="Gerenciar notícias">{{ c.nome }}</a>
             {% else %}<a class="cab-link" href="{{ url_for('noticias') }}">{{ c.nome }}</a>{% endif %}</h2>
       </div>
-      {% if noticias_vitrine[0] == 'grade' %}
+      {% set modelo = noticias_vitrine[0] %}
+      {% macro item(n) %}{{ ch.chamada(n, ch.formato_de(n, modelo)|trim, n.destino_url or url_for('noticia', slug=n.slug), n.publicar_em|data_br) }}{% endmacro %}
+      {% if modelo == 'categorias' %}
+      <div class="cartao-corpo not-lista not-categorias">
+        {% for cat, grupo in noticias_recentes|groupby('categoria') %}
+        <h3 class="not-cat">{{ cat or 'Outras' }}</h3>
+        {% for n in grupo %}{{ item(n) }}{% endfor %}
+        {% else %}<p class="vazio">Nenhuma notícia publicada ainda.</p>
+        {% endfor %}
+      </div>
+      {% elif modelo == 'grade' %}
       {#  Vitrine: imagem em cima e título logo abaixo, os dois com a mesma largura; o item todo é um link
-          (para a própria notícia, para uma página do portal ou para um site, conforme "Ao clicar, abrir"). #}
+          (para a própria notícia, para uma página do portal ou para um site). Cada chamada pode ter o seu formato. #}
       <div class="cartao-corpo not-vitrine" style="--col:{{ noticias_vitrine[1] }}">
-        {% for n in noticias_recentes %}
-        {% set destino = n.destino_url or url_for('noticia', slug=n.slug) %}
-        <a class="not-chamada" href="{{ destino }}"{% if destino.startswith('http') %} target="_blank" rel="noopener"{% endif %}>
-          {% if n.capa %}<img src="{{ url_for('static', filename='uploads/' ~ n.capa) }}" alt="" loading="lazy">{% endif %}
-          <strong class="ntit" style="{{ estilo_titulo(n) }}">{{ n.titulo }}</strong>
-        </a>
+        {% for n in noticias_recentes %}{{ item(n) }}
         {% else %}
         <p class="vazio">Nenhuma notícia publicada ainda.</p>
         {% endfor %}
       </div>
       {% else %}
       <div class="cartao-corpo not-lista">
-        {% for n in noticias_recentes %}
-        {% set destino = n.destino_url or url_for('noticia', slug=n.slug) %}
-        <a class="not-item" href="{{ destino }}"{% if destino.startswith('http') %} target="_blank" rel="noopener"{% endif %}>
-          {% if n.capa %}<img src="{{ url_for('static', filename='uploads/' ~ n.capa) }}" alt="" loading="lazy">{% endif %}
-          <span><small>{% if n.categoria %}{{ n.categoria }} · {% endif %}{{ n.publicar_em|data_br }}</small>
-            <strong class="ntit" style="{{ estilo_titulo(n) }}">{{ n.titulo }}</strong></span>
-        </a>
+        {% for n in noticias_recentes %}{{ item(n) }}
         {% else %}
         <p class="vazio">Nenhuma notícia publicada ainda.</p>
         {% endfor %}

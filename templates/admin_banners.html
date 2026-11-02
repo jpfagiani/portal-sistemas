@@ -56,7 +56,8 @@
       <input name="titulo" value="{{ editar.titulo if editar else '' }}"
              placeholder="Fachada da unidade">
       <label>Link ao clicar <small>(opcional)</small></label>
-      <input name="url" placeholder="https://..." value="{{ editar.url if editar else '' }}">
+      <input name="url" list="destinos-portal" placeholder="https://... ou escolha uma página do portal" value="{{ editar.url if editar else '' }}">
+      <datalist id="destinos-portal">{% for n, e in destinos_portal %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist>
       <label>Ordem</label>
       <input name="ordem" type="number" value="{{ editar.ordem if editar else 0 }}">
       <label class="check"><input type="checkbox" name="ativo"

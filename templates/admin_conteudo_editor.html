@@ -8,13 +8,15 @@
     para aqueles tipos; o servidor ignora o que não é do tipo (e não apaga o que
     já estava guardado). #}
 {% block admin %}
-{% set rico = tipo in ('cartao', 'noticia') %}
+{% if tipo == 'noticia' %}{% include 'admin_noticia_painel.html' %}{% elif tipo in ('cartao', 'comunicado') %}{% include 'admin_cartao_painel.html' %}{% else %}
+{% set rico = tipo in ('cartao', 'noticia', 'comunicado') %}
 <div class="cont-editor">
 <form id="form-conteudo-ed" method="post" enctype="multipart/form-data" class="painel-caixa"
       data-salvar="{{ url_for('conteudos_salvar') }}" data-previa="{{ url_for('conteudos_previa') }}"
       data-lista="{{ volta }}" data-biblioteca="{{ url_for('admin_midia_lista') }}"
       data-enviar="{{ url_for('admin_midia_enviar') }}" data-csrf="{{ csrf_token }}" novalidate>
-  <h2>{{ ('Nova' if tipo == 'noticia' else 'Novo') if novo else 'Editar' }} {{ rotulo|lower }}
+  <h2><span class="tag tag-admin" title="Tipo de conteúdo">{{ rotulo|upper }}</span>
+    {{ ('Nova' if tipo == 'noticia' else 'Novo') if novo else 'Editar' }} {{ rotulo|lower }}
     {% if tipo == 'noticia' and not novo %}<span class="tag {{ 'tag-ok' if d.situacao == 'Publicada' else 'tag-off' }}">{{ d.situacao }}</span>{% endif %}</h2>
   <input type="hidden" name="csrf" value="{{ csrf_token }}">
   <input type="hidden" name="tipo" value="{{ tipo }}">
@@ -24,9 +26,13 @@
   <input type="hidden" name="imagem_biblioteca" value="">
   <input type="hidden" name="imagem_nova" value="">
 
+  {% if tipo == 'noticia' %}
+  {% include 'admin_conteudo_noticia.html' %}
+  {% else %}
   <fieldset class="cont-bloco">
-    <legend>Conteúdo</legend>
-    <label for="c-titulo">{{ 'Nome do cartão' if tipo == 'cartao' else 'Título' }}{{ ' *' if tipo == 'noticia' }}</label>
+    <legend>{{ '1 · Chamada (o que aparece no cartão)' if tipo in ('cartao', 'comunicado') else 'Conteúdo' }}</legend>
+    <label for="c-titulo">{{ 'Nome do cartão' if tipo == 'cartao' else ('Nome do comunicado' if tipo == 'comunicado' else 'Título') }}{{ ' *' if tipo == 'noticia' }}
+      {% if tipo != 'noticia' %}<small>(só para você gerenciar; não aparece no portal — escreva o título dentro do texto)</small>{% endif %}</label>
     <input id="c-titulo" name="titulo" maxlength="{{ 80 if tipo == 'cartao' else 200 }}" value="{{ d.titulo }}"
            {{ 'required' if tipo == 'noticia' }}>
     {% if tipo == 'noticia' %}
@@ -46,7 +52,7 @@
     {% endif %}
   </fieldset>
 
-  {% if tipo != 'cartao' %}
+  {% if tipo == 'noticia' %}
   <fieldset class="cont-bloco">
     <legend>Mídia</legend>
     {% set atual = d.capa if tipo == 'noticia' else d.imagem %}
@@ -75,15 +81,35 @@
   </fieldset>
   {% endif %}
 
+  {% if tipo in ('cartao', 'comunicado') %}
+  <fieldset class="cont-bloco bloco-materia">
+    <legend>2 · Matéria completa <small>(opcional)</small></legend>
+    <p class="dica">Se preencher, o clique no cartão abre uma página com esta matéria, e o cartão fica só com a chamada.</p>
+    <label for="c-mat-titulo">Título da matéria <small>(em branco = nome do cartão)</small></label>
+    <input id="c-mat-titulo" name="materia_titulo" maxlength="200" value="{{ d.materia_titulo }}">
+    <label>Texto e imagens da matéria</label>
+    {{ r.editor('materia', d.materia|safe, destinos_links, csrf_token) }}
+    {% if not novo and d.materia %}<p class="dica">Endereço da matéria: <code>/materia/{{ tipo }}/{{ d.id }}</code></p>{% endif %}
+    <div class="acoes">
+      <button type="button" class="btn btn-sm" data-ver="materia">Ver a matéria</button>
+      {% if not novo and not d.materia %}
+      <button type="button" class="btn btn-sm btn-principal" id="c-mover" data-url="{{ url_for('conteudos_mover_para_materia') }}"
+              title="Leva o texto que está no cartão para a matéria completa; no cartão ficam as imagens e uma linha de chamada">
+        Mover o texto deste cartão para a matéria completa</button>
+      {% endif %}
+    </div>
+  </fieldset>
+  {% endif %}
+
   <fieldset class="cont-bloco">
     <legend>Link e destino</legend>
     <label for="c-url">{{ {'noticia': 'Ao clicar, abrir', 'cartao': 'Endereço do cartão inteiro', 'comunicado': 'Endereço (o item inteiro vira link)'}[tipo] }}
       <small>({{ 'opcional; vazio = a própria notícia' if tipo == 'noticia' else 'opcional' }})</small></label>
     <input id="c-url" name="url" list="c-destinos" maxlength="500" placeholder="https://... ou /pagina" value="{{ d.url }}">
     <datalist id="c-destinos">{% for n, e in destinos_links %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist>
-    {% if tipo == 'comunicado' %}
-    <label for="c-urlrot">Texto do link <small>(padrão: “Abrir”)</small></label>
-    <input id="c-urlrot" name="url_rot" maxlength="60" value="{{ d.url_rot }}">
+    {% if tipo in ('cartao', 'comunicado') %}
+    <p class="dica">Vazio: se o cartão tiver <strong>matéria completa</strong> (bloco 2), o clique abre a matéria; sem matéria, o cartão não é link.
+      Escolha outra página ou um site para mudar o destino.</p>
     {% endif %}
   </fieldset>
 
@@ -104,8 +130,9 @@
     <label for="c-meta">Descrição para buscadores</label>
     <input id="c-meta" name="meta" maxlength="300" value="{{ d.meta }}">
     <label class="check"><input type="checkbox" name="em_destaque" {{ 'checked' if d.destaque }}> Destaque (fixada no topo da lista, como manchete)</label>
+    <label class="check"><input type="checkbox" name="so_pagina" {{ 'checked' if d.so_pagina }}> Página de apoio de um cartão <small>(não aparece em “Últimas notícias” nem nas listas; só abre pelo link)</small></label>
     {% elif tipo == 'cartao' %}
-    <label class="check"><input type="checkbox" name="titulo_visivel" {{ 'checked' if d.titulo_visivel }}> Mostrar o nome do cartão no portal</label>
+    <label class="check"><input type="checkbox" name="titulo_visivel" {{ 'checked' if d.titulo_visivel }}> Mostrar o nome do cartão no portal <small>(o nome serve para você gerenciar; escreva o título no texto se quiser um)</small></label>
     <p class="dica">Posição e tamanho do cartão: arraste-o em <a href="{{ url_for('editor') }}">Editar portal</a> ou no
       <a href="{{ url_for('admin_mapa') }}">Mapa do painel</a>.</p>
     {% else %}
@@ -118,12 +145,10 @@
       <div><label for="c-dest">Destaque</label>
         <select id="c-dest" name="destaque">{% for k, v in destaques.items() %}<option value="{{ k }}" {{ 'selected' if d.destaque == k }}>{{ v }}</option>{% endfor %}</select></div>
     </div>
-    <label for="c-datae">Data exibida <small>(livre, ex.: 15/07/2026)</small></label>
-    <input id="c-datae" name="data" value="{{ d.data }}">
-    <label>Cor do título</label>{{ campos.paleta('titulo_cor', d.titulo_cor, paleta) }}
-    <label>Cor do texto</label>{{ campos.paleta('texto_cor', d.texto_cor, paleta) }}
     {% endif %}
   </fieldset>
+
+  {% endif %}
 
   <p class="pe-erro" id="c-erro" role="alert"></p>
   <p class="dica" id="c-ok" role="status" hidden></p>
@@ -144,10 +169,22 @@
 
 <aside class="painel-caixa cont-previa" id="c-previa" aria-live="polite" hidden>
   <h2>Pré-visualização</h2>
+  {% if tipo in ('cartao', 'comunicado') %}
+  <div class="acoes">
+    <button type="button" class="btn btn-sm btn-principal" data-visao="chamada">Chamada</button>
+    <button type="button" class="btn btn-sm" data-visao="materia">Matéria completa</button>
+  </div>
+  {% endif %}
   {% if tipo == 'noticia' %}
   <div class="acoes">
-    <button type="button" class="btn btn-sm btn-principal" data-visao="cartao">Cartão</button>
-    <button type="button" class="btn btn-sm" data-visao="pagina">Página completa</button>
+    <button type="button" class="btn btn-sm btn-principal" data-visao="chamada">Chamada</button>
+    <button type="button" class="btn btn-sm" data-visao="inicial">Página principal</button>
+    <button type="button" class="btn btn-sm" data-visao="pagina">Matéria completa</button>
+  </div>
+  <div class="acoes">
+    <button type="button" class="btn btn-sm btn-principal" data-aparelho="pc">Computador</button>
+    <button type="button" class="btn btn-sm" data-aparelho="tablet">Tablet</button>
+    <button type="button" class="btn btn-sm" data-aparelho="cel">Celular</button>
   </div>
   {% endif %}
   <p class="dica">Só uma prévia: nada foi salvo nem publicado.</p>
@@ -159,4 +196,5 @@
 <script src="{{ url_for('static', filename='editor-rico.js') }}"></script>
 <script src="{{ url_for('static', filename='tamanho-px.js') }}"></script>
 <script src="{{ url_for('static', filename='conteudo-editor.js') }}"></script>
+{% endif %}
 {% endblock %}

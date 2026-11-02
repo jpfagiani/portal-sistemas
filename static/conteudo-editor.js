@@ -11,7 +11,10 @@
 
   function dados(acao) {
     var fd = new FormData(form);
-    if (area) fd.set('corpo', area.innerHTML);
+    form.querySelectorAll('[data-rico]').forEach(function (raiz) {
+      var a = raiz.querySelector('.re-area'), h = raiz.querySelector('input[type=hidden]');
+      if (a && h && h.name) fd.set(h.name, a.innerHTML);
+    });
     if (acao) fd.set('acao', acao);
     return fd;
   }
@@ -64,8 +67,39 @@
     rem.addEventListener('change', function () { if (rem.checked) { prev.hidden = true; form.elements.imagem_nova.value = ''; } else if (prev.getAttribute('src')) prev.hidden = false; });
   }
 
+  /* Imagem exclusiva da chamada (notícia): independente da capa da matéria. */
+  var cprev = el('c-ch-img-prev'), carq = el('c-ch-img-arquivo'), crem = el('c-ch-img-remover');
+  if (cprev) {
+    el('c-ch-img-biblioteca').addEventListener('click', function () {
+      window.SeletorMidia.abrir({lista: form.dataset.biblioteca, enviar: form.dataset.enviar, csrf: form.dataset.csrf,
+        aoEscolher: function (i) {
+          form.elements.chamada_biblioteca.value = i.arquivo; carq.value = ''; crem.checked = false;
+          cprev.src = i.url; cprev.hidden = false; sujo = true;
+        }});
+    });
+    carq.addEventListener('change', function () {
+      if (!carq.files[0]) return;
+      form.elements.chamada_biblioteca.value = ''; crem.checked = false;
+      cprev.src = URL.createObjectURL(carq.files[0]); cprev.hidden = false; sujo = true;
+    });
+    crem.addEventListener('change', function () { if (crem.checked) cprev.hidden = true; else if (cprev.getAttribute('src')) cprev.hidden = false; });
+  }
+
   /* Pré-visualização: não grava nada. */
   var painel = el('c-previa'), corpo = el('c-previa-corpo');
+  var pedida = '';
+  function mostrar(v) {
+    painel.querySelectorAll('button[data-visao]').forEach(function (x) { x.classList.toggle('btn-principal', x.dataset.visao === v); });
+    corpo.querySelectorAll('.previa-visao').forEach(function (x) { x.hidden = x.dataset.visao !== v; });
+  }
+  form.querySelectorAll('[data-ver]').forEach(function (b) {
+    b.addEventListener('click', function () { pedida = b.dataset.ver; el('c-previa-btn').click(); });
+  });
+  painel.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-aparelho]'); if (!a) return;
+    painel.dataset.aparelho = a.dataset.aparelho;
+    painel.querySelectorAll('button[data-aparelho]').forEach(function (x) { x.classList.toggle('btn-principal', x === a); });
+  });
   el('c-previa-btn').addEventListener('click', function () {
     erro.textContent = '';
     travar(true);
@@ -75,6 +109,9 @@
       corpo.innerHTML = r.html;
       var src = prev && !prev.hidden ? prev.src : '';
       if (src) corpo.querySelectorAll('[data-previa-imagem], .com-imagem').forEach(function (i) { i.src = src; });
+      var csrc = cprev && !cprev.hidden ? cprev.src : src;
+      if (csrc) corpo.querySelectorAll('[data-previa-chamada]').forEach(function (i) { i.src = csrc; });
+      if (pedida) { mostrar(pedida); pedida = ''; }
       painel.hidden = false; painel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
     });
   });
@@ -82,6 +119,19 @@
     var b = e.target.closest('[data-visao]'); if (!b) return;
     painel.querySelectorAll('button[data-visao]').forEach(function (x) { x.classList.toggle('btn-principal', x === b); });
     corpo.querySelectorAll('.previa-visao').forEach(function (v) { v.hidden = v.dataset.visao !== b.dataset.visao; });
+  });
+
+  var mover = el('c-mover');
+  if (mover) mover.addEventListener('click', function () {
+    if (ocupado) return;
+    var t = window.prompt('Texto de chamada que fica no cartão, abaixo da imagem. O texto atual vai inteiro para a matéria completa:', form.elements.titulo.value || '');
+    if (t === null) return;
+    var fd = new FormData(); fd.set('csrf', form.dataset.csrf); fd.set('tipo', form.elements.tipo.value); fd.set('id', form.elements.id.value);
+    fd.set('chamada', t);
+    travar(true);
+    post(mover.dataset.url, fd).then(function (r) {
+      if (r.ok) { sujo = false; location.reload(); } else { travar(false); erro.textContent = r.erro || 'Não foi possível mover o texto.'; }
+    });
   });
 
   var exc = el('c-excluir');

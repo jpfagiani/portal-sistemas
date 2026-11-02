@@ -18,7 +18,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS cartao_conteudo (
     chave          TEXT PRIMARY KEY,
     html           TEXT NOT NULL DEFAULT '',
-    titulo_visivel INTEGER NOT NULL DEFAULT 1,
+    titulo_visivel INTEGER NOT NULL DEFAULT 0,
     url            TEXT NOT NULL DEFAULT ''     -- se preenchido, o cartão inteiro é um link
 );
 """
@@ -29,18 +29,25 @@ LARGURA_NOVO, ALTURA_NOVO = 3, 12       # em células do quadro livre (12 coluna
 def conteudo(chave):
     """HTML já limpo do cartão (guardado limpo, e limpo de novo ao ler)."""
     r = nucleo.db().execute('SELECT html FROM cartao_conteudo WHERE chave=?', (chave,)).fetchone()
-    return Markup(nucleo.limpa_html(r['html'])) if r else Markup('')
+    return Markup(nucleo.agrupa_figuras(nucleo.limpa_html(r['html']))) if r else Markup('')
 
 
 def titulo_visivel(chave):
-    r = nucleo.db().execute('SELECT titulo_visivel FROM cartao_conteudo WHERE chave=?', (chave,)).fetchone()
-    return bool(r['titulo_visivel']) if r else True
+    """O nome do cartão aparece no portal? Por padrão não: o nome é para o administrador gerenciar."""
+    con = nucleo.db()
+    r = con.execute('SELECT titulo_visivel FROM cartao_conteudo WHERE chave=?', (chave,)).fetchone()
+    if r:
+        return bool(r['titulo_visivel'])
+    r = con.execute('SELECT valor FROM config WHERE chave=?', (chave + '_titulo_visivel',)).fetchone()
+    return bool(r and r['valor'] == '1')
 
 
 def url_cartao(chave):
-    """Endereço do cartão inteiro (título, texto e imagem), ou vazio."""
-    r = nucleo.db().execute('SELECT url FROM cartao_conteudo WHERE chave=?', (chave,)).fetchone()
-    return nucleo.endereco_seguro(r['url']) if r else ''
+    """Endereço do cartão inteiro (título, texto e imagem): o escolhido, ou a matéria completa do cartão, ou vazio."""
+    r = nucleo.db().execute('SELECT url,materia_html FROM cartao_conteudo WHERE chave=?', (chave,)).fetchone()
+    if not r:
+        return ''
+    return nucleo.endereco_seguro(r['url']) or (('/materia/cartao/' + chave) if nucleo.so_texto(r['materia_html']) or '<img' in (r['materia_html'] or '') else '')
 
 
 def dados_edicao():
@@ -55,6 +62,7 @@ def dados_edicao():
 
 
 app.jinja_env.globals['cartao_conteudo'] = conteudo
+app.jinja_env.filters['rico'] = lambda h: Markup(nucleo.agrupa_figuras(nucleo.limpa_html(h or '')))
 app.jinja_env.globals['cartao_titulo_visivel'] = titulo_visivel
 app.jinja_env.globals['cartao_url'] = url_cartao
 
@@ -72,51 +80,6 @@ def vaga_livre(con, gw=LARGURA_NOVO, gh=ALTURA_NOVO):
             if not any(nucleo._livre_sobrepoe(cand, o) for o in ocupados):
                 return cand
     return {'gx': 0, 'gy': 600, 'gw': gw, 'gh': gh}
-
-
-@app.route('/admin/cartao-conteudo', methods=['POST'])
-@nucleo.admin_obrigatorio
-def admin_cartao_conteudo():
-    """Cria, altera ou exclui um cartão de texto e imagem. Responde JSON."""
-    con = nucleo.db()
-    acao = request.form.get('acao', 'salvar')
-    chave = request.form.get('chave', '')
-    existente = con.execute("SELECT * FROM cartoes_painel WHERE chave=? AND tipo='conteudo'",
-                            (chave,)).fetchone() if chave else None
-
-    if acao == 'excluir':
-        if not existente:
-            return jsonify(ok=False, erro='Cartão não encontrado.'), 404
-        con.execute('DELETE FROM cartao_conteudo WHERE chave=?', (chave,))
-        con.execute('DELETE FROM cartoes_painel WHERE chave=?', (chave,))
-        con.commit()
-        return jsonify(ok=True)
-
-    nome = request.form.get('nome', '').strip()[:80]
-    html = nucleo.limpa_html(request.form.get('corpo', ''))
-    visivel = 1 if request.form.get('titulo_visivel') else 0
-    url = nucleo.endereco_seguro(request.form.get('url', ''))
-    if not nome and not nucleo.so_texto(html) and '<img' not in html:
-        return jsonify(ok=False, erro='Escreva um texto, ou escolha uma imagem, ou dê um nome ao cartão.'), 400
-    nome = nome or 'Novo cartão'
-
-    if existente:
-        con.execute('UPDATE cartoes_painel SET nome=? WHERE chave=?', (nome, chave))
-        con.execute('INSERT INTO cartao_conteudo (chave,html,titulo_visivel,url) VALUES (?,?,?,?) '
-                    'ON CONFLICT(chave) DO UPDATE SET html=excluded.html, titulo_visivel=excluded.titulo_visivel,'
-                    ' url=excluded.url',
-                    (chave, html, visivel, url))
-    else:
-        chave = 'conteudo-' + secrets.token_hex(4)
-        ordem = con.execute('SELECT COALESCE(MAX(ordem),0)+1 FROM cartoes_painel').fetchone()[0]
-        pos = vaga_livre(con) if nucleo.layout_livre_ativo() else {'gx': 0, 'gy': 0, 'gw': 0, 'gh': 0}
-        con.execute("INSERT INTO cartoes_painel (chave,nome,icone,regiao,largura,coluna,ordem,tipo,ativo,gx,gy,gw,gh)"
-                    " VALUES (?,?,'prancheta','baixo',1,0,?,'conteudo',1,?,?,?,?)",
-                    (chave, nome, ordem, pos['gx'], pos['gy'], pos['gw'], pos['gh']))
-        con.execute('INSERT INTO cartao_conteudo (chave,html,titulo_visivel,url) VALUES (?,?,?,?)',
-                    (chave, html, visivel, url))
-    con.commit()
-    return jsonify(ok=True, chave=chave)
 
 
 # ── excluir, copiar, ocultar e mostrar (editor de layout) ──────────────────────
@@ -161,8 +124,8 @@ def _duplica(con, chave):
                 [c[k] for k in cols])
     con.execute('UPDATE cartoes_painel SET z=(SELECT COALESCE(MAX(z),0)+1 FROM cartoes_painel) WHERE chave=?', (nova,))
     if c['tipo'] == 'conteudo':
-        con.execute('INSERT INTO cartao_conteudo (chave,html,titulo_visivel,url) '
-                    'SELECT ?,html,titulo_visivel,url FROM cartao_conteudo WHERE chave=?', (nova, chave))
+        con.execute('INSERT INTO cartao_conteudo (chave,html,titulo_visivel,url,materia_titulo,materia_html) '
+                    'SELECT ?,html,titulo_visivel,url,materia_titulo,materia_html FROM cartao_conteudo WHERE chave=?', (nova, chave))
     else:
         nucleo._semear_aparencia(con, nova)
         for r in con.execute("SELECT chave,valor FROM config WHERE substr(chave,1,?)=?",

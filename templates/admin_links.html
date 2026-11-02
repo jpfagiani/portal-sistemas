@@ -33,7 +33,8 @@
       <label>Título *</label>
       <input name="titulo" required value="{{ editar.titulo if editar else '' }}">
       <label>Endereço (URL) <small>(pode ficar para depois)</small></label>
-      <input name="url" placeholder="https://..." value="{{ editar.url if editar else '' }}">
+      <input name="url" list="destinos-portal" placeholder="https://... ou escolha uma página do portal" value="{{ editar.url if editar else '' }}">
+      <datalist id="destinos-portal">{% for n, e in destinos_portal %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist>
       <p class="dica">Sem endereço o botão aparece no painel e não é link, até
         alguém informar para onde ele leva.</p>
       <label>Descrição <small>(2ª linha do botão, nos atalhos)</small></label>

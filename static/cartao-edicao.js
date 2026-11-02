@@ -13,7 +13,7 @@
   try { dados = JSON.parse(document.getElementById('dados-conteudo').textContent) || {}; } catch (e) {}
 
   function abre(chave) {
-    var d = dados[chave] || {nome: '', html: '', titulo_visivel: true};
+    var d = dados[chave] || {nome: '', html: '', titulo_visivel: false};
     form.elements.chave.value = chave || '';
     form.elements.nome.value = d.nome;
     form.elements.titulo_visivel.checked = d.titulo_visivel;

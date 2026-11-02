@@ -1,0 +1,36 @@
+{#  Uma chamada de notícia na página principal, em qualquer formato. Usa os campos da chamada e, quando vazios,
+    os da matéria (título, resumo e capa) — por isso notícias antigas continuam iguais.
+    fmt: lista | grade | manchete | cartao | faixa | texto.  href: destino do clique (a imagem, o título e o resumo
+    estão dentro do mesmo link, então levam sempre ao mesmo lugar). #}
+{% macro chamada(n, fmt, href, data='') %}
+{% set t = n.chamada_titulo or n.titulo %}
+{% set rs = n.chamada_resumo or n.resumo %}
+{% set im = n.chamada_imagem or n.capa %}
+{% set ext = href.startswith('http') %}
+{% set alvo %}href="{{ href }}"{% if ext %} target="_blank" rel="noopener"{% endif %}{% endset %}
+{% set foto %}{% if im %}<img src="{{ url_for('static', filename='uploads/' ~ im) }}" alt="{{ n.chamada_alt or '' }}" loading="lazy" data-previa-chamada>{% endif %}{% endset %}
+{% if fmt == 'lista' %}
+<a class="not-item" {{ alvo|safe }}>
+  {{ foto|safe }}
+  <span><small>{% if n.categoria %}{{ n.categoria }} · {% endif %}{{ data }}</small>
+    <strong class="ntit" style="{{ estilo_titulo(n) }}">{{ t }}</strong></span>
+</a>
+{% elif fmt == 'grade' %}
+<a class="not-chamada" {{ alvo|safe }}>
+  {{ foto|safe }}
+  <strong class="ntit" style="{{ estilo_titulo(n) }}">{{ t }}</strong>
+</a>
+{% else %}
+<a class="ch ch-{{ fmt }}" {{ alvo|safe }}>
+  {% if fmt != 'texto' and im %}<span class="ch-foto">{{ foto|safe }}{% if (n.chamada_legenda or n.chamada_credito) and fmt in ('manchete', 'cartao') %}<small class="ch-leg">{{ n.chamada_legenda }}{% if n.chamada_credito %}{% if n.chamada_legenda %} · {% endif %}{{ n.chamada_credito }}{% endif %}</small>{% endif %}</span>{% endif %}
+  <span class="ch-txt">
+    {% if n.categoria or data %}<small class="ch-sup">{% if n.categoria %}<b>{{ n.categoria }}</b>{% endif %}{% if n.categoria and data %} · {% endif %}{{ data }}</small>{% endif %}
+    <strong class="ntit" style="{{ estilo_titulo(n) }}">{{ t }}</strong>
+    {% if rs and fmt != 'texto' or rs and fmt == 'texto' %}<span class="ch-resumo">{{ rs }}</span>{% endif %}
+  </span>
+</a>
+{% endif %}
+{% endmacro %}
+
+{#  Formato efetivo: o da chamada ou, sem escolha, o modelo do cartão (lista ou grade). #}
+{% macro formato_de(n, modelo) %}{{ n.chamada_formato or ('grade' if modelo == 'grade' else 'lista') }}{% endmacro %}
