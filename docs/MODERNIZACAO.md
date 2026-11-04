@@ -226,3 +226,13 @@ Veja `docs/AUDITORIA-CONTEUDOS.md`. Rotas antigas `/admin/noticias` e `/admin/la
 - Botão "Levar a esta notícia" (`/admin/conteudos/unificar`): o clique passa a abrir a página da notícia. A matéria própria não é apagada; "Usar matéria própria" desfaz.
 - Página `/materia/...` sem título digitado usa o primeiro título/negrito do texto (nunca o nome administrativo).
 - Reversão: remover a rota e o template; nada no banco foi alterado (só o campo `url` do item quando o administrador clica no botão).
+
+## 1.9.41 — Corrigir o destino na própria tela "Conferir destinos"
+- Cada linha tem o campo de destino (lista de páginas e notícias ou endereço http/https) com "Salvar destino", mais "Editar matéria" (cartão/comunicado) e "Editar notícia". Destino inválido é recusado com mensagem; campo vazio volta a abrir a matéria própria.
+
+## 1.9.42 — Padrão de cores dos textos
+- Notícias (lista "Últimas notícias" e chamadas sem foto): título em azul (#2563eb; azul claro no tema escuro), negrito.
+- Texto abaixo de imagem (cartões, comunicados e chamadas com foto): preto, negrito 14px. Cor escolhida dentro do texto no editor continua valendo.
+- A cor própria por notícia (`--n-cor`) não vale mais na lista: a cor é a do padrão.
+- Inclui tudo da 1.9.41 (a 1.9.40 enviada não tinha a edição do destino em "Conferir destinos").
+- Reversão: remover o bloco "Padrão de cores 1.9.42" no fim de `static/limpo.css`.
