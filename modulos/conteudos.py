@@ -790,7 +790,7 @@ def _itens_para_conferir():
             elif it['imagens'] & n['imagens']:
                 motivo = 'mesma imagem'
             if motivo:
-                it['parecidas'].append(dict(titulo=n['titulo'], slug=n['slug'], motivo=motivo,
+                it['parecidas'].append(dict(id=n['id'], titulo=n['titulo'], slug=n['slug'], motivo=motivo,
                                             ja=(it['url'] == '/noticias/' + n['slug'])))
         it['unificada'] = any(p['ja'] for p in it['parecidas'])
         it['duplicada'] = bool(it['parecidas']) and it['tem_materia'] and not it['unificada']
@@ -803,7 +803,7 @@ def _itens_para_conferir():
 @nucleo.admin_obrigatorio
 def conteudos_destinos():
     itens, noticias = _itens_para_conferir()
-    return render_template('admin_conteudo_destinos.html', itens=itens, noticias=noticias,
+    return render_template('admin_conteudo_destinos.html', itens=itens, noticias=noticias, destinos=nucleo.destinos_de_links(),
                            resumo=dict(total=len(itens), erros=sum(i['estado'] == 'erro' for i in itens),
                                        duplicadas=sum(i['duplicada'] for i in itens)))
 
@@ -815,10 +815,16 @@ def conteudos_unificar():
     O texto da matéria própria NÃO é apagado: fica guardado, só deixa de ser usado enquanto houver destino."""
     from . import exibicao
     tipo, ident, slug = request.form.get('tipo', ''), request.form.get('id', ''), request.form.get('slug', '').strip()
-    url = '/noticias/' + slug if slug else ''
-    if url and not exibicao.interno_existe(url):
-        flash('Essa notícia não existe ou não está publicada.', 'erro')
-        return redirect(url_for('conteudos_destinos'))
+    if 'url' in request.form:                      # destino digitado ou escolhido na lista (corrigir à mão)
+        url = request.form['url'].strip()[:500]
+        if url and not (exibicao.interno_existe(url) if url.startswith('/') else exibicao.externo_valido(url)):
+            flash('Destino inválido: escolha uma página ou notícia da lista, ou um endereço http(s) completo.', 'erro')
+            return redirect(url_for('conteudos_destinos') + '#i-' + tipo + ident)
+    else:
+        url = '/noticias/' + slug if slug else ''
+        if url and not exibicao.interno_existe(url):
+            flash('Essa notícia não existe ou não está publicada.', 'erro')
+            return redirect(url_for('conteudos_destinos'))
     con = nucleo.db()
     if tipo == 'cartao':
         cur = con.execute('UPDATE cartao_conteudo SET url=? WHERE chave=?', (url, ident))
@@ -827,6 +833,6 @@ def conteudos_unificar():
     else:
         abort(400)
     con.commit()
-    flash('Pronto: o clique agora leva à notícia.' if url else 'Pronto: o clique volta a abrir a matéria própria.',
+    flash('Pronto: o destino do clique foi salvo.' if url else 'Pronto: sem destino manual; o clique abre a matéria própria (se houver).',
           'ok' if cur.rowcount else 'erro')
-    return redirect(url_for('conteudos_destinos'))
+    return redirect(url_for('conteudos_destinos') + '#i-' + tipo + ident)

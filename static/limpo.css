@@ -859,3 +859,15 @@ img[style*="height"].redim-img,.redim-caixa>img[style*="height"]{object-fit:cove
 .cartao-texto .fig-c,.cartao-texto .fig-c>*{text-align:center}
 .cartao-texto .fig-d,.cartao-texto .fig-d>*{text-align:right}
 .cartao-texto p[style*="text-align:center"]>img{margin-left:auto;margin-right:auto}
+
+/* ---- Padrão de cores 1.9.42 ----
+   Notícias (lista e chamadas sem imagem): título em azul, negrito.
+   Texto abaixo de imagem (cartões, comunicados, chamadas com foto): preto, negrito.
+   Cor escolhida no editor, dentro do texto, continua valendo. */
+:root{--pad-cor-noticia:#2563eb;--pad-cor-sob-img:#000}
+html[data-tema="escuro"]{--pad-cor-noticia:#7aa7ff;--pad-cor-sob-img:var(--texto)}
+.not-item .ntit,.not-item strong,.ch-texto .ntit,.ch:not(:has(.ch-foto)) .ntit,.ch-texto .ch-resumo{color:var(--pad-cor-noticia)!important}
+.not-chamada .ntit,.not-chamada strong,.ch:has(.ch-foto) .ntit,.ch:has(.ch-foto) .ch-resumo,.ch:has(.ch-foto) .ch-leg{color:var(--pad-cor-sob-img)!important}
+.cartao-texto,.cartao-texto p,.cartao-texto li,.cartao-texto h2,.cartao-texto h3,.cartao-texto strong{color:var(--pad-cor-sob-img)}
+.comunicado p,.comunicado .titulo{color:var(--com-texto-cor,var(--pad-cor-sob-img))}
+.cartao-texto strong,.cartao-texto b,.comunicado strong,.comunicado b{font-weight:700}

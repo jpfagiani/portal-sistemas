@@ -17,17 +17,24 @@
     <thead><tr><th>Tipo</th><th>Item</th><th>O clique leva a</th><th>Mesma matéria em Notícias?</th></tr></thead>
     <tbody>
     {% for i in itens %}
-    <tr class="{{ 'linha-erro' if i.estado == 'erro' }}">
+    <tr id="i-{{ i.tipo }}{{ i.ident }}" class="{{ 'linha-erro' if i.estado == 'erro' }}">
       <td>{{ 'Cartão' if i.tipo == 'cartao' else 'Comunicado' }}</td>
       <td><a href="{{ url_for('conteudos_editor', tipo=i.tipo, ident=i.ident) }}"><b>{{ i.nome or '(sem nome)' }}</b></a>
         <br><small class="dica">{{ i.chamada or 'sem texto' }}</small></td>
       <td>{% if i.estado == 'erro' %}❌{% elif i.estado == 'ok' %}✅{% else %}⚠️{% endif %} {{ i.estado_txt }}
         {% if i.tem_materia and i.tipo == 'cartao' %}<br><small><a href="{{ url_for('materia', tipo='cartao', ident=i.ident) }}" target="_blank" rel="noopener">ver matéria própria</a></small>
-        {% elif i.tem_materia %}<br><small><a href="{{ url_for('materia', tipo='comunicado', ident=i.ident) }}" target="_blank" rel="noopener">ver matéria própria</a></small>{% endif %}</td>
+        {% elif i.tem_materia %}<br><small><a href="{{ url_for('materia', tipo='comunicado', ident=i.ident) }}" target="_blank" rel="noopener">ver matéria própria</a></small>{% endif %}
+        <form method="post" action="{{ url_for('conteudos_unificar') }}" class="cont-inline" style="margin-top:.4rem">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="tipo" value="{{ i.tipo }}"><input type="hidden" name="id" value="{{ i.ident }}">
+          <input name="url" list="destinos-todos" value="{{ i.url }}" maxlength="500" placeholder="vazio = abre a matéria própria" aria-label="Destino do clique" style="min-width:16rem">
+          <button class="btn btn-sm" type="submit" title="Corrige o destino do clique">Salvar destino</button>
+          <a class="btn btn-sm" href="{{ url_for('conteudos_editor', tipo=i.tipo, ident=i.ident) }}">Editar matéria</a>
+        </form></td>
       <td>
         {% for p in i.parecidas %}
           <div>
             <a href="{{ url_for('noticia', slug=p.slug) }}" target="_blank" rel="noopener">{{ p.titulo }}</a> <small class="dica">({{ p.motivo }})</small>
+            <a class="btn btn-sm" href="{{ url_for('conteudos_editor', tipo='noticia', ident=p.id) }}">Editar notícia</a>
             {% if p.ja %}<b>✅ já leva a esta notícia</b>
             {% else %}
             <form method="post" action="{{ url_for('conteudos_unificar') }}" class="cont-inline" style="display:inline">
@@ -54,5 +61,6 @@
   </table>
   </div>
   <p class="dica">Para ligar um item a <b>qualquer</b> notícia (não só às parecidas), abra o item e escolha a notícia em “Link e destino”.</p>
+  <datalist id="destinos-todos">{% for n, e in destinos %}<option value="{{ e }}">{{ n }}</option>{% endfor %}</datalist>
 </section>
 {% endblock %}
